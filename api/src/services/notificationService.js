@@ -529,7 +529,11 @@ class NotificationService {
       const { type = null, category = null, unreadOnly = false, limit = 50, offset = 0, franchise = null } = filters;
 
       let query = { 'recipients.user': userId };
-      if (type) query.type = type;
+      // The notification center should only surface in-app notifications.
+      // whatsapp/push are delivery channels for the same event, so including
+      // them here produced duplicate rows (one per channel). Default to
+      // `in_app` (matching getUnreadCount) unless a specific type is requested.
+      query.type = type || 'in_app';
       if (category) query.category = category;
       // Franchise scoping: the user is already constrained via recipients.user,
       // so it is safe to also surface notifications that have no franchise set
