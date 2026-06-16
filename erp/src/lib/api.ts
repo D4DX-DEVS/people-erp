@@ -357,6 +357,15 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     let url = `${this.baseURL}${endpoint}`;
 
+    // Cross-franchise: forward the branch selected in the franchise tab bar so the
+    // backend can scope reads to a single franchise (or "all"). The selection is
+    // persisted by useCrossFranchise under this localStorage key. Harmless for
+    // non-cross-franchise users — the backend ignores it unless isCrossFranchise.
+    const franchiseFilter = localStorage.getItem('crossFranchiseFilter');
+    if (franchiseFilter && !/[?&]franchiseFilter=/.test(url)) {
+      url += `${url.includes('?') ? '&' : '?'}franchiseFilter=${encodeURIComponent(franchiseFilter)}`;
+    }
+
     const method = (options.method || 'GET').toUpperCase();
 
     const headers = new Headers(this.getHeaders());

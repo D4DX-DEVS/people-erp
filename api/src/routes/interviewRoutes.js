@@ -9,6 +9,19 @@ const RBACMiddleware = require('../middleware/rbacMiddleware');
 const { validate } = require('../middleware/validation');
 const Joi = require('joi');
 
+// Build a safe lookup query for an application by either its ObjectId or its
+// applicationNumber. Including a non-ObjectId value (e.g. "APP2026000189") in an
+// `{ _id: ... }` condition makes Mongoose throw a CastError, so only match on
+// `_id` when the value is a valid 24-char hex ObjectId.
+const buildApplicationQuery = (applicationId, franchiseId) => {
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(applicationId);
+  const query = isObjectId
+    ? { $or: [{ _id: applicationId }, { applicationNumber: applicationId }] }
+    : { applicationNumber: applicationId };
+  query.franchise = franchiseId;
+  return query;
+};
+
 // Validation schemas
 const scheduleInterviewSchema = Joi.object({
   date: Joi.string().isoDate().required(),
@@ -472,13 +485,9 @@ router.put('/:applicationId',
       const updateData = req.body;
 
       // Find the application
-      const application = await Application.findOne({
-        $or: [
-          { _id: applicationId },
-          { applicationNumber: applicationId }
-        ],
-        franchise: req.franchiseId
-      });
+      const application = await Application.findOne(
+        buildApplicationQuery(applicationId, req.franchiseId)
+      );
 
       if (!application) {
         return res.status(404).json({
@@ -1397,13 +1406,9 @@ router.patch('/:applicationId/cancel',
       const { applicationId } = req.params;
       const { reason } = req.body;
 
-      const application = await Application.findOne({
-        $or: [
-          { _id: applicationId },
-          { applicationNumber: applicationId }
-        ],
-        franchise: req.franchiseId
-      });
+      const application = await Application.findOne(
+        buildApplicationQuery(applicationId, req.franchiseId)
+      );
 
       if (!application) {
         return res.status(404).json({
@@ -1472,13 +1477,9 @@ router.get('/history/:applicationId',
       const { applicationId } = req.params;
 
       // Find the application
-      const application = await Application.findOne({
-        $or: [
-          { _id: applicationId },
-          { applicationNumber: applicationId }
-        ],
-        franchise: req.franchiseId
-      });
+      const application = await Application.findOne(
+        buildApplicationQuery(applicationId, req.franchiseId)
+      );
 
       if (!application) {
         return res.status(404).json({
