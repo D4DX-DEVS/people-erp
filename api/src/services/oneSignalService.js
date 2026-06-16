@@ -82,35 +82,81 @@ async function sendToExternalIds(externalIds, title, message, data = {}) {
   let totalSent = 0;
   let lastError = null;
 
+  const baseHeaders = {
+    'Content-Type': 'application/json; charset=utf-8',
+    Authorization: authHeader()
+  };
+  const basePayload = {
+    app_id: config.ONESIGNAL_APP_ID,
+    headings: { en: title },
+    contents: { en: message },
+    data: payloadData
+  };
+
+  // OneSignal's modern `include_aliases: { external_id }` targeting can return
+  // `invalid_aliases` (0 recipients) when an external_id maps to multiple stale
+  // identity records (e.g. after app reinstalls). The legacy
+  // `include_external_user_ids` targeting resolves the same external ids
+  // reliably in that situation, so we use it as a fallback.
+  const sendViaExternalUserIds = async (batch) => {
+    const response = await axios.post(
+      ONESIGNAL_API_URL,
+      {
+        ...basePayload,
+        include_external_user_ids: batch,
+        channel_for_external_user_ids: 'push'
+      },
+      { headers: baseHeaders, timeout: 15000 }
+    );
+    return response.data;
+  };
+
   for (const batch of batches) {
     try {
       const response = await axios.post(
         ONESIGNAL_API_URL,
         {
-          app_id: config.ONESIGNAL_APP_ID,
+          ...basePayload,
           target_channel: 'push',
-          include_aliases: { external_id: batch },
-          headings: { en: title },
-          contents: { en: message },
-          data: payloadData
+          include_aliases: { external_id: batch }
         },
-        {
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            Authorization: authHeader()
-          },
-          timeout: 15000
-        }
+        { headers: baseHeaders, timeout: 15000 }
       );
 
-      const recipients = response.data?.recipients ?? 0;
-      totalSent += recipients;
+      let recipients = response.data?.recipients ?? 0;
 
-      // OneSignal returns 200 with an `errors` field when some aliases are
-      // not subscribed — that is not a hard failure for the rest.
-      if (response.data?.errors) {
+      // If the alias-based send reached nobody (commonly due to stale duplicate
+      // external_id identities), retry the same batch via the legacy
+      // external-user-id targeting which handles those cases.
+      if (recipients === 0) {
+        if (response.data?.errors) {
+          console.warn('⚠️ [ONESIGNAL] Alias targeting failed, retrying via external_user_ids:', JSON.stringify(response.data.errors));
+        }
+        try {
+          const fallback = await sendViaExternalUserIds(batch);
+          // `include_external_user_ids` does not return a synchronous recipient
+          // count — a notification `id` with no hard `errors` means OneSignal
+          // accepted and queued delivery to the subscribed devices. (A
+          // `warnings` field about unsubscribed subscriptions is non-fatal.)
+          if (fallback?.id && !fallback?.errors) {
+            recipients = batch.length;
+          } else if (fallback?.errors) {
+            lastError = fallback.errors;
+            console.error('❌ [ONESIGNAL] Fallback push errors:', JSON.stringify(fallback.errors));
+          }
+          if (fallback?.warnings) {
+            console.warn('⚠️ [ONESIGNAL] Fallback warnings:', JSON.stringify(fallback.warnings));
+          }
+        } catch (fallbackError) {
+          lastError = fallbackError.response?.data?.errors || fallbackError.message;
+          console.error('❌ [ONESIGNAL] Fallback push send failed:', JSON.stringify(lastError));
+        }
+      } else if (response.data?.errors) {
+        // Some aliases delivered, some did not — not a hard failure.
         console.warn('⚠️ [ONESIGNAL] Partial errors:', JSON.stringify(response.data.errors));
       }
+
+      totalSent += recipients;
     } catch (error) {
       lastError = error.response?.data?.errors || error.message;
       console.error('❌ [ONESIGNAL] Push send failed:', JSON.stringify(lastError));
