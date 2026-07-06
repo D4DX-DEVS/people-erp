@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Building2, Users, Plus, Trash2, UserPlus, UserX,
+  Building2, Users, Plus, Trash2, UserPlus, UserX, Pencil,
   RefreshCw, ShieldAlert, BarChart3, Globe, Phone, Mail, Link2, X as XIcon, LogOut, Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,7 @@ interface FranchiseAdmin {
   isActive: boolean;
   joinedAt: string;
   role: AdminRole;
+  adminScope?: { level?: string; district?: string; area?: string; unit?: string; projects?: string[] };
   user: { _id: string; id: string; name: string; phone: string; email?: string; isActive: boolean };
 }
 
@@ -85,6 +86,10 @@ export default function GlobalAdmin() {
   const [adminsDialogFranchise, setAdminsDialogFranchise] = useState<Franchise | null>(null);
   const [admins, setAdmins] = useState<FranchiseAdmin[]>([]);
   const [adminsLoading, setAdminsLoading] = useState(false);
+  const ADMINS_PAGE_SIZE = 20;
+  const [adminsPage, setAdminsPage] = useState(1);
+  const [adminsTotalPages, setAdminsTotalPages] = useState(1);
+  const [adminsTotal, setAdminsTotal] = useState(0);
 
   // Admins search
   const [adminSearch, setAdminSearch] = useState('');
@@ -93,6 +98,12 @@ export default function GlobalAdmin() {
   const [createAdminOpen, setCreateAdminOpen] = useState(false);
   const [newAdmin, setNewAdmin] = useState<{ name: string; phone: string; email: string; role: AdminRole; isCommonAdmin: boolean }>({ name: '', phone: '', email: '', role: 'super_admin', isCommonAdmin: false });
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [editingMembershipId, setEditingMembershipId] = useState<string | null>(null);
+  const [beneficiaryConflict, setBeneficiaryConflict] = useState<{
+    blocking: boolean;
+    message: string;
+    beneficiaryName?: string;
+  } | null>(null);
 
   // Scope selection state (district / area / unit / project) for scoped roles
   type ScopeOption = { id: string; name: string };
@@ -287,13 +298,19 @@ export default function GlobalAdmin() {
   };
 
   // ── Admins management ───────────────────────────────────────────────────────
-  const openAdminsDialog = async (franchise: Franchise) => {
-    setAdminsDialogFranchise(franchise);
-    setAdmins([]);
+  const fetchAdmins = async (franchise: Franchise, page: number, search: string) => {
     setAdminsLoading(true);
     try {
-      const res = await globalAdmin.listFranchiseAdmins(franchise.id);
-      if (res.success) setAdmins((res.data as any)?.admins || []);
+      const res = await globalAdmin.listFranchiseAdmins(franchise.id, {
+        page, limit: ADMINS_PAGE_SIZE, search: search || undefined,
+      });
+      if (res.success) {
+        const data = res.data as any;
+        setAdmins(data?.admins || []);
+        setAdminsPage(data?.pagination?.page || 1);
+        setAdminsTotalPages(data?.pagination?.totalPages || 1);
+        setAdminsTotal(data?.pagination?.total || 0);
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admins');
     } finally {
@@ -301,7 +318,52 @@ export default function GlobalAdmin() {
     }
   };
 
-  const handleCreateAdmin = async () => {
+  const openAdminsDialog = (franchise: Franchise) => {
+    setAdminsDialogFranchise(franchise);
+    setAdmins([]);
+    setAdminSearch('');
+    fetchAdmins(franchise, 1, '');
+  };
+
+  // Debounce search input, re-querying the server from page 1.
+  useEffect(() => {
+    if (!adminsDialogFranchise) return;
+    const handle = setTimeout(() => {
+      fetchAdmins(adminsDialogFranchise, 1, adminSearch);
+    }, 350);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminSearch]);
+
+  const resetAdminForm = () => {
+    setCreateAdminOpen(false);
+    setEditingMembershipId(null);
+    setBeneficiaryConflict(null);
+    setNewAdmin({ name: '', phone: '', email: '', role: 'super_admin', isCommonAdmin: false });
+    setScopeState({ districtId: '', areaId: '', unitId: '', projectId: '' });
+    setScopeAreas([]); setScopeUnits([]);
+  };
+
+  const openEditAdmin = (admin: FranchiseAdmin) => {
+    setNewAdmin({
+      name: admin.user?.name || '',
+      phone: admin.user?.phone || '',
+      email: admin.user?.email || '',
+      role: admin.role,
+      isCommonAdmin: false,
+    });
+    setScopeState({
+      districtId: admin.adminScope?.district || '',
+      areaId: admin.adminScope?.area || '',
+      unitId: admin.adminScope?.unit || '',
+      projectId: admin.adminScope?.projects?.[0] || '',
+    });
+    setBeneficiaryConflict(null);
+    setEditingMembershipId(admin.membershipId);
+    setCreateAdminOpen(true);
+  };
+
+  const handleSaveAdmin = async (confirmConvertBeneficiary = false) => {
     if (!adminsDialogFranchise) return;
     if (!newAdmin.name || !newAdmin.phone) {
       toast.error('Name and phone are required');
@@ -309,29 +371,42 @@ export default function GlobalAdmin() {
     }
     setCreatingAdmin(true);
     try {
-      const res = await globalAdmin.createFranchiseAdmin(adminsDialogFranchise.id, {
+      const payload = {
         name: newAdmin.name.trim(),
         phone: newAdmin.phone.trim(),
         email: newAdmin.email.trim() || undefined,
         role: newAdmin.role,
-        isCommonAdmin: newAdmin.isCommonAdmin,
         districtId: scopeState.districtId || undefined,
         areaId: scopeState.areaId || undefined,
         unitId: scopeState.unitId || undefined,
         projectId: scopeState.projectId || undefined,
-      });
+      };
+      const res = editingMembershipId
+        ? await globalAdmin.updateFranchiseAdmin(adminsDialogFranchise.id, editingMembershipId, payload)
+        : await globalAdmin.createFranchiseAdmin(adminsDialogFranchise.id, {
+            ...payload,
+            isCommonAdmin: newAdmin.isCommonAdmin,
+            confirmConvertBeneficiary,
+          });
       if (res.success) {
-        toast.success(res.message || 'Admin assigned successfully');
-        setCreateAdminOpen(false);
-        setNewAdmin({ name: '', phone: '', email: '', role: 'super_admin', isCommonAdmin: false });
-        setScopeState({ districtId: '', areaId: '', unitId: '', projectId: '' });
-        setScopeAreas([]); setScopeUnits([]);
+        toast.success(res.message || (editingMembershipId ? 'Admin updated successfully' : 'Admin assigned successfully'));
+        resetAdminForm();
         openAdminsDialog(adminsDialogFranchise);
       } else {
-        toast.error(res.message || 'Failed to assign admin');
+        toast.error(res.message || 'Failed to save admin');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to assign admin');
+      if (err.code === 'PHONE_IS_BENEFICIARY') {
+        setBeneficiaryConflict({
+          blocking: false,
+          message: err.message,
+          beneficiaryName: err.data?.beneficiary?.name,
+        });
+      } else if (err.code === 'BENEFICIARY_HAS_APPLICATIONS') {
+        setBeneficiaryConflict({ blocking: true, message: err.message });
+      } else {
+        toast.error(err.message || 'Failed to save admin');
+      }
     } finally {
       setCreatingAdmin(false);
     }
@@ -624,7 +699,7 @@ export default function GlobalAdmin() {
       </AlertDialog>
 
       {/* ── Manage Admins Dialog ── */}
-      <Dialog open={!!adminsDialogFranchise} onOpenChange={open => { if (!open) { setAdminsDialogFranchise(null); setAdminSearch(''); } }}>
+      <Dialog open={!!adminsDialogFranchise} onOpenChange={open => { if (!open) { setAdminsDialogFranchise(null); setAdminSearch(''); resetAdminForm(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -639,14 +714,14 @@ export default function GlobalAdmin() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => setCreateAdminOpen(true)}
+                onClick={() => { setEditingMembershipId(null); setCreateAdminOpen(true); }}
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Assign New Admin
               </Button>
             ) : (
               <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
-                <p className="text-sm font-medium">Assign New Admin</p>
+                <p className="text-sm font-medium">{editingMembershipId ? 'Edit Admin' : 'Assign New Admin'}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Name *</Label>
@@ -661,7 +736,10 @@ export default function GlobalAdmin() {
                     <Input
                       placeholder="10-digit mobile"
                       value={newAdmin.phone}
-                      onChange={e => setNewAdmin(a => ({ ...a, phone: e.target.value }))}
+                      onChange={e => {
+                        setNewAdmin(a => ({ ...a, phone: e.target.value }));
+                        setBeneficiaryConflict(null);
+                      }}
                     />
                   </div>
                 </div>
@@ -680,6 +758,7 @@ export default function GlobalAdmin() {
                     setNewAdmin(a => ({ ...a, role: v as AdminRole }));
                     setScopeState({ districtId: '', areaId: '', unitId: '', projectId: '' });
                     setScopeAreas([]); setScopeUnits([]);
+                    setBeneficiaryConflict(null);
                   }}>
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select role" />
@@ -691,21 +770,23 @@ export default function GlobalAdmin() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5 rounded-md border bg-background/60 px-3 py-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="common-admin"
-                      checked={newAdmin.isCommonAdmin}
-                      onCheckedChange={checked => setNewAdmin(a => ({ ...a, isCommonAdmin: checked === true }))}
-                    />
-                    <Label htmlFor="common-admin" className="text-xs cursor-pointer">
-                      Make as common admin (all franchises)
-                    </Label>
+                {!editingMembershipId && (
+                  <div className="space-y-1.5 rounded-md border bg-background/60 px-3 py-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="common-admin"
+                        checked={newAdmin.isCommonAdmin}
+                        onCheckedChange={checked => setNewAdmin(a => ({ ...a, isCommonAdmin: checked === true }))}
+                      />
+                      <Label htmlFor="common-admin" className="text-xs cursor-pointer">
+                        Make as common admin (all franchises)
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Grants this role across all active franchises.
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Grants this role across all active franchises.
-                  </p>
-                </div>
+                )}
 
                 {/* ── Scope selects: shown only for scoped roles ── */}
                 {(newAdmin.role === 'district_admin' || newAdmin.role === 'area_admin' || newAdmin.role === 'unit_admin') && (
@@ -790,16 +871,31 @@ export default function GlobalAdmin() {
                 <p className="text-xs text-muted-foreground">
                   The admin will log in using OTP to their phone number. No password needed.
                 </p>
+
+                {beneficiaryConflict && (
+                  <div className={`rounded-md border px-3 py-2 text-xs space-y-2 ${beneficiaryConflict.blocking ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-400'}`}>
+                    <p>{beneficiaryConflict.message}</p>
+                    {!beneficiaryConflict.blocking && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => handleSaveAdmin(true)}
+                        disabled={creatingAdmin}
+                      >
+                        Convert to {ADMIN_ROLES.find(r => r.value === newAdmin.role)?.label || 'Admin'} (erase beneficiary data)
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleCreateAdmin} disabled={creatingAdmin}>
-                    {creatingAdmin ? 'Assigning…' : 'Assign Admin'}
+                  <Button size="sm" onClick={() => handleSaveAdmin(false)} disabled={creatingAdmin || beneficiaryConflict?.blocking}>
+                    {creatingAdmin
+                      ? (editingMembershipId ? 'Saving…' : 'Assigning…')
+                      : (editingMembershipId ? 'Save Changes' : 'Assign Admin')}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => {
-                    setCreateAdminOpen(false);
-                    setNewAdmin({ name: '', phone: '', email: '', role: 'super_admin', isCommonAdmin: false });
-                    setScopeState({ districtId: '', areaId: '', unitId: '', projectId: '' });
-                    setScopeAreas([]); setScopeUnits([]);
-                  }}>
+                  <Button size="sm" variant="outline" onClick={resetAdminForm}>
                     Cancel
                   </Button>
                 </div>
@@ -830,14 +926,6 @@ export default function GlobalAdmin() {
             ) : (
               <div className="space-y-2">
                 {admins
-                  .filter(a => {
-                    const q = adminSearch.trim().toLowerCase();
-                    if (!q) return true;
-                    return (
-                      a.user?.name?.toLowerCase().includes(q) ||
-                      String(a.user?.phone ?? '').includes(q)
-                    );
-                  })
                   .map(a => (
                     <div
                       key={a.membershipId}
@@ -857,6 +945,14 @@ export default function GlobalAdmin() {
                         {a.isActive
                           ? <Badge variant="outline" className="text-xs text-green-600 border-green-300">Active</Badge>
                           : <Badge variant="secondary" className="text-xs">Inactive</Badge>}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => openEditAdmin(a)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         {a.isActive && adminsDialogFranchise && (
                           <Button
                             size="icon"
@@ -870,6 +966,32 @@ export default function GlobalAdmin() {
                       </div>
                     </div>
                   ))}
+              </div>
+            )}
+
+            {!adminsLoading && admins.length > 0 && adminsTotalPages > 1 && (
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-xs text-muted-foreground">
+                  Page {adminsPage} of {adminsTotalPages} ({adminsTotal} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={adminsPage <= 1 || adminsLoading}
+                    onClick={() => adminsDialogFranchise && fetchAdmins(adminsDialogFranchise, adminsPage - 1, adminSearch)}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={adminsPage >= adminsTotalPages || adminsLoading}
+                    onClick={() => adminsDialogFranchise && fetchAdmins(adminsDialogFranchise, adminsPage + 1, adminSearch)}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </div>

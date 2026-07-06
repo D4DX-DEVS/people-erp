@@ -2,6 +2,22 @@ const Franchise = require('../models/Franchise');
 const rbacService = require('../services/rbacService');
 const franchiseCache = require('../utils/franchiseCache');
 
+const ADMIN_ROLE_VALUES = [
+  'super_admin', 'state_admin', 'district_admin',
+  'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator',
+];
+
+const ROLE_SCOPE_MAP = {
+  super_admin:         { level: 'super',    permissions: { canCreateUsers: true,  canManageProjects: true,  canManageSchemes: true,  canApproveApplications: true,  canViewReports: true,  canManageFinances: true  } },
+  state_admin:         { level: 'state',    permissions: { canCreateUsers: true,  canManageProjects: true,  canManageSchemes: true,  canApproveApplications: true,  canViewReports: true,  canManageFinances: true  } },
+  district_admin:      { level: 'district', permissions: { canCreateUsers: true,  canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
+  area_admin:          { level: 'area',     permissions: { canCreateUsers: true,  canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
+  unit_admin:          { level: 'unit',     permissions: { canCreateUsers: false, canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
+  area_president:      { level: 'unit',     permissions: { canCreateUsers: false, canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
+  project_coordinator: { level: 'project',  permissions: { canCreateUsers: false, canManageProjects: true,  canManageSchemes: false, canApproveApplications: false, canViewReports: true,  canManageFinances: false } },
+  scheme_coordinator:  { level: 'scheme',   permissions: { canCreateUsers: false, canManageProjects: false, canManageSchemes: true,  canApproveApplications: false, canViewReports: true,  canManageFinances: false } },
+};
+
 /**
  * Global Admin Controller
  *
@@ -296,21 +312,43 @@ class GlobalAdminController {
   }
 
   /**
-   * GET /api/global/franchises/:id/admins
-   * List all admin members of a franchise across all roles.
+   * GET /api/global/franchises/:id/admins?page=1&limit=20&search=
+   * List admin members of a franchise across all roles, server-side paginated.
    */
   async listFranchiseAdmins(req, res) {
     try {
+      const mongoose = require('mongoose');
       const UserFranchise = require('../models/UserFranchise');
       const franchise = await Franchise.findById(req.params.id).lean();
       if (!franchise) return res.status(404).json({ success: false, message: 'Franchise not found' });
 
-      const memberships = await UserFranchise.find({
-        franchise: req.params.id,
-      })
-        .populate('user', 'name phone email isActive isVerified lastLogin createdAt')
-        .sort({ role: 1, createdAt: -1 })
-        .lean();
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+      const search = String(req.query.search || '').trim();
+
+      const pipeline = [
+        { $match: { franchise: new mongoose.Types.ObjectId(req.params.id) } },
+        { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
+        { $unwind: '$user' },
+      ];
+
+      if (search) {
+        const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        pipeline.push({ $match: { $or: [{ 'user.name': regex }, { 'user.phone': regex }] } });
+      }
+
+      pipeline.push({ $sort: { role: 1, createdAt: -1 } });
+
+      const [countResult, memberships] = await Promise.all([
+        UserFranchise.aggregate([...pipeline, { $count: 'total' }]),
+        UserFranchise.aggregate([
+          ...pipeline,
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+        ]),
+      ]);
+
+      const total = countResult[0]?.total || 0;
 
       return res.json({
         success: true,
@@ -321,8 +359,13 @@ class GlobalAdminController {
             isActive: m.isActive,
             joinedAt: m.joinedAt,
             role: m.role,
-            user: m.user,
+            adminScope: m.adminScope,
+            user: {
+              _id: m.user._id, id: m.user._id, name: m.user.name, phone: m.user.phone,
+              email: m.user.email, isActive: m.user.isActive,
+            },
           })),
+          pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) },
         },
       });
     } catch (error) {
@@ -339,27 +382,15 @@ class GlobalAdminController {
     try {
       const { User } = require('../models');
       const UserFranchise = require('../models/UserFranchise');
+      const Beneficiary = require('../models/Beneficiary');
 
-      const VALID_ROLES = [
-        'super_admin', 'state_admin', 'district_admin',
-        'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator',
-      ];
-
-      const ROLE_SCOPE = {
-        super_admin:         { level: 'super',    permissions: { canCreateUsers: true,  canManageProjects: true,  canManageSchemes: true,  canApproveApplications: true,  canViewReports: true,  canManageFinances: true  } },
-        state_admin:         { level: 'state',    permissions: { canCreateUsers: true,  canManageProjects: true,  canManageSchemes: true,  canApproveApplications: true,  canViewReports: true,  canManageFinances: true  } },
-        district_admin:      { level: 'district', permissions: { canCreateUsers: true,  canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
-        area_admin:          { level: 'area',     permissions: { canCreateUsers: true,  canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
-        unit_admin:          { level: 'unit',     permissions: { canCreateUsers: false, canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
-        area_president:      { level: 'unit',     permissions: { canCreateUsers: false, canManageProjects: false, canManageSchemes: false, canApproveApplications: true,  canViewReports: true,  canManageFinances: false } },
-        project_coordinator: { level: 'project',  permissions: { canCreateUsers: false, canManageProjects: true,  canManageSchemes: false, canApproveApplications: false, canViewReports: true,  canManageFinances: false } },
-        scheme_coordinator:  { level: 'scheme',   permissions: { canCreateUsers: false, canManageProjects: false, canManageSchemes: true,  canApproveApplications: false, canViewReports: true,  canManageFinances: false } },
-      };
+      const VALID_ROLES = ADMIN_ROLE_VALUES;
+      const ROLE_SCOPE = ROLE_SCOPE_MAP;
 
       const franchise = await Franchise.findById(req.params.id);
       if (!franchise) return res.status(404).json({ success: false, message: 'Franchise not found' });
 
-      const { name, phone, email, role = 'super_admin', isCommonAdmin = false, districtId, areaId, unitId, projectId } = req.body;
+      const { name, phone, email, role = 'super_admin', isCommonAdmin = false, districtId, areaId, unitId, projectId, confirmConvertBeneficiary = false } = req.body;
       if (!phone) return res.status(400).json({ success: false, message: 'Phone number is required' });
       if (!name)  return res.status(400).json({ success: false, message: 'Name is required' });
       if (!VALID_ROLES.includes(role)) {
@@ -378,6 +409,44 @@ class GlobalAdminController {
 
       const fullScope = { level: scope.level, permissions: scope.permissions, ...locationScope };
 
+      // This phone number may already be registered as a beneficiary in this
+      // franchise. A beneficiary who has submitted scheme application(s) can
+      // never become an admin; one who hasn't can be converted, but only after
+      // explicit confirmation from the caller (confirmConvertBeneficiary).
+      const existingBeneficiary = await Beneficiary.findOne({
+        phone: cleanPhone,
+        franchise: franchise._id,
+        isDeleted: { $ne: true },
+      });
+
+      if (existingBeneficiary) {
+        if (existingBeneficiary.applications && existingBeneficiary.applications.length > 0) {
+          return res.status(409).json({
+            success: false,
+            code: 'BENEFICIARY_HAS_APPLICATIONS',
+            message: `This number is already registered as a beneficiary (${existingBeneficiary.name}) and has submitted scheme application(s), so it cannot be made an admin.`,
+          });
+        }
+
+        if (!confirmConvertBeneficiary) {
+          return res.status(409).json({
+            success: false,
+            code: 'PHONE_IS_BENEFICIARY',
+            message: `This number is already registered as a beneficiary (${existingBeneficiary.name}). No applications have been submitted — it can be converted to ${role.replace(/_/g, ' ')}.`,
+            data: {
+              beneficiary: {
+                id: existingBeneficiary._id,
+                name: existingBeneficiary.name,
+                status: existingBeneficiary.status,
+              },
+            },
+          });
+        }
+
+        // Confirmed: erase the beneficiary record so no beneficiary data remains for this number.
+        await Beneficiary.findOneAndDelete({ _id: existingBeneficiary._id });
+      }
+
       let user = await User.findOne({ phone: cleanPhone });
       if (!user) {
         user = await User.create({
@@ -391,6 +460,15 @@ class GlobalAdminController {
           isSuperAdmin: false,
           adminScope: { level: scope.level, permissions: scope.permissions },
         });
+      } else if (user.role === 'beneficiary') {
+        // Convert this global identity from beneficiary to admin so login routes correctly.
+        user.name = name;
+        user.role = role;
+        user.email = email || user.email;
+        user.isVerified = true;
+        user.isActive = true;
+        user.adminScope = { level: scope.level, permissions: scope.permissions };
+        await user.save();
       }
 
       const assignMembership = async (franchiseId, allowConflict = false) => {
@@ -440,6 +518,76 @@ class GlobalAdminController {
         data: {
           user: { id: user._id, name: user.name, phone: user.phone, email: user.email },
           membership: { id: membership._id, role: membership.role, isActive: membership.isActive },
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * PUT /api/global/franchises/:id/admins/:membershipId
+   * Update an existing admin's name/phone/email/role/scope for a franchise.
+   */
+  async updateFranchiseAdmin(req, res) {
+    try {
+      const { User } = require('../models');
+      const UserFranchise = require('../models/UserFranchise');
+
+      const membership = await UserFranchise.findOne({ _id: req.params.membershipId, franchise: req.params.id });
+      if (!membership) return res.status(404).json({ success: false, message: 'Admin membership not found' });
+
+      const user = await User.findById(membership.user);
+      if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+      const { name, phone, email, role, districtId, areaId, unitId, projectId } = req.body;
+
+      if (role && !ADMIN_ROLE_VALUES.includes(role)) {
+        return res.status(400).json({ success: false, message: `Invalid role. Must be one of: ${ADMIN_ROLE_VALUES.join(', ')}` });
+      }
+
+      if (phone) {
+        const cleanPhone = String(phone).replace(/\D/g, '').slice(-10);
+        if (cleanPhone !== user.phone) {
+          const phoneOwner = await User.findOne({ phone: cleanPhone, _id: { $ne: user._id } });
+          if (phoneOwner) {
+            return res.status(409).json({ success: false, message: 'This phone number is already in use by another user' });
+          }
+          user.phone = cleanPhone;
+        }
+      }
+      if (name) user.name = name;
+      if (email !== undefined) user.email = email || undefined;
+
+      const newRole = role || membership.role;
+      if (role && role !== membership.role) {
+        const conflict = await UserFranchise.findOne({
+          user: user._id, franchise: membership.franchise, role, _id: { $ne: membership._id },
+        });
+        if (conflict) {
+          return res.status(409).json({ success: false, message: `This user already has the ${role.replace(/_/g, ' ')} role for this franchise` });
+        }
+      }
+
+      const scope = ROLE_SCOPE_MAP[newRole];
+      const locationScope = {};
+      if (districtId) locationScope.district = districtId;
+      if (areaId)     locationScope.area     = areaId;
+      if (unitId)     locationScope.unit     = unitId;
+      if (projectId)  locationScope.projects = [projectId];
+
+      membership.role = newRole;
+      membership.adminScope = { level: scope.level, permissions: scope.permissions, ...locationScope };
+
+      await user.save();
+      await membership.save();
+
+      return res.json({
+        success: true,
+        message: `${user.name} updated successfully`,
+        data: {
+          user: { id: user._id, name: user.name, phone: user.phone, email: user.email },
+          membership: { id: membership._id, role: membership.role, isActive: membership.isActive, adminScope: membership.adminScope },
         },
       });
     } catch (error) {

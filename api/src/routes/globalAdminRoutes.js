@@ -32,6 +32,7 @@ router.delete('/franchises/:id/domains', globalAdminController.removeDomain);
 // ── Franchise admin management ────────────────────────────────────────────────
 router.get('/franchises/:id/admins', globalAdminController.listFranchiseAdmins);
 router.post('/franchises/:id/admins', globalAdminController.createFranchiseAdmin);
+router.put('/franchises/:id/admins/:membershipId', globalAdminController.updateFranchiseAdmin);
 router.delete('/franchises/:id/admins/:userId', globalAdminController.deactivateFranchiseAdmin);
 
 // ── RBAC initialization ──────────────────────────────────────────────────────

@@ -420,7 +420,10 @@ class ApiClient {
           throw error;
         }
         
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+        const error = new Error(data.message || `HTTP error! status: ${response.status}`);
+        if (data.code) (error as any).code = data.code;
+        if (data.data) (error as any).data = data.data;
+        throw error;
       }
 
       return data;
@@ -2330,10 +2333,18 @@ export const globalAdmin = {
   getFranchiseStats: (id: string) => apiClient.request(`/global/franchises/${id}/stats`),
 
   // Franchise admin management
-  listFranchiseAdmins: (franchiseId: string) =>
-    apiClient.request(`/global/franchises/${franchiseId}/admins`),
-  createFranchiseAdmin: (franchiseId: string, data: { name: string; phone: string; email?: string; role?: string; isCommonAdmin?: boolean; districtId?: string; areaId?: string; unitId?: string; projectId?: string }) =>
+  listFranchiseAdmins: (franchiseId: string, params: { page?: number; limit?: number; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.search) query.set('search', params.search);
+    const qs = query.toString();
+    return apiClient.request(`/global/franchises/${franchiseId}/admins${qs ? `?${qs}` : ''}`);
+  },
+  createFranchiseAdmin: (franchiseId: string, data: { name: string; phone: string; email?: string; role?: string; isCommonAdmin?: boolean; districtId?: string; areaId?: string; unitId?: string; projectId?: string; confirmConvertBeneficiary?: boolean }) =>
     apiClient.request(`/global/franchises/${franchiseId}/admins`, { method: 'POST', body: JSON.stringify(data) }),
+  updateFranchiseAdmin: (franchiseId: string, membershipId: string, data: { name?: string; phone?: string; email?: string; role?: string; districtId?: string; areaId?: string; unitId?: string; projectId?: string }) =>
+    apiClient.request(`/global/franchises/${franchiseId}/admins/${membershipId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deactivateFranchiseAdmin: (franchiseId: string, userId: string) =>
     apiClient.request(`/global/franchises/${franchiseId}/admins/${userId}`, { method: 'DELETE' }),
 
