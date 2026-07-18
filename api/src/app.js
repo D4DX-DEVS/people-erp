@@ -194,6 +194,8 @@ app.use('/api/interviews', interviewRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/admin-reports', adminReportRoutes);
+const consolidatedReportRoutes = require('./routes/consolidatedReportRoutes');
+app.use('/api/consolidated-reports', consolidatedReportRoutes);
 const programReportRoutes = require('./routes/programReportRoutes');
 app.use('/api/program-reports', programReportRoutes);
 app.use('/api/recurring-payments', recurringPaymentRoutes);

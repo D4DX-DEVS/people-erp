@@ -1551,6 +1551,35 @@ export const dashboard = {
   getProjectPerformance: () => extendedApiClient.request('/dashboard/project-performance'),
 };
 
+// Consolidated organisation-wide reports (Super Admin / State Admin only)
+export const consolidatedReports = {
+  getOverview: (params?: { startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return extendedApiClient.request(`/consolidated-reports/overview${qs ? `?${qs}` : ''}`);
+  },
+  getSchemes: (params?: { startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return extendedApiClient.request(`/consolidated-reports/schemes${qs ? `?${qs}` : ''}`);
+  },
+  getRegions: (params?: { level?: 'district' | 'area' | 'unit'; startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.level) searchParams.append('level', params.level);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return extendedApiClient.request(`/consolidated-reports/regions${qs ? `?${qs}` : ''}`);
+  },
+  getFundsFlow: (months?: number) =>
+    extendedApiClient.request(`/consolidated-reports/funds-flow${months ? `?months=${months}` : ''}`),
+  getPipeline: () => extendedApiClient.request('/consolidated-reports/pipeline'),
+};
+
 export const budgetApi = {
   getOverview: () => extendedApiClient.request('/budget/overview'),
   getProjects: () => extendedApiClient.request('/budget/projects'),

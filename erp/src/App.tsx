@@ -100,6 +100,7 @@ import WebsiteContactMessages from "./pages/WebsiteContactMessages";
 import WebsiteVolunteers from "./pages/WebsiteVolunteers";
 import FormBuilder from "./pages/FormBuilder";
 import ApplicationConsolidation from "./pages/ApplicationConsolidation";
+import ConsolidatedReports from "./pages/ConsolidatedReports";
 import AdminReports from "./pages/AdminReports";
 import AdminReportFormBuilder from "./pages/AdminReportFormBuilder";
 import AdminReportFill from "./pages/AdminReportFill";
@@ -148,6 +149,7 @@ const App = () => (
             <Route path="/schemes" element={<AuthGuard><Layout><Schemes /></Layout></AuthGuard>} />
             <Route path="/applications" element={<AuthGuard><Layout><Applications /></Layout></AuthGuard>} />
             <Route path="/applications/consolidation" element={<AuthGuard><Layout><ApplicationConsolidation /></Layout></AuthGuard>} />
+            <Route path="/reports/consolidated" element={<AuthGuard><Layout><ConsolidatedReports /></Layout></AuthGuard>} />
             <Route path="/form-builder" element={<AuthGuard><Layout><FormBuilder /></Layout></AuthGuard>} />
             <Route path="/admin-reports" element={<AuthGuard><Layout><AdminReports /></Layout></AuthGuard>} />
             <Route path="/admin-reports/form-builder" element={<AuthGuard><Layout><AdminReportFormBuilder /></Layout></AuthGuard>} />
