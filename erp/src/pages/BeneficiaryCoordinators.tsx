@@ -7,6 +7,7 @@ import { beneficiaryApi, type BeneficiaryCoordinator } from "@/services/benefici
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 import defaultLogo from "@/assets/logo.png";
 import { toast } from "@/hooks/use-toast";
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 const ROLE_ACCENT: Record<string, string> = {
   unit_admin: "bg-emerald-100 text-emerald-700",
@@ -15,6 +16,7 @@ const ROLE_ACCENT: Record<string, string> = {
 };
 
 export default function BeneficiaryCoordinators() {
+  useCompactUI();
   const navigate = useNavigate();
   const orgLogoUrl = useOrgLogoUrl();
   const phoneNumber = localStorage.getItem("user_phone") || "";

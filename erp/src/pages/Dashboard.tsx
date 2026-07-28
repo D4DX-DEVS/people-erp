@@ -181,21 +181,21 @@ export default function Dashboard() {
     );
   }
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="relative overflow-hidden rounded-3xl border border-border/40 bg-gradient-to-r from-primary/10 via-background to-secondary/10 p-6 md:p-8 shadow-elegant">
+    <div className="space-y-4 animate-in fade-in duration-500">
+      <div className="relative overflow-hidden rounded-xl border border-border/40 bg-gradient-to-r from-primary/10 via-background to-secondary/10 p-4 shadow-elegant">
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/20 blur-3xl" />
-        <div className="flex items-center gap-4">
-          <div className="rounded-2xl bg-gradient-primary p-3 shadow-elegant">
-            <LayoutDashboard className="h-6 w-6 text-primary-foreground" />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center rounded-xl bg-gradient-primary p-2.5 shadow-elegant">
+            <LayoutDashboard className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
             <h1 className="text-lg font-bold">Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Welcome back! Here's an overview of your NGO operations.</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Welcome back! Here's an overview of your NGO operations.</p>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Projects"
           value={overview?.totalProjects?.toString() || "0"}

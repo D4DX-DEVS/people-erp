@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { programReports, schemes } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

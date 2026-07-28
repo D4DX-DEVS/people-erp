@@ -32,17 +32,19 @@ const getApplications = async (req, res) => {
       adminScope: req.userFranchise?.adminScope || req.user.adminScope
     });
 
-    const { 
-      page = 1, 
-      limit = 10, 
-      search = '', 
-      status = '', 
+    const {
+      page = 1,
+      limit = 10,
+      search = '',
+      status = '',
       scheme = '',
       project = '',
-      state = '', 
-      district = '', 
-      area = '', 
-      unit = '' 
+      state = '',
+      district = '',
+      area = '',
+      unit = '',
+      startDate = '',
+      endDate = ''
     } = req.query;
 
     console.log('🔍 getApplications - Query parameters:', {
@@ -89,6 +91,19 @@ const getApplications = async (req, res) => {
     if (district) filter.district = district;
     if (area) filter.area = area;
     if (unit) filter.unit = unit;
+
+    // Date range filter (must match the same createdAt window used by the
+    // consolidation stats endpoint, otherwise drill-down counts diverge from
+    // the stat cards)
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
 
     // Apply user's regional access restrictions (prefer franchise-specific scope)
     const userRegionalFilter = getUserRegionalFilter(getEffectiveUserForFilter(req));

@@ -3,6 +3,7 @@ import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { FranchiseFilter } from "./FranchiseFilter";
 import { useCrossFranchise } from "@/hooks/useCrossFranchise";
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,6 +13,9 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { selectedFranchise, isCrossFranchise } = useCrossFranchise();
 
+  // Compact scale for the admin panel (see index.css → html.compact-ui)
+  useCompactUI();
+
   return (
     <div className="min-h-screen bg-background">
       <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
@@ -19,7 +23,7 @@ export function Layout({ children }: LayoutProps) {
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="relative flex-1 md:ml-64">
           <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-          <div className="container relative mx-auto py-4 px-2 md:py-6 md:px-3 lg:py-8 lg:px-4">
+          <div className="container relative mx-auto py-3 px-2 md:py-4 md:px-3 lg:py-5 lg:px-4">
             <FranchiseFilter className="mb-4" />
             <div key={isCrossFranchise ? `cf-${selectedFranchise}` : 'single'}>
               {children}

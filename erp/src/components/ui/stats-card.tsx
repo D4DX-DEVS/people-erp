@@ -16,11 +16,11 @@ interface StatsCardProps {
 export function StatsCard({ title, value, icon: Icon, trend, className }: StatsCardProps) {
   return (
     <Card className={cn("group overflow-hidden hover:shadow-glow transition-all duration-300", className)}>
-      <CardContent className="p-6">
+      <CardContent className="p-4">
         <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold">{value}</p>
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold">{value}</p>
             {trend && (
               <p className={cn(
                 "text-xs font-medium",
@@ -30,8 +30,8 @@ export function StatsCard({ title, value, icon: Icon, trend, className }: StatsC
               </p>
             )}
           </div>
-          <div className="rounded-2xl bg-gradient-primary p-3 shadow-elegant transition-transform duration-300 group-hover:-translate-y-0.5">
-            <Icon className="h-6 w-6 text-primary-foreground" />
+          <div className="flex items-center justify-center rounded-xl bg-gradient-primary p-2.5 shadow-elegant transition-transform duration-300 group-hover:-translate-y-0.5">
+            <Icon className="h-5 w-5 text-primary-foreground" />
           </div>
         </div>
       </CardContent>

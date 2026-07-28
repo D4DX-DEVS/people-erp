@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { beneficiaryApi } from "@/services/beneficiaryApi";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 import defaultLogo from "@/assets/logo.png";
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 interface FormField {
   id: number;
@@ -149,6 +150,7 @@ function getProfileValueForField(field: FormField, user: BeneficiaryProfileUser)
 // ---- End profile auto-fill helpers ----
 
 export default function BeneficiaryApplication() {
+  useCompactUI();
   const navigate = useNavigate();
   const { schemeId } = useParams();
   const location = useLocation();

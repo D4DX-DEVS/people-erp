@@ -11,6 +11,7 @@ import { beneficiaryApi, type BeneficiaryNotification } from "@/services/benefic
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 import defaultLogo from "@/assets/logo.png";
 import { toast } from "@/hooks/use-toast";
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 // Interfaces for API data
 interface Application {
@@ -63,6 +64,7 @@ interface Stats {
 }
 
 export default function BeneficiaryDashboard() {
+  useCompactUI();
   const navigate = useNavigate();
   const orgLogoUrl = useOrgLogoUrl();
   const [applications, setApplications] = useState<Application[]>([]);

@@ -9,6 +9,7 @@ import { beneficiaryApi } from "@/services/beneficiaryApi";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 import defaultLogo from "@/assets/logo.png";
 import ApplicationFormDataView from "@/components/ApplicationFormDataView";
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 interface ApplicationData {
   _id: string;
@@ -41,6 +42,7 @@ interface ApplicationData {
 }
 
 export default function ApplicationTracking() {
+  useCompactUI();
   const navigate = useNavigate();
   const { id } = useParams();
   const orgLogoUrl = useOrgLogoUrl();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Calendar, IndianRupee, Target, Loader2, AlertCircle, FolderKanban, Activity, Settings } from "lucide-react";
+import { Plus, Calendar, IndianRupee, Target, Loader2, AlertCircle, FolderKanban, Activity, Settings, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectModal } from "@/components/modals/ProjectModal";
 import { ProjectDetailsModal } from "@/components/modals/ProjectDetailsModal";
@@ -10,6 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { projects as projectsApi, type Project } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
@@ -51,6 +56,17 @@ export default function Projects() {
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  const toggleProjectExpansion = (projectId: string) => {
+    const newExpanded = new Set(expandedProjects);
+    if (newExpanded.has(projectId)) {
+      newExpanded.delete(projectId);
+    } else {
+      newExpanded.add(projectId);
+    }
+    setExpandedProjects(newExpanded);
+  };
 
   const { exportCSV, exportPDF, printData, exporting } = useExport({
     apiCall: (params) => projectsApi.export(params),
@@ -251,23 +267,33 @@ export default function Projects() {
         <div className="grid gap-6">
           {projectList.map((project) => {
             const progress = project.budgetUtilization || 0;
-          
+            const isExpanded = expandedProjects.has(project.id);
+
             return (
               <Card key={project.id} className="overflow-hidden hover:shadow-elegant transition-shadow">
-                <div className="md:flex">
-                  <div className="md:w-1/3">
-                    <img
-                      src={categoryImages[project.category] || categoryImages.other}
-                      alt={project.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="md:w-2/3">
-                    <CardHeader>
+                <Collapsible open={isExpanded} onOpenChange={() => toggleProjectExpansion(project.id)}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
                       <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <CardTitle className="text-2xl">{project.name}</CardTitle>
-                          <p className="text-sm text-muted-foreground">{project.description}</p>
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={categoryImages[project.category] || categoryImages.other}
+                              alt={project.name}
+                              className="h-12 w-12 rounded-md object-cover flex-shrink-0"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-xl">{project.name}</CardTitle>
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground line-clamp-1">{project.description}</p>
+                            </div>
+                          </div>
                           <div className="flex items-center gap-2 mt-2">
                             <Badge variant="outline" className="text-xs">
                               {project.code}
@@ -279,36 +305,61 @@ export default function Projects() {
                               {project.priority}
                             </Badge>
                           </div>
+
+                          {/* Quick Stats - Always Visible */}
+                          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 mt-3">
+                            <div className="flex items-center gap-2">
+                              <IndianRupee className="h-4 w-4 text-green-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Budget</p>
+                                <p className="text-sm font-medium">₹{(project.budget.total / 100000).toFixed(1)}L</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Target className="h-4 w-4 text-blue-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Beneficiaries</p>
+                                <p className="text-sm font-medium">{(project.targetBeneficiaries?.actual || 0).toLocaleString()}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Activity className="h-4 w-4 text-purple-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Progress</p>
+                                <p className="text-sm font-medium">{project.progress?.percentage || 0}%</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-orange-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Days Left</p>
+                                <p className="text-sm font-medium">{project.daysRemaining}</p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                         <Badge className={statusColors[project.status] || statusColors.draft}>
                           {project.status.replace('_', ' ')}
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Duration</p>
-                            <p className="text-sm font-medium">
-                              {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <IndianRupee className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Budget</p>
-                            <p className="text-sm font-medium">₹{(project.budget.total / 100000).toFixed(1)}L</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Target className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Beneficiaries</p>
-                            <p className="text-sm font-medium">{(project.targetBeneficiaries?.actual || 0).toLocaleString()}</p>
-                          </div>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <CardContent className="space-y-4 pt-0">
+                      <img
+                        src={categoryImages[project.category] || categoryImages.other}
+                        alt={project.name}
+                        className="h-48 w-full rounded-lg object-cover"
+                      />
+
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Duration</p>
+                          <p className="text-sm font-medium">
+                            {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}
+                          </p>
                         </div>
                       </div>
 
@@ -336,7 +387,7 @@ export default function Projects() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 pt-2 border-t">
                         <Button variant="outline" size="sm" onClick={() => handleViewDetails(project)}>View Details</Button>
                         <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>Edit</Button>
                         <Button variant="outline" size="sm" onClick={() => handleStatusUpdates(project)}>
@@ -350,8 +401,8 @@ export default function Projects() {
                         <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDeleteClick(project)}>Delete</Button>
                       </div>
                     </CardContent>
-                  </div>
-                </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </Card>
             );
           })}

@@ -24,6 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { globalAdmin, locations as locationsApi, projects as projectsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ interface GlobalStats {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function GlobalAdmin() {
+  useCompactUI();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 

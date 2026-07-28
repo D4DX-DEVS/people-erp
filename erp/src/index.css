@@ -126,8 +126,27 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  /* Compact admin scale — all rem-based sizes (fonts, paddings, gaps)
+     shrink proportionally to a standard minimal admin density.
+     Applied by the admin <Layout /> so the public site keeps its scale. */
+  html.compact-ui {
+    font-size: 14px;
+  }
+
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* Hidden scrollbar with smooth scrolling (sidebar & flyout menus) */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-behavior: smooth;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
 

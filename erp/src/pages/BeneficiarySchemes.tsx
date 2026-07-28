@@ -10,6 +10,7 @@ import { beneficiaryApi } from "@/services/beneficiaryApi";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 import defaultLogo from "@/assets/logo.png";
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 interface Scheme {
   _id: string;
@@ -43,6 +44,7 @@ interface Scheme {
 }
 
 export default function BeneficiarySchemes() {
+  useCompactUI();
   const navigate = useNavigate();
   const orgLogoUrl = useOrgLogoUrl();
   const [schemes, setSchemes] = useState<Scheme[]>([]);

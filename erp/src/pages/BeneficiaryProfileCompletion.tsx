@@ -12,6 +12,7 @@ import { beneficiaryApi } from "@/services/beneficiaryApi";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 import defaultLogo from "@/assets/logo.png";
 import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
+import { useCompactUI } from "@/hooks/useCompactUI";
 
 interface Location {
   _id: string;
@@ -22,6 +23,7 @@ interface Location {
 }
 
 export default function BeneficiaryProfileCompletion() {
+  useCompactUI();
   const navigate = useNavigate();
   const orgLogoUrl = useOrgLogoUrl();
   const [isLoading, setIsLoading] = useState(false);
