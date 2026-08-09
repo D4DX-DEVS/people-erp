@@ -12,8 +12,9 @@ const router = express.Router();
 router.use(authenticate);
 router.use(crossFranchiseResolver);
 
-// Export projects as CSV or JSON
-router.get('/export', createExportHandler(Project, exportConfigs.project));
+// Export projects as CSV or JSON — requires export permission
+const RBACMiddleware = require('../middleware/rbacMiddleware');
+router.get('/export', RBACMiddleware.hasPermission('reports.export'), createExportHandler(Project, exportConfigs.project));
 
 /**
  * @swagger

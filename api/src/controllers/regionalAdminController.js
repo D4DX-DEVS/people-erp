@@ -283,6 +283,7 @@ class RegionalAdminController {
 
       // Fetch applications
       const applications = await Application.find(filter)
+        .select('-formData')
         .populate('scheme', 'name category benefits')
         .populate('beneficiary', 'name phone profile')
         .populate('reviewedBy', 'name role')

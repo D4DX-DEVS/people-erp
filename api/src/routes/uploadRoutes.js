@@ -3,6 +3,10 @@ const router = express.Router();
 const fileUploadController = require('../controllers/fileUploadController');
 const { uploadSingle, uploadMultiple } = require('../middleware/upload');
 const { authenticate } = require('../middleware/auth');
+const RBACMiddleware = require('../middleware/rbacMiddleware');
+
+// Deleting stored files is destructive — restrict to holders of documents.delete
+const canDeleteFiles = RBACMiddleware.hasPermission('documents.delete');
 
 /**
  * @route   POST /api/upload/single
@@ -42,8 +46,9 @@ router.post('/form',
  * @desc    Delete a file
  * @access  Private
  */
-router.delete('/:fileKey(*)', 
-  authenticate, 
+router.delete('/:fileKey(*)',
+  authenticate,
+  canDeleteFiles,
   (req, res) => fileUploadController.deleteFile(req, res)
 );
 
@@ -52,8 +57,9 @@ router.delete('/:fileKey(*)',
  * @desc    Delete multiple files
  * @access  Private
  */
-router.post('/delete-multiple', 
-  authenticate, 
+router.post('/delete-multiple',
+  authenticate,
+  canDeleteFiles,
   (req, res) => fileUploadController.deleteMultiple(req, res)
 );
 

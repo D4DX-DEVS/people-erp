@@ -28,7 +28,12 @@ router.get('/',
  * @desc    Get single news/event
  * @access  Public
  */
-router.get('/:id', newsEventController.getById);
+// Authenticate when a token is supplied so admins can view drafts;
+// anonymous visitors only get published items (enforced in the controller).
+router.get('/:id',
+  (req, res, next) => (req.headers.authorization ? authenticate(req, res, next) : next()),
+  newsEventController.getById
+);
 
 /**
  * @route   POST /api/news-events

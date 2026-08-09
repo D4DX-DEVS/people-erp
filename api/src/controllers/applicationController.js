@@ -124,6 +124,7 @@ const getApplications = async (req, res) => {
     console.log('🔍 Total applications in database:', totalApplicationsInDB);
     
     const applications = await Application.find(filter)
+      .select('-formData')
       .populate('beneficiary', 'name phone')
       .populate('scheme', 'name code maxAmount distributionTimeline applicationSettings')
       .populate('project', 'name code')
@@ -2123,6 +2124,7 @@ const getRenewalDueApplications = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const applications = await Application.find(filter)
+      .select('-formData')
       .populate('beneficiary', 'name phone')
       .populate('scheme', 'name code renewalSettings')
       .populate('project', 'name code')
@@ -2930,6 +2932,7 @@ const getApplicationReceipts = async (req, res) => {
 
     // Fetch eligible applications with populated fields for fallback receipt entries
     const eligibleApps = await Application.find(approvedAppQuery)
+      .select('-formData')
       .populate('beneficiary', 'name phone')
       .populate('scheme', 'name code')
       .populate('project', 'name code')

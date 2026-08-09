@@ -494,7 +494,13 @@ const getUserRegionalFilter = (req) => {
       filter.unit = adminScope.unit;
     }
   }
-  
+
+  // Fail closed: unrecognized roles (or regional admins with no resolvable
+  // scope) must not see the full beneficiary list.
+  if (Object.keys(filter).length === 0) {
+    filter._id = { $exists: false };
+  }
+
   return filter;
 };
 

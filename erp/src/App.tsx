@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AuthGuard } from "./components/AuthGuard";
 import { AuthProvider } from "./hooks/useAuth";
@@ -138,6 +138,10 @@ const App = () => (
             <Route path="/beneficiary/dashboard" element={<BeneficiaryAuthGuard><BeneficiaryDashboard /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/schemes" element={<BeneficiaryAuthGuard><BeneficiarySchemes /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/apply/:schemeId" element={<BeneficiaryAuthGuard><BeneficiaryApplication /></BeneficiaryAuthGuard>} />
+            {/* Renewal flow navigates to /beneficiary/apply?renew=<id> (no scheme segment) */}
+            <Route path="/beneficiary/apply" element={<BeneficiaryAuthGuard><BeneficiaryApplication /></BeneficiaryAuthGuard>} />
+            {/* "View my applications" — the dashboard's default tab lists the user's applications */}
+            <Route path="/beneficiary/applications" element={<Navigate to="/beneficiary/dashboard" replace />} />
             <Route path="/beneficiary/track/:id" element={<BeneficiaryAuthGuard><ApplicationTracking /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/coordinators" element={<BeneficiaryAuthGuard><BeneficiaryCoordinators /></BeneficiaryAuthGuard>} />
 

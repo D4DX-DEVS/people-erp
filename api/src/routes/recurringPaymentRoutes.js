@@ -2,11 +2,17 @@ const express = require('express');
 const router = express.Router();
 const recurringPaymentController = require('../controllers/recurringPaymentController');
 const { authenticate, crossFranchiseResolver } = require('../middleware/auth');
+const RBACMiddleware = require('../middleware/rbacMiddleware');
 const { body, param, query } = require('express-validator');
 
 // Apply authentication to all routes
 router.use(authenticate);
 router.use(crossFranchiseResolver);
+
+// Permission gates matching paymentRoutes: reads need regional finance read,
+// mutations need finance update/manage.
+const canReadFinances = RBACMiddleware.hasPermission('finances.read.regional');
+const canManageFinances = RBACMiddleware.hasAnyPermission(['finances.update.regional', 'finances.manage']);
 
 /**
  * @route   POST /api/recurring-payments/generate-schedule/:applicationId
@@ -15,6 +21,7 @@ router.use(crossFranchiseResolver);
  */
 router.post(
   '/generate-schedule/:applicationId',
+  canManageFinances,
   [
     param('applicationId').isMongoId().withMessage('Invalid application ID'),
     body('recurringConfig.period')
@@ -40,6 +47,7 @@ router.post(
  */
 router.get(
   '/applications',
+  canReadFinances,
   [
     query('scheme').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid scheme ID'),
     query('project').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid project ID'),
@@ -57,6 +65,7 @@ router.get(
  */
 router.get(
   '/applications/:applicationId/schedule',
+  canReadFinances,
   [
     param('applicationId').isMongoId().withMessage('Invalid application ID')
   ],
@@ -70,6 +79,7 @@ router.get(
  */
 router.get(
   '/upcoming',
+  canReadFinances,
   [
     query('days').optional().isInt({ min: 1, max: 365 }).withMessage('Days must be between 1 and 365'),
     query('scheme').optional().isMongoId().withMessage('Invalid scheme ID'),
@@ -85,6 +95,7 @@ router.get(
  */
 router.get(
   '/overdue',
+  canReadFinances,
   [
     query('scheme').optional().isMongoId().withMessage('Invalid scheme ID'),
     query('project').optional().isMongoId().withMessage('Invalid project ID')
@@ -99,6 +110,7 @@ router.get(
  */
 router.get(
   '/forecast',
+  canReadFinances,
   [
     query('months').optional().isInt({ min: 1, max: 60 }).withMessage('Months must be between 1 and 60'),
     query('scheme').optional().isMongoId().withMessage('Invalid scheme ID'),
@@ -114,6 +126,7 @@ router.get(
  */
 router.get(
   '/dashboard',
+  canReadFinances,
   [
     query('scheme').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid scheme ID'),
     query('project').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid project ID'),
@@ -129,6 +142,7 @@ router.get(
  */
 router.get(
   '/:paymentId',
+  canReadFinances,
   [
     param('paymentId').isMongoId().withMessage('Invalid payment ID')
   ],
@@ -142,6 +156,7 @@ router.get(
  */
 router.post(
   '/:paymentId/record',
+  canManageFinances,
   [
     param('paymentId').isMongoId().withMessage('Invalid payment ID'),
     body('amount').optional().isFloat({ min: 0 }).withMessage('Amount must be a positive number'),
@@ -160,6 +175,7 @@ router.post(
  */
 router.put(
   '/:paymentId',
+  canManageFinances,
   [
     param('paymentId').isMongoId().withMessage('Invalid payment ID'),
     body('scheduledDate').optional().isISO8601().withMessage('Invalid scheduled date'),
@@ -178,6 +194,7 @@ router.put(
  */
 router.delete(
   '/:paymentId/cancel',
+  canManageFinances,
   [
     param('paymentId').isMongoId().withMessage('Invalid payment ID'),
     body('reason').notEmpty().withMessage('Cancellation reason is required')
@@ -192,6 +209,7 @@ router.delete(
  */
 router.post(
   '/update-overdue',
+  canManageFinances,
   recurringPaymentController.updateOverdueStatuses
 );
 

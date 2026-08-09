@@ -1,6 +1,7 @@
 const express = require('express');
 const userController = require('../controllers/userController');
 const { authenticate, crossFranchiseResolver, authorize, checkAdminHierarchy, hasPermission } = require('../middleware/auth');
+const RBACMiddleware = require('../middleware/rbacMiddleware');
 const { validate, userSchemas, commonSchemas } = require('../middleware/validation');
 const { createExportHandler } = require('../middleware/exportHandler');
 const exportConfigs = require('../config/exportConfigs');
@@ -312,8 +313,16 @@ router.get('/subordinates',
  * @desc    List all active franchise roles for a user in the current franchise
  * @access  Private
  */
+// Users may read their own role/membership info; reading other users'
+// requires a users.read permission.
+const selfOrUsersRead = (req, res, next) => {
+  if (req.user && req.user._id.toString() === req.params.id) return next();
+  return RBACMiddleware.hasAnyPermission(['users.read.all', 'users.read.regional'])(req, res, next);
+};
+
 router.get('/:id/roles',
   authenticate, crossFranchiseResolver,
+  selfOrUsersRead,
   userController.getUserRoles
 );
 
@@ -324,6 +333,7 @@ router.get('/:id/roles',
  */
 router.get('/:id/franchise-memberships',
   authenticate, crossFranchiseResolver,
+  selfOrUsersRead,
   userController.getUserFranchiseMemberships
 );
 

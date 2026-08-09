@@ -87,7 +87,9 @@ class NewsEventController {
     try {
       const { id } = req.params;
       
-      const newsEvent = await NewsEvent.findOne({ _id: id, ...buildFranchiseReadFilter(req) })
+      // Anonymous visitors may only see published items
+      const visibilityFilter = req.user ? {} : { status: 'published' };
+      const newsEvent = await NewsEvent.findOne({ _id: id, ...visibilityFilter, ...buildFranchiseReadFilter(req) })
         .populate('createdBy', 'name')
         .populate('updatedBy', 'name');
 

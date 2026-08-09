@@ -218,6 +218,7 @@ class DashboardController {
       locationFilter.status = { $ne: 'draft' };
 
       const applications = await Application.find(locationFilter)
+        .select('applicationNumber beneficiary scheme project district area unit status createdAt requestedAmount approvedAmount')
         .populate('beneficiary', 'name phone')
         .populate('scheme', 'name')
         .populate('project', 'name')
@@ -225,7 +226,8 @@ class DashboardController {
         .populate('area', 'name')
         .populate('unit', 'name')
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit));
+        .limit(parseInt(limit))
+        .lean();
 
       const recentApplications = applications.map(app => ({
         _id: app._id.toString(),

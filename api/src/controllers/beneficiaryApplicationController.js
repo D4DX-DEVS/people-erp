@@ -832,6 +832,7 @@ class BeneficiaryApplicationController {
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
       const applications = await Application.find(query)
+        .select('-formData')
         .populate('scheme', 'name category benefits')
         .populate('district', 'name')
         .populate('area', 'name')
@@ -1122,6 +1123,7 @@ class BeneficiaryApplicationController {
         renewalStatus: { $in: ['due_for_renewal', 'active'] },
         expiryDate: { $ne: null }
       })
+        .select('-formData')
         .populate('scheme', 'name code category renewalSettings')
         .populate('project', 'name')
         .sort({ expiryDate: 1 });

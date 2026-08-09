@@ -90,13 +90,31 @@ export default function Dashboard() {
       const donationStatsPromise = canViewDonors ? donationsApi.getStats() : Promise.resolve(null);
       const projectBudgetPromise = canViewFinances ? budgetApi.getProjects() : Promise.resolve(null);
 
-      const [overviewRes, budgetRes, donationRes, projectRes, applicationsRes] = await Promise.all([
+      // allSettled so one failing/slow call degrades gracefully instead of
+      // blanking the whole dashboard
+      const settled = await Promise.allSettled([
         ...basePromises,
         budgetOverviewPromise,
         donationStatsPromise,
         projectBudgetPromise,
         applicationsPromise,
       ]);
+      const [overviewRes, budgetRes, donationRes, projectRes, applicationsRes] = settled.map(
+        r => (r.status === 'fulfilled' ? r.value : null)
+      );
+      const failures = settled.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
+      // The overview call is the dashboard's backbone — surface its failure as before
+      if (settled[0].status === 'rejected') {
+        throw settled[0].reason;
+      }
+      if (failures.length > 0) {
+        console.warn('⚠️ Dashboard: some data failed to load:', failures.map(f => f.reason?.message));
+        toast({
+          title: "Partial data",
+          description: "Some dashboard data could not be loaded.",
+          variant: "destructive",
+        });
+      }
 
       const loadTime = Date.now() - startTime;
       console.log(`✅ Dashboard: Data loaded from API in ${loadTime}ms`);

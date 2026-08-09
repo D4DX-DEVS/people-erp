@@ -132,6 +132,8 @@ export default function GlobalAdmin() {
   }, [user, navigate]);
 
   const loadData = useCallback(async () => {
+    // Don't fire global-admin API calls for non-super-admins hitting the URL
+    if (!user?.isSuperAdmin) return;
     setLoading(true);
     try {
       const [franchisesRes, statsRes] = await Promise.all([
@@ -148,7 +150,7 @@ export default function GlobalAdmin() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.isSuperAdmin]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

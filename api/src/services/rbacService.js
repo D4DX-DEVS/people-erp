@@ -1549,6 +1549,41 @@ class RBACService {
   }
 
   /**
+   * Resolve an acting user's privilege level for hierarchy checks.
+   * Level 0 = most privileged. isSuper covers the platform super admin flag
+   * and the legacy super_admin role string.
+   * Returns { actor, level, isSuper } or null when the actor doesn't exist.
+   */
+  async getActorPrivilege(actorId) {
+    const actor = await User.findById(actorId);
+    if (!actor) return null;
+
+    if (actor.isSuperAdmin || actor.role === 'super_admin') {
+      return { actor, level: 0, isSuper: true };
+    }
+
+    let level = null;
+    const activeRoles = await UserRole.getUserActiveRoles(actorId);
+    for (const userRole of activeRoles) {
+      const roleLevel = userRole.role?.level;
+      if (typeof roleLevel === 'number' && userRole.role?.isActive !== false) {
+        level = level === null ? roleLevel : Math.min(level, roleLevel);
+      }
+    }
+
+    // Legacy fallback: users whose access comes from User.role only
+    if (actor.role) {
+      const legacyRole = await Role.findOne({ name: actor.role, isActive: true })
+        .setOptions({ bypassFranchise: true });
+      if (legacyRole && typeof legacyRole.level === 'number') {
+        level = level === null ? legacyRole.level : Math.min(level, legacyRole.level);
+      }
+    }
+
+    return { actor, level, isSuper: false };
+  }
+
+  /**
    * Assign role to user
    */
   async assignRole(userId, roleId, assignedBy, options = {}) {
@@ -1564,14 +1599,17 @@ class RBACService {
         throw new Error('Role not found or inactive');
       }
 
-      const assigner = await User.findById(assignedBy);
-      if (!assigner) {
+      const assignerPrivilege = await this.getActorPrivilege(assignedBy);
+      if (!assignerPrivilege) {
         throw new Error('Assigner not found');
       }
 
-      // Check if assigner can assign this role
-      if (!role.canBeAssignedBy(assigner)) {
-        throw new Error('You do not have permission to assign this role');
+      // Hierarchy check: an assigner can only grant roles strictly below
+      // their own privilege level. Prevents self/peer privilege escalation.
+      if (!assignerPrivilege.isSuper) {
+        if (assignerPrivilege.level === null || role.level <= assignerPrivilege.level) {
+          throw new Error('You do not have permission to assign this role');
+        }
       }
 
       // Check if role has reached user limit
@@ -1637,6 +1675,19 @@ class RBACService {
         throw new Error('Role assignment not found');
       }
 
+      // Hierarchy check: same rule as assignRole — only roles strictly below
+      // the remover's own privilege level can be revoked.
+      const removerPrivilege = await this.getActorPrivilege(removedBy);
+      if (!removerPrivilege) {
+        throw new Error('Remover not found');
+      }
+      if (!removerPrivilege.isSuper) {
+        const role = await Role.findById(roleId).setOptions({ bypassFranchise: true });
+        if (!role || removerPrivilege.level === null || role.level <= removerPrivilege.level) {
+          throw new Error('You do not have permission to remove this role');
+        }
+      }
+
       // Revoke the role
       userRole.revoke(removedBy, reason);
       await userRole.save();
@@ -1676,7 +1727,7 @@ class RBACService {
       if (allPermissions.size === 0) {
         const user = await User.findById(userId);
         if (user && user.role) {
-          const role = await Role.findOne({ name: user.role }).setOptions({ bypassFranchise: true }).populate('permissions');
+          const role = await Role.findOne({ name: user.role, isActive: true }).setOptions({ bypassFranchise: true }).populate('permissions');
           if (role && role.permissions) {
             role.permissions.forEach(permission => {
               allPermissions.add(permission._id.toString());
@@ -1704,20 +1755,24 @@ class RBACService {
         return true;
       }
 
-      const permission = await Permission.findOne({ name: permissionName, isActive: true }).setOptions({ bypassFranchise: true });
-      if (!permission) {
+      // A permission name can exist as multiple docs (global + per-franchise
+      // copies with different _ids). Match the user's permission ids against
+      // every copy so role/permission pairs from different scopes still align.
+      const permissionDocs = await Permission.find({ name: permissionName, isActive: true }).setOptions({ bypassFranchise: true });
+      if (permissionDocs.length === 0) {
         return false;
       }
 
       const userPermissions = await this.getUserPermissions(userId);
-      const hasPermission = userPermissions.includes(permission._id.toString());
+      const userPermissionSet = new Set(userPermissions.map(p => p.toString()));
+      const matched = permissionDocs.find(p => userPermissionSet.has(p._id.toString()));
 
-      if (!hasPermission) {
+      if (!matched) {
         return false;
       }
 
       // Validate permission conditions
-      const validation = permission.validateConditions(context);
+      const validation = matched.validateConditions(context);
       return validation.valid;
     } catch (error) {
       console.error('❌ Permission check failed:', error);
@@ -1739,6 +1794,20 @@ class RBACService {
 
         if (validPermissions.length !== roleData.permissions.length) {
           throw new Error('Some permissions are invalid or inactive');
+        }
+
+        // Escalation guard: a creator can only bundle permissions they
+        // themselves hold (super/state admins hold everything by bypass).
+        const creatorPrivilege = await this.getActorPrivilege(createdBy);
+        const creatorIsElevated = creatorPrivilege &&
+          (creatorPrivilege.isSuper || creatorPrivilege.actor.role === 'state_admin');
+        if (!creatorIsElevated) {
+          const ownPermissions = await this.getUserPermissions(createdBy);
+          const ownSet = new Set(ownPermissions.map(p => p.toString()));
+          const exceeds = roleData.permissions.some(p => !ownSet.has(p.toString()));
+          if (exceeds) {
+            throw new Error('You cannot grant permissions you do not hold yourself');
+          }
         }
       }
 
@@ -1770,6 +1839,19 @@ class RBACService {
         throw new Error('System roles cannot be modified');
       }
 
+      // Hierarchy check: only super admins may modify roles at or above the
+      // updater's own privilege level (blocks editing your own role to
+      // grant yourself more access).
+      const updaterPrivilege = await this.getActorPrivilege(updatedBy);
+      if (!updaterPrivilege) {
+        throw new Error('Updater not found');
+      }
+      if (!updaterPrivilege.isSuper) {
+        if (updaterPrivilege.level === null || role.level <= updaterPrivilege.level) {
+          throw new Error('You do not have permission to modify this role');
+        }
+      }
+
       // Validate permission IDs if provided
       if (updates.permissions) {
         const validPermissions = await Permission.find({
@@ -1779,6 +1861,19 @@ class RBACService {
 
         if (validPermissions.length !== updates.permissions.length) {
           throw new Error('Some permissions are invalid or inactive');
+        }
+
+        // Escalation guard: non-elevated updaters can only grant permissions
+        // they hold themselves.
+        const updaterIsElevated = updaterPrivilege.isSuper ||
+          updaterPrivilege.actor.role === 'state_admin';
+        if (!updaterIsElevated) {
+          const ownPermissions = await this.getUserPermissions(updatedBy);
+          const ownSet = new Set(ownPermissions.map(p => p.toString()));
+          const exceeds = updates.permissions.some(p => !ownSet.has(p.toString()));
+          if (exceeds) {
+            throw new Error('You cannot grant permissions you do not hold yourself');
+          }
         }
       }
 

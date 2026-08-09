@@ -233,6 +233,11 @@ userRoleSchema.methods.getEffectivePermissions = async function() {
     return [];
   }
 
+  // A deactivated role definition must not keep granting permissions
+  if (this.role.isActive === false) {
+    return [];
+  }
+
   // Get base role permissions
   const rolePermissions = await this.role.getAllPermissions();
   const effectivePermissions = new Set(rolePermissions);
