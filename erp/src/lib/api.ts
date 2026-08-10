@@ -1717,12 +1717,33 @@ export const adminReports = {
       area?: string;
       unit?: string;
       status?: string;
+      search?: string;
       page?: number;
       limit?: number;
     }
   ) =>
     extendedApiClient.request(
       `/admin-reports/${id}/submissions${params ? `?${new URLSearchParams(params as any).toString()}` : ''}`
+    ),
+  getSubmissionStats: (
+    id: string,
+    params?: { district?: string; area?: string; search?: string }
+  ) =>
+    extendedApiClient.request(
+      `/admin-reports/${id}/submission-stats${params ? `?${new URLSearchParams(params as any).toString()}` : ''}`
+    ),
+  getNonSubmitters: (
+    id: string,
+    params?: {
+      district?: string;
+      area?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    }
+  ) =>
+    extendedApiClient.request(
+      `/admin-reports/${id}/non-submitters${params ? `?${new URLSearchParams(params as any).toString()}` : ''}`
     ),
   saveDraft: (id: string, data: { formData: any; location?: string }) =>
     extendedApiClient.request(`/admin-reports/${id}/submissions`, {

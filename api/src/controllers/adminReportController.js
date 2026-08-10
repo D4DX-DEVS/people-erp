@@ -1,4 +1,4 @@
-const { AdminReport, AdminReportFormConfig, AdminReportSubmission } = require('../models');
+const { AdminReport, AdminReportFormConfig, AdminReportSubmission, User, Location, UserFranchise } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const {
   buildFranchiseReadFilter,
@@ -12,6 +12,130 @@ const isSuperAdmin = (req) =>
 
 const effectiveRole = (req) =>
   req.userRole || req.user?.role;
+
+// Which adminScope field holds the location an admin role reports from
+const ROLE_SCOPE_FIELD = {
+  unit_admin: 'unit',
+  area_admin: 'area',
+  area_president: 'area',
+  district_admin: 'district'
+};
+
+const scopeLocationForRole = (role, scope) => {
+  if (!scope) return null;
+  const field = ROLE_SCOPE_FIELD[role];
+  return (field && scope[field]) || null;
+};
+
+// The submitter's own location: franchise membership scope first, legacy User.adminScope second
+const resolveSubmitterLocation = (req) => {
+  const role = effectiveRole(req);
+  return (
+    scopeLocationForRole(role, req.userFranchise?.adminScope) ||
+    scopeLocationForRole(role, req.user?.adminScope)
+  );
+};
+
+// Expand a location id to itself plus all descendants (district → areas → units)
+const expandLocationIds = async (locationId) => {
+  const allIds = [locationId];
+  let frontier = [locationId];
+  for (let depth = 0; depth < 3 && frontier.length > 0; depth++) {
+    const children = await Location.find({ parent: { $in: frontier } }).select('_id').lean();
+    frontier = children.map((c) => c._id);
+    allIds.push(...frontier);
+  }
+  return allIds;
+};
+
+// Backfill location on legacy submissions saved before it was captured server-side.
+// One attempt per row (locationBackfillAt marks it) so this converges to a no-op.
+const backfillSubmissionLocations = async (reportId) => {
+  const missing = await AdminReportSubmission.find({
+    adminReport: reportId,
+    $or: [{ location: null }, { location: { $exists: false } }],
+    locationBackfillAt: { $exists: false }
+  }).select('submittedBy submitterRole franchise').lean();
+  if (missing.length === 0) return;
+
+  const userIds = [...new Set(missing.map((m) => String(m.submittedBy)))];
+  const [memberships, users] = await Promise.all([
+    UserFranchise.find({ user: { $in: userIds }, isActive: true })
+      .select('user franchise role adminScope').lean(),
+    User.find({ _id: { $in: userIds } }).select('adminScope role').lean()
+  ]);
+  const userById = new Map(users.map((u) => [String(u._id), u]));
+
+  const now = new Date();
+  const ops = [];
+  for (const sub of missing) {
+    const uid = String(sub.submittedBy);
+    const legacyUser = userById.get(uid);
+    const role = sub.submitterRole || legacyUser?.role;
+    // Only trust a membership in the submission's own franchise — a same-role
+    // membership in another franchise would carry the wrong location.
+    const membership = memberships.find((m) =>
+      String(m.user) === uid &&
+      (!sub.submitterRole || m.role === sub.submitterRole) &&
+      sub.franchise && String(m.franchise) === String(sub.franchise)
+    );
+    const location =
+      scopeLocationForRole(role, membership?.adminScope) ||
+      scopeLocationForRole(role, legacyUser?.adminScope);
+    const update = location
+      ? { $set: { location, locationBackfillAt: now } }
+      : { $set: { locationBackfillAt: now } };
+    ops.push({ updateOne: { filter: { _id: sub._id }, update } });
+  }
+  if (ops.length > 0) await AdminReportSubmission.bulkWrite(ops);
+};
+
+// UserFranchise memberships targeted by a report, enriched with user + scope location
+const getTargetedMemberships = async (report) => {
+  const query = { role: report.targetUserType, isActive: true };
+  if (report.franchise) query.franchise = report.franchise;
+  const scopeField = ROLE_SCOPE_FIELD[report.targetUserType];
+
+  let membershipQuery = UserFranchise.find(query)
+    .select('user role adminScope')
+    .populate('user', 'name email phone');
+  if (scopeField) {
+    membershipQuery = membershipQuery.populate(`adminScope.${scopeField}`, 'name type');
+  }
+  const memberships = await membershipQuery.lean();
+
+  const seen = new Set();
+  const result = [];
+  for (const m of memberships) {
+    if (!m.user) continue;
+    const uid = String(m.user._id);
+    if (seen.has(uid)) continue;
+    seen.add(uid);
+    result.push({
+      userId: uid,
+      name: m.user.name,
+      email: m.user.email,
+      phone: m.user.phone,
+      role: m.role,
+      location: scopeField ? (m.adminScope?.[scopeField] || null) : null
+    });
+  }
+  return result;
+};
+
+const filterMemberships = async (memberships, { district, area, search }) => {
+  let result = memberships;
+  const selected = area || district;
+  if (selected) {
+    const ids = new Set((await expandLocationIds(selected)).map(String));
+    result = result.filter((m) => m.location && ids.has(String(m.location._id)));
+  }
+  if (search && search.trim()) {
+    const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    result = result.filter((m) => regex.test(m.name || '') || regex.test(m.location?.name || ''));
+  }
+  return result;
+};
 
 // ── Report CRUD ───────────────────────────────────────────────────────────────
 
@@ -408,7 +532,7 @@ exports.publishFormConfig = async (req, res) => {
  */
 exports.getSubmissions = async (req, res) => {
   try {
-    const { district, area, unit, status, page = 1, limit = 20 } = req.query;
+    const { district, area, unit, status, search, page = 1, limit = 20 } = req.query;
 
     const report = await AdminReport.findOne({
       _id: req.params.id,
@@ -423,9 +547,32 @@ exports.getSubmissions = async (req, res) => {
     };
 
     if (isSuperAdmin(req)) {
+      // Legacy submissions were saved without a location; derive it from the
+      // submitter's admin scope so location display and filters work.
+      try {
+        await backfillSubmissionLocations(req.params.id);
+      } catch (backfillError) {
+        console.error('backfillSubmissionLocations error:', backfillError);
+      }
+
       if (status) filter.status = status;
-      const locationIds = [district, area, unit].filter(Boolean);
-      if (locationIds.length > 0) filter.location = { $in: locationIds };
+      // Most specific selected location wins; expand to its descendants so a
+      // district/area filter matches submissions tagged with child areas/units.
+      const selectedLocation = unit || area || district;
+      if (selectedLocation) {
+        filter.location = { $in: await expandLocationIds(selectedLocation) };
+      }
+      if (search && search.trim()) {
+        const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const [matchedUsers, matchedLocations] = await Promise.all([
+          User.find({ name: regex }).select('_id').lean(),
+          Location.find({ name: regex }).select('_id').lean()
+        ]);
+        filter.$or = [
+          { submittedBy: { $in: matchedUsers.map((u) => u._id) } },
+          { location: { $in: matchedLocations.map((l) => l._id) } }
+        ];
+      }
     } else {
       // Others see only their own; still allow status filter
       filter.submittedBy = req.user._id;
@@ -457,6 +604,92 @@ exports.getSubmissions = async (req, res) => {
   } catch (error) {
     console.error('getSubmissions error:', error);
     return ResponseHelper.error(res, 'Failed to fetch submissions', 500);
+  }
+};
+
+/**
+ * GET /api/admin-reports/:id/submission-stats
+ * Super admin: counts of targeted admins who have / haven't submitted,
+ * honouring the same district/area/search filters as the submissions list.
+ */
+exports.getSubmissionStats = async (req, res) => {
+  try {
+    const { district, area, search } = req.query;
+
+    const report = await AdminReport.findOne({
+      _id: req.params.id,
+      ...buildFranchiseReadFilter(req)
+    }).lean();
+
+    if (!report) return ResponseHelper.error(res, 'Report not found', 404);
+
+    const [targeted, submittedUserIds] = await Promise.all([
+      getTargetedMemberships(report),
+      AdminReportSubmission.distinct('submittedBy', {
+        adminReport: req.params.id,
+        status: 'submitted'
+      })
+    ]);
+
+    const submittedSet = new Set(submittedUserIds.map(String));
+    const filtered = await filterMemberships(targeted, { district, area, search });
+    const submittedCount = filtered.filter((m) => submittedSet.has(m.userId)).length;
+
+    return ResponseHelper.success(res, {
+      targetedTotal: filtered.length,
+      submittedCount,
+      notSubmittedCount: filtered.length - submittedCount
+    });
+  } catch (error) {
+    console.error('getSubmissionStats error:', error);
+    return ResponseHelper.error(res, 'Failed to fetch submission stats', 500);
+  }
+};
+
+/**
+ * GET /api/admin-reports/:id/non-submitters
+ * Super admin: targeted admins who have not submitted this report yet.
+ */
+exports.getNonSubmitters = async (req, res) => {
+  try {
+    const { district, area, search, page = 1, limit = 15 } = req.query;
+
+    const report = await AdminReport.findOne({
+      _id: req.params.id,
+      ...buildFranchiseReadFilter(req)
+    }).lean();
+
+    if (!report) return ResponseHelper.error(res, 'Report not found', 404);
+
+    const [targeted, submittedUserIds] = await Promise.all([
+      getTargetedMemberships(report),
+      AdminReportSubmission.distinct('submittedBy', {
+        adminReport: req.params.id,
+        status: 'submitted'
+      })
+    ]);
+
+    const submittedSet = new Set(submittedUserIds.map(String));
+    const nonSubmitters = (await filterMemberships(targeted, { district, area, search }))
+      .filter((m) => !submittedSet.has(m.userId))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const start = (pageNum - 1) * limitNum;
+
+    return ResponseHelper.success(res, {
+      users: nonSubmitters.slice(start, start + limitNum),
+      pagination: {
+        total: nonSubmitters.length,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.max(1, Math.ceil(nonSubmitters.length / limitNum))
+      }
+    });
+  } catch (error) {
+    console.error('getNonSubmitters error:', error);
+    return ResponseHelper.error(res, 'Failed to fetch non-submitters', 500);
   }
 };
 
@@ -513,7 +746,7 @@ exports.saveSubmission = async (req, res) => {
         $set: {
           formData: formData || {},
           submitterRole: userRole,
-          location: location || undefined,
+          location: location || resolveSubmitterLocation(req) || undefined,
           franchise: franchiseId
         },
         $setOnInsert: {
@@ -569,6 +802,11 @@ exports.submitSubmission = async (req, res) => {
     // Allow updating formData at submit time
     if (req.body.formData) {
       submission.formData = req.body.formData;
+    }
+
+    if (!submission.location) {
+      const derivedLocation = resolveSubmitterLocation(req);
+      if (derivedLocation) submission.location = derivedLocation;
     }
 
     submission.status = 'submitted';

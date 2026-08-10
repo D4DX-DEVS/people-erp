@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { adminReports } from "@/lib/api";
+import { adminReports, locations } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -555,6 +555,9 @@ interface SubmissionsDialogProps {
 }
 
 function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
+  const { user } = useAuth();
+  const isSuper = user?.isSuperAdmin || user?.role === "super_admin";
+
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -563,11 +566,61 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
   const [selectedSub, setSelectedSub] = useState<any | null>(null);
   const [fieldMap, setFieldMap] = useState<Record<string, { label: string; type: string }>>({});
 
+  // Location filters — which ones show depends on the report's target level:
+  // unit_admin → district + area + search, area_admin → district + search,
+  // district_admin / state_admin → search only.
+  const showDistrictFilter = isSuper && (report?.targetUserType === "unit_admin" || report?.targetUserType === "area_admin");
+  const showAreaFilter = isSuper && report?.targetUserType === "unit_admin";
+  const [filterDistrict, setFilterDistrict] = useState("all");
+  const [filterArea, setFilterArea] = useState("all");
+  const [districtOptions, setDistrictOptions] = useState<Array<{ _id: string; name: string }>>([]);
+  const [areaOptions, setAreaOptions] = useState<Array<{ _id: string; name: string }>>([]);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  // Submitted / not-submitted counts + which list is displayed
+  const [view, setView] = useState<"submissions" | "nonSubmitters">("submissions");
+  const [stats, setStats] = useState<{ targetedTotal: number; submittedCount: number; notSubmittedCount: number } | null>(null);
+  const [nonSubmitters, setNonSubmitters] = useState<any[]>([]);
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Load district options when needed
+  useEffect(() => {
+    if (!open || !showDistrictFilter) return;
+    locations.getByType("district", { active: true }).then((res: any) => {
+      setDistrictOptions(res.data?.locations || []);
+    }).catch(() => {});
+  }, [open, showDistrictFilter]);
+
+  // Load area options for the selected district
+  useEffect(() => {
+    if (!open || !showAreaFilter || filterDistrict === "all") {
+      setAreaOptions([]);
+      return;
+    }
+    locations.getByType("area", { parent: filterDistrict, active: true }).then((res: any) => {
+      setAreaOptions(res.data?.locations || []);
+    }).catch(() => {});
+  }, [open, showAreaFilter, filterDistrict]);
+
   useEffect(() => {
     if (!open || !report) return;
     setPage(1);
     setSubmissions([]);
     setSelectedSub(null);
+    setFilterStatus("all");
+    setFilterDistrict("all");
+    setFilterArea("all");
+    setSearchInput("");
+    setSearch("");
+    setView("submissions");
+    setStats(null);
+    setNonSubmitters([]);
     adminReports.getFormConfig(report._id).then((res) => {
       const pages: any[] = res.data?.formConfiguration?.pages || [];
       const map: Record<string, { label: string; type: string }> = {};
@@ -580,24 +633,51 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
     }).catch(() => {});
   }, [open, report]);
 
+  // Submitted / not-submitted counts (respect current location filters + search)
+  useEffect(() => {
+    if (!open || !report || !isSuper) return;
+    const params: any = {};
+    if (filterDistrict !== "all") params.district = filterDistrict;
+    if (filterArea !== "all") params.area = filterArea;
+    if (search.trim()) params.search = search.trim();
+    let cancelled = false;
+    adminReports.getSubmissionStats(report._id, params).then((res: any) => {
+      if (!cancelled) setStats(res.data || null);
+    }).catch(() => { if (!cancelled) setStats(null); });
+    return () => { cancelled = true; };
+  }, [open, report, isSuper, filterDistrict, filterArea, search]);
+
   useEffect(() => {
     if (!open || !report) return;
+    let cancelled = false;
     const fetch = async () => {
       setLoading(true);
       try {
         const params: any = { page, limit: 15 };
-        if (filterStatus !== "all") params.status = filterStatus;
-        const res = await adminReports.getSubmissions(report._id, params);
-        setSubmissions(res.data?.submissions || []);
-        setTotalPages(res.data?.pagination?.totalPages || 1);
+        if (filterDistrict !== "all") params.district = filterDistrict;
+        if (filterArea !== "all") params.area = filterArea;
+        if (search.trim()) params.search = search.trim();
+        if (view === "nonSubmitters") {
+          const res = await adminReports.getNonSubmitters(report._id, params);
+          if (cancelled) return;
+          setNonSubmitters(res.data?.users || []);
+          setTotalPages(res.data?.pagination?.totalPages || 1);
+        } else {
+          if (filterStatus !== "all") params.status = filterStatus;
+          const res = await adminReports.getSubmissions(report._id, params);
+          if (cancelled) return;
+          setSubmissions(res.data?.submissions || []);
+          setTotalPages(res.data?.pagination?.totalPages || 1);
+        }
       } catch {
-        toast({ title: "Failed to load submissions", variant: "destructive" });
+        if (!cancelled) toast({ title: "Failed to load submissions", variant: "destructive" });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetch();
-  }, [open, report, page, filterStatus]);
+    return () => { cancelled = true; };
+  }, [open, report, page, view, filterStatus, filterDistrict, filterArea, search]);
 
   return (
     <>
@@ -611,18 +691,88 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
             </DialogTitle>
           </DialogHeader>
 
+          {/* Submitted / not-submitted count cards */}
+          {isSuper && stats && (
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              <button
+                type="button"
+                onClick={() => { setView("submissions"); setFilterStatus("submitted"); setPage(1); }}
+                className={`rounded-lg border p-3 text-center transition-colors hover:bg-accent ${view === "submissions" ? "border-primary ring-1 ring-primary" : ""}`}
+              >
+                <CheckCircle className="h-5 w-5 mx-auto mb-1 text-green-600" />
+                <p className="text-2xl font-bold">{stats.submittedCount}</p>
+                <p className="text-xs text-muted-foreground">Submitted of {stats.targetedTotal} targeted</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setView("nonSubmitters"); setPage(1); }}
+                className={`rounded-lg border p-3 text-center transition-colors hover:bg-accent ${view === "nonSubmitters" ? "border-primary ring-1 ring-primary" : ""}`}
+              >
+                <Clock className="h-5 w-5 mx-auto mb-1 text-amber-600" />
+                <p className="text-2xl font-bold">{stats.notSubmittedCount}</p>
+                <p className="text-xs text-muted-foreground">Not Submitted</p>
+              </button>
+            </div>
+          )}
+
           {/* Filter bar */}
-          <div className="flex gap-2 mb-2">
-            <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }}>
-              <SelectTrigger className="h-8 w-40">
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="draft">Drafts</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {view === "submissions" && (
+              <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }}>
+                <SelectTrigger className="h-8 w-36">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="draft">Drafts</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            {showDistrictFilter && (
+              <Select
+                value={filterDistrict}
+                onValueChange={(v) => { setFilterDistrict(v); setFilterArea("all"); setPage(1); }}
+              >
+                <SelectTrigger className="h-8 w-44">
+                  <SelectValue placeholder="All districts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Districts</SelectItem>
+                  {districtOptions.map((d) => (
+                    <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {showAreaFilter && (
+              <Select
+                value={filterArea}
+                onValueChange={(v) => { setFilterArea(v); setPage(1); }}
+                disabled={filterDistrict === "all"}
+              >
+                <SelectTrigger className="h-8 w-44">
+                  <SelectValue placeholder={filterDistrict === "all" ? "Select district first" : "All areas"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Areas</SelectItem>
+                  {areaOptions.map((a) => (
+                    <SelectItem key={a._id} value={a._id}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {isSuper && (
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or location..."
+                  className="pl-8 h-8"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Table of submissions */}
@@ -631,6 +781,48 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
+            ) : view === "nonSubmitters" ? (
+              nonSubmitters.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  <CheckCircle className="mx-auto h-8 w-8 mb-2 opacity-40" />
+                  All targeted admins have submitted.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Phone</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {nonSubmitters.map((u) => (
+                      <TableRow key={u.userId}>
+                        <TableCell>
+                          <div className="font-medium">{u.name || "Unknown"}</div>
+                          <div className="text-xs text-muted-foreground capitalize">
+                            {u.role?.replace(/_/g, " ")}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {u.location ? (
+                            <div className="text-sm">
+                              <div>{u.location.name}</div>
+                              <div className="text-xs text-muted-foreground capitalize">{u.location.type}</div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{u.phone || "—"}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )
             ) : submissions.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground text-sm">
                 <FileText className="mx-auto h-8 w-8 mb-2 opacity-40" />

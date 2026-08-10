@@ -19,6 +19,8 @@ router.put('/:id/form-config', authenticate, authorize(...SUPER), ctrl.updateFor
 router.patch('/:id/form-config/publish', authenticate, authorize(...SUPER), ctrl.publishFormConfig);
 
 // ── Submissions ───────────────────────────────────────────────────────────────
+router.get('/:id/submission-stats', authenticate, authorize(...SUPER), ctrl.getSubmissionStats);
+router.get('/:id/non-submitters', authenticate, authorize(...SUPER), ctrl.getNonSubmitters);
 router.get('/:id/submissions', authenticate, authorize(...ADMIN_ROLES), ctrl.getSubmissions);
 router.post('/:id/submissions', authenticate, authorize(...ADMIN_ROLES), ctrl.saveSubmission);
 router.patch('/:id/submissions/:submissionId/submit', authenticate, authorize(...ADMIN_ROLES), ctrl.submitSubmission);

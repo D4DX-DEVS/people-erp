@@ -32,6 +32,11 @@ const adminReportSubmissionSchema = new mongoose.Schema({
     enum: ['draft', 'submitted'],
     default: 'draft'
   },
+  // Set once the legacy location backfill has attempted this row (resolved or not),
+  // so the backfill converges instead of rescanning the same rows forever
+  locationBackfillAt: {
+    type: Date
+  },
   submittedAt: {
     type: Date
   }
