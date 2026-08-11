@@ -169,6 +169,7 @@ const mediaRoutes = require('./routes/mediaRoutes');
 const blogRoutes = require('./routes/blogRoutes');
 const contactMessageRoutes = require('./routes/contactMessageRoutes');
 const volunteerRoutes = require('./routes/volunteerRoutes');
+const sitePageRoutes = require('./routes/sitePageRoutes');
 
 // Application Configuration Routes
 const applicationConfigRoutes = require('./routes/applicationConfig');
@@ -224,6 +225,7 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/blogs', blogRoutes);
 app.use('/api/contact-messages', contactMessageRoutes);
 app.use('/api/volunteers', volunteerRoutes);
+app.use('/api/site-pages', sitePageRoutes);
 
 // Application Configuration Routes
 app.use('/api/config', applicationConfigRoutes);

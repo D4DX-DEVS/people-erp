@@ -181,6 +181,7 @@ export default function WebsiteBlogs() {
             <div><Label>Content *</Label><VoiceTextarea rows={10} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
             <div><Label>Tags (comma-separated)</Label><Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
             <div><Label>Cover Image</Label><Input type="file" accept="image/*" onChange={onCover} />
+              <p className="text-xs text-muted-foreground mt-1">1200 × 675 px (16:9). Center-cropped to a band on blog cards, shown in full on the post page. Max 5MB.</p>
               {coverPreview && <img src={coverPreview} alt="preview" className="mt-2 h-24 rounded object-cover" />}</div>
             <div className="flex items-center gap-6">
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} />Featured</label>

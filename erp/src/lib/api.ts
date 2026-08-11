@@ -2212,6 +2212,41 @@ export const website = {
 
   // Aggregated public home content (resolved by hostname/franchise)
   getHome: () => apiClient.request('/website/home'),
+
+  // Public filterable projects hub
+  getPublicProjects: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/website/projects${query}`);
+  },
+};
+
+// Dynamic Website Pages API (admin page builder + public rendering)
+export const sitePages = {
+  // Public
+  getPublicList: () => apiClient.request('/site-pages/public'),
+  getPublicBySlug: (slug: string) => apiClient.request(`/site-pages/public/${slug}`),
+  // Admin
+  getAll: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/site-pages${query}`);
+  },
+  getById: (id: string) => apiClient.request(`/site-pages/${id}`),
+  create: (data: any) => apiClient.request('/site-pages', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  update: (id: string, data: any) => apiClient.request(`/site-pages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  delete: (id: string) => apiClient.request(`/site-pages/${id}`, {
+    method: 'DELETE'
+  }),
+  uploadImage: (formData: FormData) => apiClient.request('/site-pages/upload-image', {
+    method: 'POST',
+    body: formData,
+    headers: {}
+  })
 };
 
 // Banners API

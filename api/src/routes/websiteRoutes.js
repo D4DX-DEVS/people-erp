@@ -14,6 +14,13 @@ const { uploadSingleMemory } = require('../middleware/upload');
 router.get('/home', publicSiteController.getHome);
 
 /**
+ * @route   GET /api/website/projects
+ * @desc    Public filterable projects list for the projects hub page
+ * @access  Public
+ */
+router.get('/projects', publicSiteController.getProjects);
+
+/**
  * @route   GET /api/website/public-settings
  * @desc    Get public website settings (no auth)
  * @access  Public

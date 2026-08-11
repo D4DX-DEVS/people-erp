@@ -4,17 +4,18 @@ import { Menu, X, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
+import { usePublicPages } from "@/hooks/useSitePages";
 import defaultLogo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { label: "Home", to: "/" },
   { label: "About", to: "/#about" },
-  { label: "Projects", to: "/#projects" },
-  { label: "News", to: "/#news" },
-  { label: "Gallery", to: "/#gallery" },
-  { label: "Videos", to: "/#videos" },
-  { label: "FAQ", to: "/#faq" },
+  { label: "Projects", to: "/projects-hub" },
+  { label: "News", to: "/news" },
+  { label: "Gallery", to: "/gallery" },
+  { label: "Videos", to: "/videos" },
+  { label: "Blog", to: "/blogs" },
   { label: "Contact", to: "/#contact" },
 ];
 
@@ -28,6 +29,13 @@ export function SiteHeader({ donateLink }: SiteHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const { data: publicPages } = usePublicPages();
+
+  const dynamicLinks = (publicPages || [])
+    .filter((p) => p.showInNav)
+    .sort((a, b) => (a.navOrder || 0) - (b.navOrder || 0))
+    .map((p) => ({ label: p.navLabel || p.title, to: `/p/${p.slug}` }));
+  const navLinks = [...NAV_LINKS, ...dynamicLinks];
 
   const handleNav = (to: string) => {
     setOpen(false);
@@ -60,8 +68,8 @@ export function SiteHeader({ donateLink }: SiteHeaderProps) {
           </div>
         </button>
 
-        <nav className="hidden items-center gap-1 lg:flex">
-          {NAV_LINKS.map((l) => (
+        <nav className="hidden flex-wrap items-center gap-1 lg:flex">
+          {navLinks.map((l) => (
             <button
               key={l.to}
               onClick={() => handleNav(l.to)}
@@ -97,7 +105,7 @@ export function SiteHeader({ donateLink }: SiteHeaderProps) {
       {/* Mobile menu */}
       <div className={cn("lg:hidden", open ? "block" : "hidden")}>
         <nav className="container mx-auto flex flex-col gap-1 px-4 pb-4">
-          {NAV_LINKS.map((l) => (
+          {navLinks.map((l) => (
             <button
               key={l.to}
               onClick={() => handleNav(l.to)}

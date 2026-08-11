@@ -427,7 +427,8 @@ export default function Banners() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Max size: 5MB. Recommended: 1920x600px
+                  1920 × 900 px (about 2:1). Fills a 70%-of-screen-height slider band and is center-cropped, so keep
+                  the subject centred and avoid text near the edges. Max 5MB.
                 </p>
               </div>
 

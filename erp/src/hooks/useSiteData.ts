@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { website } from "@/lib/api";
+import type { SitePageSummary } from "@/types/sitePage";
 
 export interface SiteValue {
   title?: string;
@@ -37,6 +38,7 @@ export interface SiteHomeData {
   brochures: Array<{ _id: string; title: string; description?: string; fileUrl: string; fileName?: string; category?: string }>;
   faqs: Array<{ _id: string; question: string; answer: string; category?: string }>;
   media: Array<{ _id: string; title: string; source?: string; link?: string; imageUrl?: string; publishDate?: string }>;
+  pages: SitePageSummary[];
 }
 
 /**

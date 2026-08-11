@@ -170,6 +170,7 @@ export default function WebsiteVideos() {
             <div><Label>Video URL * (YouTube or direct)</Label><Input value={form.videoUrl} onChange={(e) => setForm({ ...form, videoUrl: e.target.value })} placeholder="https://youtube.com/watch?v=..." /></div>
             <div><Label>Description</Label><VoiceTextarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <div><Label>Thumbnail (optional)</Label><Input type="file" accept="image/*" onChange={onThumb} />
+              <p className="text-xs text-muted-foreground mt-1">1280 × 720 px (16:9). Center-cropped into a 192px-tall card. Leave empty for YouTube links — the video&apos;s own thumbnail is used. Max 5MB.</p>
               {thumbPreview && <img src={thumbPreview} alt="preview" className="mt-2 h-24 rounded object-cover" />}
             </div>
             <div className="grid grid-cols-2 gap-4">

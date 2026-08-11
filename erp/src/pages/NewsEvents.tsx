@@ -487,7 +487,8 @@ export default function NewsEvents() {
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
-                Recommended: 1200x800px, max 5MB
+                1200 × 675 px (16:9). Center-cropped to a band on news cards, shown in full on the news detail page.
+                Max 5MB.
               </p>
             </div>
           </div>

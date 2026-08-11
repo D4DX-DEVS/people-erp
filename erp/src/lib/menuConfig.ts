@@ -31,6 +31,7 @@ import {
   HeartHandshake,
   Bell,
   Download,
+  PanelsTopLeft,
   type LucideIcon,
 } from "lucide-react";
 
@@ -429,6 +430,13 @@ export const menuCategories: MenuCategory[] = [
         label: "Website Settings",
         permissions: ["website.read", "settings.read"],
         keywords: ["website", "site", "web"],
+      },
+      {
+        to: "/website-pages",
+        icon: PanelsTopLeft,
+        label: "Website Pages",
+        permissions: ["website.read"],
+        keywords: ["pages", "page builder", "about", "sections", "custom page"],
       },
       {
         to: "/banners",

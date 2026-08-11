@@ -10,6 +10,7 @@ const GalleryAlbum = require('../models/GalleryAlbum');
 const Video = require('../models/Video');
 const Blog = require('../models/Blog');
 const MediaCoverage = require('../models/MediaCoverage');
+const SitePage = require('../models/SitePage');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
 
 /**
@@ -33,7 +34,8 @@ exports.getHome = async (req, res) => {
       partners,
       brochures,
       faqs,
-      media
+      media,
+      pages
     ] = await Promise.all([
       WebsiteSettings.findOne({ ...scope }).select('-updatedBy -__v').lean(),
       Banner.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).select('-createdBy -updatedBy').lean(),
@@ -54,7 +56,9 @@ exports.getHome = async (req, res) => {
         .select('title description fileUrl fileName category').lean(),
       FAQ.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).select('question answer category').lean(),
       MediaCoverage.find({ status: 'active', ...scope }).sort({ order: 1, publishDate: -1 }).limit(8)
-        .select('title source link imageUrl publishDate').lean()
+        .select('title source link imageUrl publishDate').lean(),
+      SitePage.find({ status: 'published', ...scope }).sort({ navOrder: 1, homeOrder: 1, createdAt: 1 })
+        .select('title slug navLabel navOrder showInNav showOnHome homeOrder summary hero.imageUrl hero.title').lean()
     ]);
 
     // Trim gallery image payload to cover thumbnails for the home grid
@@ -80,11 +84,53 @@ exports.getHome = async (req, res) => {
         partners: partners || [],
         brochures: brochures || [],
         faqs: faqs || [],
-        media: media || []
+        media: media || [],
+        pages: pages || []
       }
     });
   } catch (error) {
     console.error('Get public home error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch home content', error: error.message });
+  }
+};
+
+/**
+ * Public filterable projects hub.
+ * GET /api/website/projects?category=&page=&limit=
+ */
+exports.getProjects = async (req, res) => {
+  try {
+    const scope = buildFranchiseReadFilter(req);
+    const { category, status } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 12, 50);
+    const skip = (page - 1) * limit;
+
+    // Public status filter: ongoing / completed. Drafts are never exposed here.
+    const statusIn = status === 'completed'
+      ? ['completed']
+      : status === 'ongoing'
+        ? ['active', 'approved']
+        : ['active', 'approved', 'completed'];
+    const filter = { status: { $in: statusIn }, ...scope };
+    // Whitelist category — query params can arrive as objects (qs bracket
+    // notation), which must never reach the Mongo filter on a public route.
+    const PROJECT_CATEGORIES = ['education', 'healthcare', 'housing', 'livelihood', 'emergency_relief', 'infrastructure', 'social_welfare', 'other'];
+    if (typeof category === 'string' && PROJECT_CATEGORIES.includes(category)) filter.category = category;
+
+    const [projects, total] = await Promise.all([
+      Project.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
+        .select('name description category status').lean(),
+      Project.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: projects,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
+  } catch (error) {
+    console.error('Get public projects error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch projects', error: error.message });
   }
 };

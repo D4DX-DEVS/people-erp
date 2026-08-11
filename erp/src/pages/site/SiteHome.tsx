@@ -76,6 +76,9 @@ export default function SiteHome() {
   const mediaItems = data?.media || [];
   const donation = s.donation || {};
   const donateLink = donation.paymentLink || s.hero?.ctaLink;
+  const homePages = (data?.pages || [])
+    .filter((p) => p.showOnHome)
+    .sort((a, b) => (a.homeOrder || 0) - (b.homeOrder || 0));
 
   // ── Contact form ──────────────────────────────────────────────────────────
   const [contact, setContact] = useState({ name: "", email: "", phone: "", subject: "", message: "" });
@@ -232,13 +235,54 @@ export default function SiteHome() {
         )}
       </section>
 
+      {/* DYNAMIC PAGES OVERVIEW */}
+      {homePages.length > 0 && (
+        <section id="pages" className="scroll-mt-20 border-t border-border/40 py-20 [overflow-wrap:anywhere]">
+          <div className="container mx-auto px-4">
+            <SectionHeading eyebrow="Explore" title="Discover More" subtitle="Dive deeper into who we are and what we do." />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {homePages.map((p) => (
+                <Card
+                  key={p._id}
+                  className="group cursor-pointer overflow-hidden border-border/60 transition-shadow hover:shadow-xl"
+                  onClick={() => navigate(`/p/${p.slug}`)}
+                >
+                  {p.hero?.imageUrl ? (
+                    <div className="relative h-40 overflow-hidden">
+                      <img
+                        src={p.hero.imageUrl}
+                        alt={p.title}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                    </div>
+                  ) : (
+                    <div className="flex h-40 items-center justify-center bg-gradient-hero">
+                      <Sparkles className="h-12 w-12 text-primary-foreground/70" />
+                    </div>
+                  )}
+                  <CardContent className="space-y-2 p-6">
+                    <h3 className="text-lg font-semibold">{p.title}</h3>
+                    {p.summary && <p className="line-clamp-3 text-sm text-muted-foreground">{p.summary}</p>}
+                    <span className="inline-flex items-center text-sm font-medium text-primary">
+                      View more <ChevronRight className="h-4 w-4" />
+                    </span>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* PROJECTS */}
       {projects.length > 0 && (
         <section id="projects" className="scroll-mt-20 bg-muted/30 py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="What we do" title="Our Projects" subtitle="Initiatives transforming lives in our communities." />
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {projects.map((p) => (
+              {projects.slice(0, 6).map((p) => (
                 <Card key={p._id} className="group overflow-hidden border-border/60 transition-shadow hover:shadow-xl">
                   <div className="relative h-40 overflow-hidden">
                     <img
@@ -256,6 +300,11 @@ export default function SiteHome() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Button variant="outline" className="rounded-full" onClick={() => navigate("/projects-hub")}>
+                View all projects <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
             </div>
           </div>
         </section>
@@ -292,8 +341,8 @@ export default function SiteHome() {
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Updates" title="News & Events" subtitle="Latest happenings and announcements." />
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {news.map((n) => (
-                <Card key={n._id} className="group overflow-hidden border-border/60 transition-shadow hover:shadow-xl">
+              {news.slice(0, 3).map((n) => (
+                <Card key={n._id} className="group cursor-pointer overflow-hidden border-border/60 transition-shadow hover:shadow-xl" onClick={() => navigate(`/news/${n._id}`)}>
                   {n.imageUrl ? (
                     <img src={n.imageUrl} alt={n.title} className="h-44 w-full object-cover transition-transform group-hover:scale-105" />
                   ) : (
@@ -309,6 +358,11 @@ export default function SiteHome() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Button variant="outline" className="rounded-full" onClick={() => navigate("/news")}>
+                View all news & events <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
             </div>
           </div>
         </section>
@@ -336,6 +390,11 @@ export default function SiteHome() {
                   </div>
                 </button>
               ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Button variant="outline" className="rounded-full" onClick={() => navigate("/gallery")}>
+                View full gallery <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
             </div>
           </div>
         </section>
@@ -372,6 +431,11 @@ export default function SiteHome() {
                 </button>
               ))}
             </div>
+            <div className="mt-8 text-center">
+              <Button variant="outline" className="rounded-full" onClick={() => navigate("/videos")}>
+                View all videos <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </section>
       )}
@@ -397,6 +461,11 @@ export default function SiteHome() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Button variant="outline" className="rounded-full" onClick={() => navigate("/blogs")}>
+                View all posts <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
             </div>
           </div>
         </section>

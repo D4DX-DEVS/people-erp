@@ -160,6 +160,7 @@ export default function WebsiteMedia() {
             </div>
             <div><Label>Article Link</Label><Input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://..." /></div>
             <div><Label>Image (optional)</Label><Input type="file" accept="image/*" onChange={onImage} />
+              <p className="text-xs text-muted-foreground mt-1">800 × 450 px (16:9). Center-cropped into a short 144px-tall clipping band. Max 5MB.</p>
               {imagePreview && <img src={imagePreview} alt="preview" className="mt-2 h-24 rounded object-cover" />}</div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Order</Label><Input type="number" value={form.order} onChange={(e) => setForm({ ...form, order: Number(e.target.value) })} /></div>

@@ -348,6 +348,9 @@ export default function WebsiteSettings() {
                 />
               </label>
             )}
+            <p className="text-xs text-muted-foreground">
+              1200 × 900 px (4:3). Shown beside the About text at its own aspect ratio, never cropped. Max 5MB.
+            </p>
           </div>
         </CardContent>
       </Card>

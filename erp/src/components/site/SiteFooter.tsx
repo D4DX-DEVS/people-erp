@@ -66,14 +66,18 @@ export function SiteFooter({ settings }: SiteFooterProps) {
           <ul className="space-y-2 text-sm text-muted-foreground">
             {[
               { label: "About Us", href: "/#about" },
-              { label: "Projects", href: "/#projects" },
-              { label: "News & Events", href: "/#news" },
-              { label: "Gallery", href: "/#gallery" },
+              { label: "Projects", href: "/projects-hub" },
+              { label: "News & Events", href: "/news" },
+              { label: "Gallery", href: "/gallery" },
               { label: "FAQ", href: "/#faq" },
               { label: "Contact", href: "/#contact" },
             ].map((l) => (
               <li key={l.label}>
-                <a href={l.href} className="transition-colors hover:text-primary">{l.label}</a>
+                {l.href.includes("#") ? (
+                  <a href={l.href} className="transition-colors hover:text-primary">{l.label}</a>
+                ) : (
+                  <Link to={l.href} className="transition-colors hover:text-primary">{l.label}</Link>
+                )}
               </li>
             ))}
           </ul>

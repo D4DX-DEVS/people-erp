@@ -16,6 +16,13 @@ import SiteHome from "./pages/site/SiteHome";
 import GalleryAlbumPage from "./pages/site/GalleryAlbumPage";
 import BlogDetailPage from "./pages/site/BlogDetailPage";
 import PrivacyPolicy from "./pages/site/PrivacyPolicy";
+import SitePageView from "./pages/site/SitePageView";
+import NewsListPage from "./pages/site/NewsListPage";
+import NewsDetailPage from "./pages/site/NewsDetailPage";
+import BlogListPage from "./pages/site/BlogListPage";
+import GalleryListPage from "./pages/site/GalleryListPage";
+import VideosListPage from "./pages/site/VideosListPage";
+import ProjectsListPage from "./pages/site/ProjectsListPage";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import Schemes from "./pages/Schemes";
@@ -98,6 +105,8 @@ import WebsiteBlogs from "./pages/WebsiteBlogs";
 import WebsiteMedia from "./pages/WebsiteMedia";
 import WebsiteContactMessages from "./pages/WebsiteContactMessages";
 import WebsiteVolunteers from "./pages/WebsiteVolunteers";
+import WebsitePages from "./pages/WebsitePages";
+import WebsitePageBuilder from "./pages/WebsitePageBuilder";
 import FormBuilder from "./pages/FormBuilder";
 import ApplicationConsolidation from "./pages/ApplicationConsolidation";
 import ConsolidatedReports from "./pages/ConsolidatedReports";
@@ -125,8 +134,15 @@ const App = () => (
               <Routes>
             <Route path="/" element={<SiteHome />} />
             <Route path="/home-legacy" element={<Index />} />
+            <Route path="/gallery" element={<GalleryListPage />} />
             <Route path="/gallery/:id" element={<GalleryAlbumPage />} />
             <Route path="/blog/:slug" element={<BlogDetailPage />} />
+            <Route path="/blogs" element={<BlogListPage />} />
+            <Route path="/news" element={<NewsListPage />} />
+            <Route path="/news/:id" element={<NewsDetailPage />} />
+            <Route path="/videos" element={<VideosListPage />} />
+            <Route path="/projects-hub" element={<ProjectsListPage />} />
+            <Route path="/p/:slug" element={<SitePageView />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/login" element={<Login />} />
@@ -226,6 +242,9 @@ const App = () => (
             
             {/* Website Management Routes */}
             <Route path="/website-settings" element={<AuthGuard><Layout><WebsiteSettings /></Layout></AuthGuard>} />
+            <Route path="/website-pages" element={<AuthGuard><Layout><WebsitePages /></Layout></AuthGuard>} />
+            <Route path="/website-pages/new" element={<AuthGuard><Layout><WebsitePageBuilder /></Layout></AuthGuard>} />
+            <Route path="/website-pages/:id" element={<AuthGuard><Layout><WebsitePageBuilder /></Layout></AuthGuard>} />
             <Route path="/banners" element={<AuthGuard><Layout><Banners /></Layout></AuthGuard>} />
             <Route path="/news-events" element={<AuthGuard><Layout><NewsEvents /></Layout></AuthGuard>} />
             <Route path="/brochures" element={<AuthGuard><Layout><Brochures /></Layout></AuthGuard>} />

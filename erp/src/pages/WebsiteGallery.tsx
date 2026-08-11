@@ -185,6 +185,7 @@ export default function WebsiteGallery() {
               <div><Label>Order</Label><Input type="number" value={form.order} onChange={(e) => setForm({ ...form, order: Number(e.target.value) })} /></div>
             </div>
             <div><Label>Cover Image (optional)</Label><Input type="file" accept="image/*" onChange={onCover} />
+              <p className="text-xs text-muted-foreground mt-1">800 × 800 px (1:1). Center-cropped into a square album tile. Falls back to the first photo if left empty. Max 5MB.</p>
               {coverPreview && <img src={coverPreview} alt="cover" className="mt-2 h-24 rounded object-cover" />}</div>
             <div><Label>Status</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as 'active' | 'inactive' })}>
@@ -210,6 +211,7 @@ export default function WebsiteGallery() {
             <div>
               <Label>Add Photos {!editing && '*'}</Label>
               <Input type="file" accept="image/*" multiple onChange={onImages} />
+              <p className="text-xs text-muted-foreground mt-1">1200 × 1200 px (1:1) or larger. Center-cropped into square tiles; the full uncropped photo opens in the lightbox. Max 5MB each.</p>
               {newImages.length > 0 && (
                 <div className="mt-2 grid grid-cols-4 gap-2">
                   {newImages.map((f, idx) => (

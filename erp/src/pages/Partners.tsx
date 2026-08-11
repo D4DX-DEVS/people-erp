@@ -371,7 +371,8 @@ export default function Partners() {
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
-                Recommended: Square logo, max 5MB
+                Transparent PNG, about 240 × 80 px. Displayed 48px tall and scaled to fit (never cropped), in
+                greyscale until hovered — so any aspect ratio works. Max 5MB.
               </p>
             </div>
           </div>
