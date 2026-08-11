@@ -120,9 +120,26 @@ router.get('/',
       // Build aggregation pipeline for proper server-side pagination with search
       const pipeline = [];
 
+      // "overdue" is a derived status (not stored): an unpaid payment whose due
+      // date is before today. It must be excluded from "pending" so a payment
+      // never shows up under two filters.
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
       // Match stage for basic filters
       const matchStage = {};
-      if (status) matchStage.status = status;
+      if (status === 'overdue') {
+        matchStage.status = 'pending';
+        matchStage['timeline.expectedCompletionDate'] = { $lt: startOfToday };
+      } else if (status === 'pending') {
+        matchStage.status = 'pending';
+        matchStage.$or = [
+          { 'timeline.expectedCompletionDate': { $gte: startOfToday } },
+          { 'timeline.expectedCompletionDate': null }
+        ];
+      } else if (status) {
+        matchStage.status = status;
+      }
       if (type) matchStage.type = type;
       if (method) matchStage.method = method;
       if (project) matchStage.project = new mongoose.Types.ObjectId(project);
@@ -246,10 +263,22 @@ router.get('/',
       const recurringMatchStage = {};
       
       // Map status filters (Payment model uses different status values than RecurringPayment)
-      if (status) {
+      if (status === 'overdue') {
+        recurringMatchStage.status = { $in: ['scheduled', 'due', 'overdue'] };
+        recurringMatchStage.$or = [
+          { dueDate: { $lt: startOfToday } },
+          { dueDate: null, scheduledDate: { $lt: startOfToday } }
+        ];
+      } else if (status === 'pending') {
+        recurringMatchStage.status = { $in: ['scheduled', 'due'] };
+        recurringMatchStage.$or = [
+          { dueDate: { $gte: startOfToday } },
+          { dueDate: null, scheduledDate: { $gte: startOfToday } },
+          { dueDate: null, scheduledDate: null }
+        ];
+      } else if (status) {
         // Map payment statuses to recurring payment statuses
         const statusMap = {
-          'pending': ['scheduled', 'due'],
           'processing': 'processing',
           'completed': 'completed',
           'failed': 'failed',

@@ -160,15 +160,25 @@ class DashboardController {
         totalBudget: budget.totalBudget,
         totalSpent: budget.totalSpent,
         availableBudget: budget.totalBudget - budget.totalSpent,
+        // Application.status is stored snake_cased, so the hyphenated keys this
+        // used to publish were always 0. Emit every status in the schema enum
+        // under its real value instead.
         applicationStats: {
+          draft: appStatusMap.draft || 0,
           pending: appStatusMap.pending || 0,
+          under_review: appStatusMap.under_review || 0,
+          field_verification: appStatusMap.field_verification || 0,
+          interview_scheduled: appStatusMap.interview_scheduled || 0,
+          interview_completed: appStatusMap.interview_completed || 0,
+          pending_committee_approval: appStatusMap.pending_committee_approval || 0,
           approved: appStatusMap.approved || 0,
           rejected: appStatusMap.rejected || 0,
-          review: appStatusMap.review || 0,
-          'under-review': appStatusMap['under-review'] || 0,
-          'field-verification': appStatusMap['field-verification'] || 0,
-          'interview-scheduled': appStatusMap['interview-scheduled'] || 0,
-          completed: appStatusMap.completed || 0
+          on_hold: appStatusMap.on_hold || 0,
+          cancelled: appStatusMap.cancelled || 0,
+          disbursed: appStatusMap.disbursed || 0,
+          completed: appStatusMap.completed || 0,
+          // Legacy key still read by the ERP "Pending Review" tile.
+          review: appStatusMap.under_review || 0
         },
         schemeBasedStats: schemeStats, // Scheme-based application count by status
         recentActivity: {
