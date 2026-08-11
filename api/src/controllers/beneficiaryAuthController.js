@@ -5,6 +5,11 @@ const staticOTPConfig = require('../config/staticOTP');
 const whatsappOTPService = require('../utils/whatsappOtpService');
 const LoginLogService = require('../services/loginLogService');
 
+// Auto-generated signup names ("Beneficiary 5555", "Test Beneficiary") are placeholders,
+// not real names. Keep in sync with the same check in
+// erp/src/pages/BeneficiaryProfileCompletion.tsx
+const PLACEHOLDER_NAME_PATTERN = /^(test\s+)?beneficiary\s*\d*$/i;
+
 class BeneficiaryAuthController {
   /**
    * Send OTP for beneficiary login/registration
@@ -335,6 +340,14 @@ class BeneficiaryAuthController {
     try {
       const userId = req.user._id;
       const { name, profile } = req.body;
+
+      // The signup flow assigns a placeholder name ("Beneficiary 5555"). The profile
+      // cannot be saved until that is replaced with a real name, since saving also
+      // marks the account as verified.
+      const effectiveName = (typeof name === 'string' ? name : req.user.name || '').trim();
+      if (!effectiveName || PLACEHOLDER_NAME_PATTERN.test(effectiveName)) {
+        return ResponseHelper.error(res, 'Please enter your full name to complete your profile', 400);
+      }
 
       // Build update object
       const updateData = {

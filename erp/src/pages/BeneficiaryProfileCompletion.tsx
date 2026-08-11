@@ -22,6 +22,11 @@ interface Location {
   parent?: string;
 }
 
+// Auto-generated signup names ("Beneficiary 5555", "Test Beneficiary") are
+// placeholders, not real names. Keep this in sync with the same check in
+// api/src/controllers/beneficiaryAuthController.js
+const isPlaceholderName = (name: string) => /^(test\s+)?beneficiary\s*\d*$/i.test(name.trim());
+
 export default function BeneficiaryProfileCompletion() {
   useCompactUI();
   const navigate = useNavigate();
@@ -100,7 +105,8 @@ export default function BeneficiaryProfileCompletion() {
         }
 
         setFormData({
-          name: user.name || "",
+          // Blank out the auto-generated signup name so the user has to type a real one
+          name: user.name && !isPlaceholderName(user.name) ? user.name : "",
           gender: user.profile?.gender || "",
           districtId,
           areaId,
@@ -193,6 +199,15 @@ export default function BeneficiaryProfileCompletion() {
       toast({
         title: "Name Required",
         description: "Please enter your full name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isPlaceholderName(formData.name)) {
+      toast({
+        title: "Name Required",
+        description: "Please replace the temporary name with your real full name",
         variant: "destructive",
       });
       return;
