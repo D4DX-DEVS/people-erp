@@ -398,31 +398,39 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+
+      // Not every endpoint answers with JSON — the /export routes return raw
+      // text/csv. Blindly calling response.json() on those throws a parse error
+      // on the first comma, so pick the reader from the response content type.
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('json');
+      const data: any = isJson ? await response.json() : await response.text();
+      // Error branches below read .message/.errors — only valid on JSON bodies.
+      const payload = data && typeof data === 'object' ? data : {};
 
       if (!response.ok) {
         // Handle authentication errors - but don't clear token automatically
         // Let the calling component decide what to do
         if (response.status === 401 || response.status === 403) {
-          const error = new Error(data.message || 'Authentication failed. Please login again.');
+          const error = new Error(payload.message || 'Authentication failed. Please login again.');
           (error as any).status = response.status;
           (error as any).isAuthError = true;
           throw error;
         }
-        
+
         // Handle validation errors with detailed messages
-        if (response.status === 400 && data.errors && Array.isArray(data.errors)) {
-          const validationMessages = data.errors.map((err: any) => 
+        if (response.status === 400 && payload.errors && Array.isArray(payload.errors)) {
+          const validationMessages = payload.errors.map((err: any) =>
             `${err.field}: ${err.message}`
           ).join(', ');
-          const error = new Error(validationMessages || data.message || 'Validation failed');
-          (error as any).validationErrors = data.errors;
+          const error = new Error(validationMessages || payload.message || 'Validation failed');
+          (error as any).validationErrors = payload.errors;
           throw error;
         }
-        
-        const error = new Error(data.message || `HTTP error! status: ${response.status}`);
-        if (data.code) (error as any).code = data.code;
-        if (data.data) (error as any).data = data.data;
+
+        const error = new Error(payload.message || `HTTP error! status: ${response.status}`);
+        if (payload.code) (error as any).code = payload.code;
+        if (payload.data) (error as any).data = payload.data;
         throw error;
       }
 
@@ -1144,38 +1152,6 @@ class ExtendedApiClient extends ApiClient {
     });
   }
 
-  async exportBeneficiaries(params?: any): Promise<ApiResponse<Blob>> {
-    const searchParams = new URLSearchParams();
-    
-    if (params) {
-      Object.keys(params).forEach(key => {
-        if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
-          searchParams.append(key, params[key].toString());
-        }
-      });
-    }
-
-    const endpoint = `/beneficiaries/export${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
-    
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${this.token || localStorage.getItem('token')}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    const blob = await response.blob();
-    return {
-      success: true,
-      data: blob,
-      message: 'Export successful'
-    };
-  }
-
   // Application Methods
   async getApplications(params?: {
     page?: number;
@@ -1272,7 +1248,7 @@ export const beneficiaries = {
   update: (id: string, data: any) => extendedApiClient.updateBeneficiary(id, data),
   delete: (id: string) => extendedApiClient.deleteBeneficiary(id),
   verify: (id: string) => extendedApiClient.verifyBeneficiary(id),
-  export: (params?: any) => extendedApiClient.exportBeneficiaries(params),
+  export: (params?: any) => extendedApiClient.request(buildExportUrl('/beneficiaries/export', params)),
 };
 
 export const applications = {

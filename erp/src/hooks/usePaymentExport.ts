@@ -13,11 +13,14 @@ export function usePaymentExport() {
       let csvData: string;
       
       try {
-        const response = await payments.export(exportParams);
-        if (response.success) {
+        const response: any = await payments.export({ ...exportParams, format: 'csv' });
+        if (typeof response === 'string') {
+          // Server returned raw CSV text
+          csvData = response;
+        } else if (response?.success && typeof response.data === 'string') {
           csvData = response.data;
         } else {
-          throw new Error(response.message || "Export failed");
+          throw new Error(response?.message || "Export failed");
         }
       } catch (apiError) {
         // Fallback: Fetch data and convert to CSV manually

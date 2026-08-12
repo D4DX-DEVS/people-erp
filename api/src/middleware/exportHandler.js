@@ -9,8 +9,45 @@
  *   router.get('/export', hasPermission('resource.export'), createExportHandler(Model, options));
  */
 
+const mongoose = require('mongoose');
 const { convertToCSV } = require('../utils/csvHelper');
+const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
 const ResponseHelper = require('../utils/responseHelper');
+
+/**
+ * Regional visibility for scoped admin roles.
+ * Mirrors getUserRegionalFilter() in applicationController so an export returns
+ * the same rows the corresponding list page shows, instead of every region.
+ * Returns {} for models that have no district/area/unit field.
+ */
+function buildRegionalFilter(req, Model) {
+  const role = req.userFranchise?.role || req.userRole || req.user?.role;
+  if (!role || role === 'super_admin' || role === 'state_admin') return {};
+
+  const field =
+    role === 'district_admin' ? 'district' :
+    (role === 'area_admin' || role === 'area_president') ? 'area' :
+    role === 'unit_admin' ? 'unit' : null;
+
+  if (!field || !Model.schema.path(field)) return {};
+
+  const toId = (ref) => {
+    if (!ref) return null;
+    if (ref instanceof mongoose.Types.ObjectId) return ref;
+    if (typeof ref === 'object' && ref._id) return new mongoose.Types.ObjectId(ref._id.toString());
+    return new mongoose.Types.ObjectId(ref.toString());
+  };
+
+  const adminScope = req.userFranchise?.adminScope || req.user?.adminScope;
+
+  if (adminScope?.regions && adminScope.regions.length > 0) {
+    return { [field]: { $in: adminScope.regions.map(toId) } };
+  }
+  if (adminScope?.[field]) {
+    return { [field]: toId(adminScope[field]) };
+  }
+  return {};
+}
 
 /**
  * Create an export handler for a Mongoose model
@@ -52,6 +89,14 @@ function createExportHandler(Model, options) {
       if (filterBuilder && typeof filterBuilder === 'function') {
         query = filterBuilder(filters, req);
       }
+
+      // Tenant scope: never export rows belonging to another franchise.
+      if (Model.schema.path('franchise')) {
+        Object.assign(query, buildFranchiseReadFilter(req));
+      }
+
+      // Regional scope: a district/area/unit admin only exports their own region.
+      Object.assign(query, buildRegionalFilter(req, Model));
 
       // Build the Mongoose query
       let dbQuery = Model.find(query);
