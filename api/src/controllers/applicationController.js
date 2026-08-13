@@ -2443,10 +2443,16 @@ const downloadApplicationPdf = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Application not found' });
     }
 
-    const formConfig = await FormConfiguration.findOne({
-      scheme: application.scheme._id || application.scheme,
-      isRenewalForm: false
+    const schemeId = application.scheme?._id || application.scheme;
+    // Renewal applications are filled against the renewal form — using the
+    // original form here would leave every field unlabelled in the PDF.
+    let formConfig = await FormConfiguration.findOne({
+      scheme: schemeId,
+      isRenewalForm: !!application.isRenewal
     });
+    if (!formConfig) {
+      formConfig = await FormConfiguration.findOne({ scheme: schemeId, isRenewalForm: false });
+    }
 
     const filePath = await applicationPdfService.generateFilledApplicationPdf(application, formConfig);
 

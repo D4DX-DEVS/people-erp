@@ -383,6 +383,7 @@ class GlobalAdminController {
       const { User } = require('../models');
       const UserFranchise = require('../models/UserFranchise');
       const Beneficiary = require('../models/Beneficiary');
+      const Application = require('../models/Application');
 
       const VALID_ROLES = ADMIN_ROLE_VALUES;
       const ROLE_SCOPE = ROLE_SCOPE_MAP;
@@ -420,7 +421,15 @@ class GlobalAdminController {
       });
 
       if (existingBeneficiary) {
-        if (existingBeneficiary.applications && existingBeneficiary.applications.length > 0) {
+        // Count the applications that actually still exist — the beneficiary's
+        // `applications` array can hold ids of applications that were removed
+        // outside the normal delete path, which would otherwise block forever.
+        const applicationCount = await Application.countDocuments({ beneficiary: existingBeneficiary._id });
+        if (applicationCount === 0 && existingBeneficiary.applications?.length) {
+          await Beneficiary.updateOne({ _id: existingBeneficiary._id }, { $set: { applications: [] } });
+        }
+
+        if (applicationCount > 0) {
           return res.status(409).json({
             success: false,
             code: 'BENEFICIARY_HAS_APPLICATIONS',

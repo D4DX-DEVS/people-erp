@@ -408,10 +408,14 @@ const deleteBeneficiary = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Check if beneficiary has applications
-    if (beneficiary.applications && beneficiary.applications.length > 0) {
-      return res.status(400).json({ 
-        message: 'Cannot delete beneficiary with existing applications' 
+    // Check if beneficiary has applications. Count the live documents instead of
+    // trusting the cached `applications` array, which can keep ids of applications
+    // that were removed outside the normal delete path.
+    const Application = require('../models/Application');
+    const applicationCount = await Application.countDocuments({ beneficiary: beneficiary._id });
+    if (applicationCount > 0) {
+      return res.status(400).json({
+        message: 'Cannot delete beneficiary with existing applications'
       });
     }
 
