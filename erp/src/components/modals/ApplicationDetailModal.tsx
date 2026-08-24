@@ -41,6 +41,19 @@ const SyncStatusButton: React.FC<{ applicationId: string; onSynced: () => void }
   );
 };
 
+// Admin hierarchy. Higher level = wider authority; area_admin and area_president
+// sit on the same rung.
+const ROLE_LEVELS: Record<string, number> = {
+  unit_admin: 1,
+  area_president: 2,
+  area_admin: 2,
+  district_admin: 3,
+  scheme_coordinator: 3,
+  project_coordinator: 3,
+  state_admin: 4,
+  super_admin: 5
+};
+
 // Separate component for stage item to avoid hooks in map
 const StageItem: React.FC<{
   stage: any;
@@ -54,8 +67,9 @@ const StageItem: React.FC<{
   const [updating, setUpdating] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [stageNotes, setStageNotes] = useState('');
-  const [commentText, setCommentText] = useState('');
-  const [addingComment, setAddingComment] = useState(false);
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [addingComment, setAddingComment] = useState<string | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   
@@ -65,16 +79,23 @@ const StageItem: React.FC<{
   const isReverted = stage.status === 'reverted';
   const showWarning = isFieldVerification && isPending && stage.isRequired;
 
-  // Determine which comment field current user can edit
-  const roleToCommentField: Record<string, string> = {
-    'unit_admin': 'unitAdmin',
-    'area_admin': 'areaAdmin',
-    'area_president': 'areaPresident',
-    'district_admin': 'districtAdmin',
-    'super_admin': 'districtAdmin',
-    'state_admin': 'districtAdmin'
+  // A comment box belongs to a role. An admin manages their own box plus the box
+  // of every role at or below their own level, so a superior is never blocked by
+  // a subordinate who has not commented yet.
+  const commentFieldToRole: Record<string, string> = {
+    unitAdmin: 'unit_admin',
+    areaPresident: 'area_president',
+    areaAdmin: 'area_admin',
+    districtAdmin: 'district_admin'
   };
-  const myCommentField = userRole ? roleToCommentField[userRole] : null;
+  const canManageCommentField = (roleKey: string) => {
+    if (!userRole) return false;
+    if (userRole === 'super_admin' || userRole === 'state_admin') return true;
+    const userLevel = ROLE_LEVELS[userRole];
+    const fieldLevel = ROLE_LEVELS[commentFieldToRole[roleKey]];
+    if (!userLevel || !fieldLevel) return false;
+    return fieldLevel <= userLevel;
+  };
 
   // Stage-level role gating: a user can act on this stage only if their role is in stage.allowedRoles
   // super_admin / state_admin always allowed; if allowedRoles is empty or undefined, fall back to allowed (legacy behaviour)
@@ -84,6 +105,13 @@ const StageItem: React.FC<{
     userRole === 'state_admin' ||
     allowedRoles.length === 0 ||
     allowedRoles.includes(userRole)
+  );
+
+  // Commenting follows the hierarchy: a superior of any allowed role may comment
+  // on the stage even when their own role is not listed in allowedRoles.
+  const canCommentOnStage = canActOnStage || (
+    !!userRole &&
+    allowedRoles.some(r => (ROLE_LEVELS[r] ?? 99) < (ROLE_LEVELS[userRole] ?? 0))
   );
 
   const handleUpdateStage = async (newStatus: string) => {
@@ -111,28 +139,30 @@ const StageItem: React.FC<{
     }
   };
 
-  const handleAddComment = async () => {
-    if (!commentText.trim() || !myCommentField) return;
-    setAddingComment(true);
+  const handleAddComment = async (roleKey: string) => {
+    const text = (commentDrafts[roleKey] || '').trim();
+    if (!text) return;
+    setAddingComment(roleKey);
     try {
       await applicationsApi.addStageComment(applicationId, stage._id, {
-        comment: commentText.trim(),
-        role: userRole
+        comment: text,
+        role: commentFieldToRole[roleKey]
       });
       toast({
         title: "Success",
-        description: "Comment added successfully",
+        description: "Comment saved successfully",
       });
-      setCommentText('');
+      setCommentDrafts(prev => ({ ...prev, [roleKey]: '' }));
+      setEditingField(null);
       onUpdate();
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add comment",
+        description: error.message || "Failed to save comment",
         variant: "destructive",
       });
     } finally {
-      setAddingComment(false);
+      setAddingComment(null);
     }
   };
 
@@ -234,8 +264,11 @@ const StageItem: React.FC<{
                 if (!commentConfig[roleKey]?.enabled) return null;
                 const roleLabels: Record<string, string> = { unitAdmin: 'Unit Admin', areaPresident: 'Area President', areaAdmin: 'Area Admin', districtAdmin: 'District Admin' };
                 const existingComment = comments[roleKey];
-                const isMyField = myCommentField === roleKey;
                 const isRequiredComment = commentConfig[roleKey]?.required;
+                const canManage = canManageCommentField(roleKey) && canCommentOnStage && !showAction && !isApplicationRejected;
+                const isOwnField = commentFieldToRole[roleKey] === userRole;
+                const isEditing = editingField === roleKey;
+                const showEditor = canManage && (isEditing || !existingComment?.comment);
                 return (
                   <div key={roleKey} className={`p-2 rounded border text-xs ${isRequiredComment && !existingComment?.comment ? 'border-orange-200 bg-orange-50/30' : 'bg-muted/20'}`}>
                     <div className="flex items-center gap-1 mb-1">
@@ -244,8 +277,24 @@ const StageItem: React.FC<{
                       {isRequiredComment && (
                         <span className="text-red-500 text-xs">*</span>
                       )}
+                      {canManage && !isOwnField && (
+                        <span className="text-[10px] text-muted-foreground italic">(on behalf)</span>
+                      )}
+                      {existingComment?.comment && canManage && !isEditing && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setCommentDrafts(prev => ({ ...prev, [roleKey]: existingComment.comment }));
+                            setEditingField(roleKey);
+                          }}
+                          className="text-[10px] h-5 px-1.5 ml-auto"
+                        >
+                          Edit
+                        </Button>
+                      )}
                     </div>
-                    {existingComment?.comment ? (
+                    {existingComment?.comment && !isEditing && (
                       <div>
                         <p className="text-muted-foreground">{existingComment.comment}</p>
                         {existingComment.commentedBy && (
@@ -254,30 +303,45 @@ const StageItem: React.FC<{
                           </p>
                         )}
                       </div>
-                    ) : isMyField && canActOnStage && !showAction && !isApplicationRejected ? (
+                    )}
+                    {showEditor && (
                       <div className="flex gap-1.5 mt-1">
                         <Textarea
-                          placeholder="Add your comment..."
-                          value={commentText}
-                          onChange={(e) => setCommentText(e.target.value)}
+                          placeholder={isOwnField ? 'Add your comment...' : `Add ${roleLabels[roleKey]} comment...`}
+                          value={commentDrafts[roleKey] || ''}
+                          onChange={(e) => setCommentDrafts(prev => ({ ...prev, [roleKey]: e.target.value }))}
                           rows={1}
                           className="text-xs flex-1"
                         />
                         <VoiceToTextButton
-                          onTranscript={(text) => setCommentText(prev => prev ? prev + ' ' + text : text)}
+                          onTranscript={(text) => setCommentDrafts(prev => ({ ...prev, [roleKey]: prev[roleKey] ? prev[roleKey] + ' ' + text : text }))}
                           size="sm"
                           className="h-7 w-7"
                         />
                         <Button
                           size="sm"
-                          onClick={handleAddComment}
-                          disabled={addingComment || !commentText.trim()}
+                          onClick={() => handleAddComment(roleKey)}
+                          disabled={addingComment === roleKey || !(commentDrafts[roleKey] || '').trim()}
                           className="text-xs h-7 px-2"
                         >
-                          {addingComment ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Add'}
+                          {addingComment === roleKey ? <Loader2 className="h-3 w-3 animate-spin" /> : isEditing ? 'Save' : 'Add'}
                         </Button>
+                        {isEditing && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingField(null);
+                              setCommentDrafts(prev => ({ ...prev, [roleKey]: '' }));
+                            }}
+                            className="text-xs h-7 px-2"
+                          >
+                            Cancel
+                          </Button>
+                        )}
                       </div>
-                    ) : (
+                    )}
+                    {!existingComment?.comment && !showEditor && (
                       <p className="text-muted-foreground italic">No comment yet</p>
                     )}
                   </div>

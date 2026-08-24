@@ -1835,16 +1835,18 @@ class RBACService {
         throw new Error('Role not found');
       }
 
-      if (role.type === 'system' && !role.constraints.isModifiable) {
-        throw new Error('System roles cannot be modified');
-      }
-
       // Hierarchy check: only super admins may modify roles at or above the
       // updater's own privilege level (blocks editing your own role to
       // grant yourself more access).
       const updaterPrivilege = await this.getActorPrivilege(updatedBy);
       if (!updaterPrivilege) {
         throw new Error('Updater not found');
+      }
+
+      // Super admins may edit system roles; everyone else is bound by the
+      // role's isModifiable constraint.
+      if (role.type === 'system' && !role.constraints.isModifiable && !updaterPrivilege.isSuper) {
+        throw new Error('System roles cannot be modified');
       }
       if (!updaterPrivilege.isSuper) {
         if (updaterPrivilege.level === null || role.level <= updaterPrivilege.level) {

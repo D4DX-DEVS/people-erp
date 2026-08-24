@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRBAC } from '../../hooks/useRBAC';
+import { useAuth } from '../../hooks/useAuth';
 import { PermissionGate } from './PermissionGate';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -72,6 +73,10 @@ interface Permission {
 
 export const RoleManagement: React.FC = () => {
   const { hasPermission } = useRBAC();
+  const { user } = useAuth();
+  // Super admins may edit every role, including system roles that carry
+  // constraints.isModifiable === false.
+  const isSuperAdmin = user?.role === 'super_admin';
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -315,7 +320,7 @@ export const RoleManagement: React.FC = () => {
                         View
                       </Button>
                       <PermissionGate permission="roles.update">
-                        {role.constraints.isModifiable && (
+                        {(isSuperAdmin || role.constraints?.isModifiable) && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -729,7 +734,11 @@ const EditRoleDialog: React.FC<EditRoleDialogProps> = ({
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/rbac/roles/${role._id}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_URL;
+      if (!API_BASE_URL) {
+        throw new Error('VITE_API_URL environment variable is required');
+      }
+      const response = await fetch(`${API_BASE_URL}/rbac/roles/${role._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -738,12 +747,15 @@ const EditRoleDialog: React.FC<EditRoleDialogProps> = ({
         body: JSON.stringify(formData)
       });
 
-      if (!response.ok) throw new Error('Failed to update role');
+      if (!response.ok) {
+        const err = await response.json().catch(() => null);
+        throw new Error(err?.message || 'Failed to update role');
+      }
 
       toast.success('Role updated successfully');
       onSuccess();
     } catch (error) {
-      toast.error('Failed to update role');
+      toast.error(error instanceof Error ? error.message : 'Failed to update role');
       console.error('Error updating role:', error);
     } finally {
       setLoading(false);

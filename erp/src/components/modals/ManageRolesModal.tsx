@@ -54,6 +54,10 @@ export function ManageRolesModal({ open, onOpenChange, user, onSave }: ManageRol
   const [removing, setRemoving] = useState<string | null>(null);
 
   // Franchise scope selection
+  // Only platform admins may spread a role across franchises. A franchise-level
+  // admin (including a franchise super_admin) can only assign roles inside the
+  // franchise they are signed into.
+  const isPlatformAdmin = !!currentUser?.isSuperAdmin;
   const [franchiseScope, setFranchiseScope] = useState<"current" | "all" | "custom">("current");
   const [customFranchiseIds, setCustomFranchiseIds] = useState<string[]>([]);
 
@@ -208,7 +212,7 @@ export function ManageRolesModal({ open, onOpenChange, user, onSave }: ManageRol
     try {
       // Resolve which franchise IDs to apply to
       let franchiseIds: string[] | undefined;
-      if (franchiseMemberships.length > 1) {
+      if (isPlatformAdmin && franchiseMemberships.length > 1) {
         if (franchiseScope === "all") {
           franchiseIds = franchiseMemberships.map((f) => f.id);
         } else if (franchiseScope === "custom") {
@@ -562,7 +566,7 @@ export function ManageRolesModal({ open, onOpenChange, user, onSave }: ManageRol
                   </div>
                 )}
 
-                {newRole && franchiseMemberships.length > 1 && (
+                {newRole && isPlatformAdmin && franchiseMemberships.length > 1 && (
                   <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
                     <div className="flex items-center gap-2 text-sm font-medium text-blue-900">
                       <Building2 className="h-4 w-4" />

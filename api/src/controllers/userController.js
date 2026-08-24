@@ -458,8 +458,15 @@ class UserController {
             console.log(`✅ UserFranchise membership created for ${user.name} in franchise ${req.franchiseId}`);
           }
         } catch (ufError) {
+          // Without a membership the new admin cannot sign in to this franchise
+          // at all, and their phone number is left occupied. Roll the user back
+          // instead of reporting a success that grants no access.
           console.error('❌ Error creating UserFranchise:', ufError);
-          // Continue even if UserFranchise creation fails
+          await User.findByIdAndDelete(user._id);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to grant the new user access to this organization. Please try again.'
+          });
         }
       }
 
@@ -1353,9 +1360,24 @@ class UserController {
         return res.status(400).json({ success: false, message: 'Cannot assign admin roles to a beneficiary' });
       }
 
-      // Determine which franchises to apply to
+      // Determine which franchises to apply to.
+      // Only platform admins (User.isSuperAdmin) may assign a role outside the
+      // franchise the request is scoped to. A franchise-level admin — including
+      // a franchise super_admin — can only grant roles inside their own
+      // franchise, so the admins they create never become common admins.
       let targetFranchiseIds = [];
       if (franchiseIds && Array.isArray(franchiseIds) && franchiseIds.length > 0) {
+        if (!currentUser.isSuperAdmin) {
+          const currentFranchiseId = req.franchiseId ? req.franchiseId.toString() : null;
+          const outside = franchiseIds.filter(fid => String(fid) !== currentFranchiseId);
+          if (outside.length > 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You can only assign roles within your own organization',
+              code: 'CROSS_FRANCHISE_ASSIGN_DENIED'
+            });
+          }
+        }
         targetFranchiseIds = franchiseIds;
       } else if (req.franchiseId) {
         targetFranchiseIds = [req.franchiseId];

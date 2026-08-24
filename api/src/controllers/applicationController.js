@@ -1677,6 +1677,55 @@ const canRoleActOnStage = (userRole, stage) => {
 };
 
 // ==============================
+// STAGE COMMENT HIERARCHY
+// A comment box belongs to a role. An admin may manage their own box plus the
+// box of every role at or below their own level, so a superior can keep the
+// workflow moving when a subordinate has not commented yet.
+// ==============================
+const COMMENT_ROLE_LEVELS = {
+  unit_admin: 1,
+  area_president: 2,
+  area_admin: 2,
+  district_admin: 3,
+  scheme_coordinator: 3,
+  project_coordinator: 3,
+  state_admin: 4,
+  super_admin: 5
+};
+
+const ROLE_TO_COMMENT_FIELD = {
+  unit_admin: 'unitAdmin',
+  area_president: 'areaPresident',
+  area_admin: 'areaAdmin',
+  district_admin: 'districtAdmin'
+};
+
+const COMMENT_FIELD_TO_ROLE = {
+  unitAdmin: 'unit_admin',
+  areaPresident: 'area_president',
+  areaAdmin: 'area_admin',
+  districtAdmin: 'district_admin'
+};
+
+const canManageCommentField = (userRole, commentField) => {
+  if (userRole === 'super_admin' || userRole === 'state_admin') return true;
+  const userLevel = COMMENT_ROLE_LEVELS[userRole];
+  const fieldLevel = COMMENT_ROLE_LEVELS[COMMENT_FIELD_TO_ROLE[commentField]];
+  if (!userLevel || !fieldLevel) return false;
+  return fieldLevel <= userLevel;
+};
+
+// Commenting follows the hierarchy rather than the stage's allowedRoles alone:
+// a superior of any allowed role may also comment on that stage.
+const canRoleCommentOnStage = (userRole, stage) => {
+  if (canRoleActOnStage(userRole, stage)) return true;
+  const userLevel = COMMENT_ROLE_LEVELS[userRole];
+  if (!userLevel) return false;
+  const allowed = stage && Array.isArray(stage.allowedRoles) ? stage.allowedRoles : [];
+  return allowed.some(role => (COMMENT_ROLE_LEVELS[role] ?? 99) < userLevel);
+};
+
+// ==============================
 // UPDATE APPLICATION STAGE STATUS
 // ==============================
 const updateApplicationStage = async (req, res) => {
@@ -1737,24 +1786,20 @@ const updateApplicationStage = async (req, res) => {
       const commentConfig = stage.commentConfig || {};
       const comments = stage.comments || {};
 
-      // Check required comments
-      const roleCommentMap = {
-        'unit_admin': 'unitAdmin',
-        'area_president': 'areaPresident',
-        'area_admin': 'areaAdmin',
-        'district_admin': 'districtAdmin'
-      };
-
-      // Validate ALL required comments are present (not just the current user's role)
-      for (const [role, configKey] of Object.entries(roleCommentMap)) {
-        if (commentConfig[configKey]?.enabled && commentConfig[configKey]?.required) {
-          if (!comments[configKey]?.comment) {
-            return res.status(400).json({
-              success: false,
-              message: `${role.replace('_', ' ')} comment is required before completing this stage`
-            });
-          }
-        }
+      // Only the completing admin's own required comment blocks completion.
+      // A subordinate who has not commented yet must not hold up their
+      // superior's workflow — the superior can fill that box in themselves.
+      const ownField = ROLE_TO_COMMENT_FIELD[userRole];
+      if (
+        ownField &&
+        commentConfig[ownField]?.enabled &&
+        commentConfig[ownField]?.required &&
+        !comments[ownField]?.comment
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Your ${userRole.replace('_', ' ')} comment is required before completing this stage`
+        });
       }
 
       // Validate required documents are uploaded
@@ -1879,16 +1924,6 @@ const addStageComment = async (req, res) => {
       });
     }
 
-    // Map user role to comment field
-    const roleToFieldMap = {
-      'unit_admin': 'unitAdmin',
-      'area_president': 'areaPresident',
-      'area_admin': 'areaAdmin',
-      'district_admin': 'districtAdmin',
-      'super_admin': null, // super_admin can comment as any role, handled below
-      'state_admin': null
-    };
-
     const application = await Application.findOne({ _id: id, franchise: req.franchiseId });
     if (!application) {
       return res.status(404).json({
@@ -1918,27 +1953,26 @@ const addStageComment = async (req, res) => {
     const stage = application.applicationStages[stageIndex];
 
     // Enforce stage-level role restriction
-    if (!canRoleActOnStage(userRole, stage)) {
+    if (!canRoleCommentOnStage(userRole, stage)) {
       return res.status(403).json({
         success: false,
         message: `Your role (${userRole}) is not permitted to comment on stage "${stage.name}". Allowed roles: ${(stage.allowedRoles || []).join(', ')}`
       });
     }
 
-    // Determine which comment field to use
-    let commentField = roleToFieldMap[userRole];
+    // Determine which role's comment box is being written. The client names the
+    // target role; anything unrecognised falls back to the caller's own box
+    // (districtAdmin for super/state admins, who have no box of their own).
+    const commentField =
+      ROLE_TO_COMMENT_FIELD[req.body.role] ||
+      ROLE_TO_COMMENT_FIELD[userRole] ||
+      'districtAdmin';
 
-    // For super_admin/state_admin, allow specifying which role's comment to add via req.body.role
-    if (!commentField && req.body.role) {
-      const targetField = roleToFieldMap[req.body.role];
-      if (targetField) {
-        commentField = targetField;
-      }
-    }
-
-    // If still no field (super/state admin without specifying role), use districtAdmin as default
-    if (!commentField) {
-      commentField = 'districtAdmin';
+    if (!canManageCommentField(userRole, commentField)) {
+      return res.status(403).json({
+        success: false,
+        message: `Your role (${userRole}) cannot manage the ${COMMENT_FIELD_TO_ROLE[commentField].replace('_', ' ')} comment`
+      });
     }
 
     // Verify comment is enabled for this role in this stage
