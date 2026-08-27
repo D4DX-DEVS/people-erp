@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, GripHorizontal } from "lucide-react";
 import { FieldEditor } from "./FieldEditor";
 import { AddFieldPopover } from "./AddFieldPopover";
+import { type FieldAutoFill } from "@/lib/profileAutoFill";
 
 interface Field {
   id: number;
@@ -29,6 +30,7 @@ interface Field {
     maxPoints: number;
     scoringRules: { condition: string; value: string; value2?: string; points: number }[];
   };
+  autoFill?: FieldAutoFill;
   pageId?: number;
 }
 

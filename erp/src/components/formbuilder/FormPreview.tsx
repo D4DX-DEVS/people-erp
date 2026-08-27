@@ -8,8 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import { CopyPlus, Info } from "lucide-react";
+import { CopyPlus, Info, UserCheck } from "lucide-react";
 import { FileUploadField } from "./FileUploadField";
+import { type FieldAutoFill, getProfileSourceLabel } from "@/lib/profileAutoFill";
 
 interface Field {
   id: number;
@@ -24,6 +25,7 @@ interface Field {
   rows?: number;
   rowTitles?: string[];
   firstColumnHeader?: string;
+  autoFill?: FieldAutoFill;
 }
 
 interface Page {
@@ -76,10 +78,20 @@ export function FormPreview({ formTitle, formDescription, pages, instructions, s
     const fieldLabel = toDisplayText(field.label, "Untitled field");
     const options = normalizeOptions(field.options);
 
+    const autoFillSource = field.autoFill?.enabled ? field.autoFill.source : "";
+
     const label = (
-      <Label className="text-sm">
-        {fieldLabel}
-        {field.required && <span className="text-destructive ml-1">*</span>}
+      <Label className="text-sm flex items-center gap-1.5 flex-wrap">
+        <span>
+          {fieldLabel}
+          {field.required && <span className="text-destructive ml-1">*</span>}
+        </span>
+        {autoFillSource && (
+          <span className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-normal text-blue-700">
+            <UserCheck className="h-3 w-3" />
+            Auto: {getProfileSourceLabel(autoFillSource)}
+          </span>
+        )}
       </Label>
     );
 

@@ -22,6 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { type FormScoringConfig, isScorableType, NON_SCORABLE_TYPES } from "@/types/formBuilder";
 import { InstructionsModal, type FormInstruction } from "@/components/formbuilder/InstructionsModal";
+import { type FieldAutoFill } from "@/lib/profileAutoFill";
 
 interface Field {
   id: number;
@@ -43,6 +44,7 @@ interface Field {
     maxPoints: number;
     scoringRules: { condition: string; value: string; value2?: string; points: number }[];
   };
+  autoFill?: FieldAutoFill;
 }
 
 interface Page {

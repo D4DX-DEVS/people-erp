@@ -1,3 +1,8 @@
+import type { FieldAutoFill } from "@/lib/profileAutoFill";
+
+// Profile auto-fill mapping for a single field lives in lib/profileAutoFill.ts
+export type { FieldAutoFill };
+
 // Scoring rule for a single condition on a field
 export interface ScoringRule {
   condition: 
@@ -47,6 +52,7 @@ export interface FormField {
     action?: string;
   };
   scoring?: FieldScoring;
+  autoFill?: FieldAutoFill;
 }
 
 // Row metadata for dynamic row duplication in table fields

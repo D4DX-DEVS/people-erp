@@ -13,6 +13,12 @@ const { calculateApplicationScore } = require('../utils/scoringEngine');
 const { validationResult } = require('express-validator');
 const RBACMiddleware = require('../middleware/rbacMiddleware');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
+const {
+  isCoordinatorRole,
+  buildCoordinatorFilter,
+  coordinatorCanAccess,
+  applyScopeFilter
+} = require('../utils/coordinatorScope');
 
 // Returns the effective user context for regional filtering.
 // Franchise-specific role/adminScope (req.userFranchise) takes priority over the
@@ -109,8 +115,10 @@ const getApplications = async (req, res) => {
     const userRegionalFilter = getUserRegionalFilter(getEffectiveUserForFilter(req));
     console.log('🔍 User regional filter:', userRegionalFilter);
     
-    // Apply regional filtering (super_admin and state_admin have no restrictions)
-    Object.assign(filter, userRegionalFilter);
+    // Apply regional/assignment filtering (super_admin and state_admin have no
+    // restrictions). Merged, not assigned: a caller-supplied ?scheme=/?district=
+    // must narrow the result set, never replace the scope restriction.
+    applyScopeFilter(filter, userRegionalFilter);
 
     // Multi-tenant: restrict results to the current franchise
     Object.assign(filter, buildFranchiseReadFilter(req));
@@ -239,8 +247,10 @@ const getApplication = async (req, res) => {
     // Try both access check methods
     let hasAccess = hasAccessToApplication(getEffectiveUserForFilter(req), application);
     
-    // If the simple check fails, try the RBAC middleware check (more comprehensive)
-    if (!hasAccess) {
+    // If the simple check fails, try the RBAC middleware check (more comprehensive).
+    // Coordinators are skipped: their assignment check above is authoritative and
+    // the RBAC fallback scores them on regions they do not have.
+    if (!hasAccess && !isCoordinatorRole(getEffectiveUserForFilter(req).role)) {
       try {
         hasAccess = await RBACMiddleware.checkApplicationAccess(req.user, application);
         console.log('✅ RBAC access check result:', hasAccess);
@@ -833,6 +843,15 @@ const getUserRegionalFilter = (user) => {
     return filter; // No restrictions
   }
 
+  // Scheme / project coordinators are scoped by assignment, not by geography.
+  // They carry no regions, so without this branch they would fall through the
+  // location checks below and see every application in the franchise.
+  const coordinatorFilter = buildCoordinatorFilter(user.role, user.adminScope);
+  if (coordinatorFilter) {
+    console.log(`🔍 ${user.role} - assignment filter applied:`, coordinatorFilter);
+    return coordinatorFilter;
+  }
+
   // Helper function to get ObjectId from populated reference or direct ID
   const getObjectId = (ref) => {
     if (!ref) return null;
@@ -889,6 +908,13 @@ const hasAccessToApplication = (user, application) => {
   if (user.role === 'super_admin' || user.role === 'state_admin') {
     console.log(`✅ ${user.role} - full access granted`);
     return true;
+  }
+
+  // Scheme / project coordinators: access follows their assignment
+  const coordinatorAccess = coordinatorCanAccess(user.role, user.adminScope, application);
+  if (coordinatorAccess !== null) {
+    console.log(`🔍 ${user.role} assignment check: ${coordinatorAccess ? '✅' : '❌'}`);
+    return coordinatorAccess;
   }
   
   // Helper function to get ID from populated reference or direct ID
@@ -2151,9 +2177,9 @@ const getRenewalDueApplications = async (req, res) => {
       ];
     }
 
-    // Apply regional access restrictions
-    const userRegionalFilter = getUserRegionalFilter(req.user);
-    Object.assign(filter, userRegionalFilter);
+    // Apply regional/assignment access restrictions
+    const userRegionalFilter = getUserRegionalFilter(getEffectiveUserForFilter(req));
+    applyScopeFilter(filter, userRegionalFilter);
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -2959,7 +2985,7 @@ const getApplicationReceipts = async (req, res) => {
     if (effectiveUser.role !== 'super_admin' && effectiveUser.role !== 'state_admin') {
       const regionFilter = getUserRegionalFilter(effectiveUser);
       if (Object.keys(regionFilter).length > 0) {
-        Object.assign(approvedAppQuery, regionFilter);
+        applyScopeFilter(approvedAppQuery, regionFilter);
       }
     }
 

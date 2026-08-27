@@ -15,6 +15,11 @@ import { beneficiaryApi } from "@/services/beneficiaryApi";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 import defaultLogo from "@/assets/logo.png";
 import { useCompactUI } from "@/hooks/useCompactUI";
+import {
+  type BeneficiaryProfileUser,
+  type FieldAutoFill,
+  buildProfileAutoFillUpdates,
+} from "@/lib/profileAutoFill";
 
 interface FormField {
   id: number;
@@ -44,6 +49,7 @@ interface FormField {
     value: string;
     action: string;
   };
+  autoFill?: FieldAutoFill;
 }
 
 interface FormPage {
@@ -93,61 +99,19 @@ interface Scheme {
   };
 }
 
-// ---- Profile auto-fill helpers ----
-interface BeneficiaryProfileUser {
-  name: string;
-  phone: string;
-  profile?: {
-    gender?: string;
-    dateOfBirth?: string;
-    address?: {
-      district?: string;
-      area?: string;
-    };
-    location?: {
-      district?: { name?: string };
-      area?: { name?: string };
-      unit?: { name?: string };
-    };
-  };
-}
-
-function getProfileValueForField(field: FormField, user: BeneficiaryProfileUser): string | null {
-  const label = (field.label || '').toLowerCase();
-  const type = field.type;
-  const profile = user.profile || {};
-
-  if (type === 'phone') return user.phone || null;
-
-  if ((type === 'text' || type === 'name') && (label.includes('name') || label.includes('പേര്')))
-    return user.name || null;
-
-  if (label.includes('district') || label.includes('ജില്ല'))
-    return profile.location?.district?.name || profile.address?.district || null;
-
-  if (label.includes('area') || label.includes('ഏരിയ'))
-    return profile.location?.area?.name || profile.address?.area || null;
-
-  if (label.includes('unit') || label.includes('യൂണിറ്റ്'))
-    return profile.location?.unit?.name || null;
-
-  if (label.includes('gender') || label.includes('ലിംഗ') || label.includes('sex') || label.includes('ജൻഡർ'))
-    return profile.gender || null;
-
-  if (
-    label.includes('dob') ||
-    label.includes('date of birth') ||
-    label.includes('birth') ||
-    label.includes('ജനനതിയതി') ||
-    label.includes('ജനന')
-  ) {
-    if (profile.dateOfBirth)
-      return new Date(profile.dateOfBirth).toISOString().split('T')[0];
+// ---- Profile auto-fill ----
+// Fields are pre-filled ONLY when the form builder maps them to a profile
+// value (field.autoFill). No label guessing — see lib/profileAutoFill.ts.
+async function loadProfileUser(): Promise<BeneficiaryProfileUser | null> {
+  try {
+    const profileResp = await beneficiaryApi.getProfile();
+    return profileResp.user as BeneficiaryProfileUser;
+  } catch {
+    const stored = localStorage.getItem('beneficiary_user');
+    return stored ? (JSON.parse(stored) as BeneficiaryProfileUser) : null;
   }
-
-  return null;
 }
-// ---- End profile auto-fill helpers ----
+// ---- End profile auto-fill ----
 
 export default function BeneficiaryApplication() {
   useCompactUI();
@@ -361,29 +325,13 @@ export default function BeneficiaryApplication() {
         setFormData(response.prefillData);
       }
 
-      // Auto-fill fields from beneficiary profile
+      // Auto-fill the fields the form builder mapped to profile data
       if (renewalFormConfig.pages) {
-        let renewalProfileUser: BeneficiaryProfileUser | null = null;
-        try {
-          const profileResp = await beneficiaryApi.getProfile();
-          renewalProfileUser = profileResp.user as BeneficiaryProfileUser;
-        } catch {
-          const stored = localStorage.getItem('beneficiary_user');
-          if (stored) renewalProfileUser = JSON.parse(stored) as BeneficiaryProfileUser;
-        }
+        const renewalProfileUser = await loadProfileUser();
         if (renewalProfileUser) {
           const pages = renewalFormConfig.pages as FormPage[];
           setFormData(prev => {
-            const updates: Record<string, string> = {};
-            pages.forEach((page: FormPage) => {
-              page.fields.forEach((field: FormField) => {
-                const key = `field_${field.id}`;
-                if (!prev[key]) {
-                  const val = getProfileValueForField(field, renewalProfileUser!);
-                  if (val) updates[key] = val;
-                }
-              });
-            });
+            const updates = buildProfileAutoFillUpdates(pages, renewalProfileUser, prev);
             return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
           });
         }
@@ -446,29 +394,13 @@ export default function BeneficiaryApplication() {
         // No draft exists, that's fine
       }
 
-      // Auto-fill fields from beneficiary profile
+      // Auto-fill the fields the form builder mapped to profile data
       const schemePages = (response.scheme as unknown as Scheme).formConfig?.pages;
       if (schemePages) {
-        let schemeProfileUser: BeneficiaryProfileUser | null = null;
-        try {
-          const profileResp = await beneficiaryApi.getProfile();
-          schemeProfileUser = profileResp.user as BeneficiaryProfileUser;
-        } catch {
-          const stored = localStorage.getItem('beneficiary_user');
-          if (stored) schemeProfileUser = JSON.parse(stored) as BeneficiaryProfileUser;
-        }
+        const schemeProfileUser = await loadProfileUser();
         if (schemeProfileUser) {
           setFormData(prev => {
-            const updates: Record<string, string> = {};
-            schemePages.forEach((page: FormPage) => {
-              page.fields.forEach((field: FormField) => {
-                const key = `field_${field.id}`;
-                if (!prev[key]) {
-                  const val = getProfileValueForField(field, schemeProfileUser!);
-                  if (val) updates[key] = val;
-                }
-              });
-            });
+            const updates = buildProfileAutoFillUpdates(schemePages, schemeProfileUser, prev);
             return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
           });
         }

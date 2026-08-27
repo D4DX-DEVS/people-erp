@@ -3,6 +3,7 @@ const ResponseHelper = require('../utils/responseHelper');
 const formConfigurationController = require('./formConfigurationController');
 const { updateApplicationsDistributionTimeline } = require('./applicationController');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
+const { applyScopeFilter } = require('../utils/coordinatorScope');
 
 class SchemeController {
   /**
@@ -37,6 +38,16 @@ class SchemeController {
         ];
       }
 
+      // Coordinators are scoped by assignment, not by region — they hold no
+      // regions, so the regional block below would leave them unrestricted.
+      const effectiveRole = req.userFranchise?.role || req.userRole || req.user.role;
+      const effectiveScope = req.userFranchise?.adminScope || req.user.adminScope;
+      if (effectiveRole === 'scheme_coordinator') {
+        applyScopeFilter(filter, { _id: { $in: effectiveScope?.schemes || [] } });
+      } else if (effectiveRole === 'project_coordinator') {
+        applyScopeFilter(filter, { project: { $in: effectiveScope?.projects || [] } });
+      }
+
       // Apply regional access control
       if (req.user.role !== 'super_admin' && req.user.role !== 'state_admin') {
         const userRegions = req.user.adminScope?.regions || [];
@@ -47,9 +58,11 @@ class SchemeController {
             { targetRegions: { $in: userRegions } } // Schemes in user's regions
           ];
           
-          // Merge with existing $or filter if present
+          // Merge with existing $or filter if present (appending, so an
+          // assignment restriction already in $and is not dropped)
           if (filter.$or) {
             filter.$and = [
+              ...(filter.$and || []),
               { $or: filter.$or },
               { $or: regionalFilter }
             ];

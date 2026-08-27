@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const franchisePlugin = require('../utils/franchisePlugin');
+const { PROFILE_AUTOFILL_SOURCES } = require('../constants/profileAutoFill');
 
 const fieldSchema = new mongoose.Schema({
   id: {
@@ -78,6 +79,22 @@ const fieldSchema = new mongoose.Schema({
       type: String,
       enum: ['show', 'hide', 'require', 'optional'],
       default: 'show'
+    }
+  },
+  // Auto-fill this field from the applicant's profile (configured in the form builder).
+  // Keep PROFILE_AUTOFILL_SOURCES in sync with erp/src/lib/profileAutoFill.ts
+  autoFill: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    source: {
+      type: String,
+      enum: {
+        values: [...PROFILE_AUTOFILL_SOURCES, '', null],
+        message: 'Invalid profile auto-fill source: {VALUE}'
+      },
+      default: null
     }
   },
   // Scoring configuration for eligibility calculation

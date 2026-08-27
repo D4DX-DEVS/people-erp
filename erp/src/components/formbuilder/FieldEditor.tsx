@@ -1,10 +1,10 @@
-import { Trash2, Settings, ChevronDown, ChevronUp, Zap, Target, Plus, X } from "lucide-react";
+import { Trash2, Settings, ChevronDown, ChevronUp, Zap, Target, Plus, X, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { 
@@ -14,6 +14,12 @@ import {
   isOptionBasedType, 
   NON_SCORABLE_TYPES 
 } from "@/types/formBuilder";
+import {
+  type FieldAutoFill,
+  getProfileSourceGroups,
+  getProfileSourceLabel,
+  supportsProfileAutoFill,
+} from "@/lib/profileAutoFill";
 
 interface Field {
   id: number;
@@ -39,6 +45,7 @@ interface Field {
     maxPoints: number;
     scoringRules: ScoringRule[];
   };
+  autoFill?: FieldAutoFill;
 }
 
 interface FieldEditorProps {
@@ -54,6 +61,9 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showConditional, setShowConditional] = useState(false);
   const [showScoring, setShowScoring] = useState(false);
+  const [showAutoFill, setShowAutoFill] = useState(false);
+  const autoFillGroups = getProfileSourceGroups(field.type);
+  const autoFillEnabled = !!field.autoFill?.enabled && !!field.autoFill?.source;
 
   return (
     <Card className="group hover:shadow-md transition-shadow p-3">
@@ -67,7 +77,14 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                 placeholder="Field Label"
                 className="h-8 text-sm"
               />
-              <Select value={field.type} onValueChange={(type) => onUpdate({ ...field, type })}>
+              <Select
+                value={field.type}
+                onValueChange={(type) => {
+                  // Drop the profile mapping when the new type cannot hold that value
+                  const autoFill = supportsProfileAutoFill(type) ? field.autoFill : undefined;
+                  onUpdate({ ...field, type, autoFill });
+                }}
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -93,6 +110,15 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
             
             {/* Action Buttons */}
             <div className="flex items-center gap-1">
+              {autoFillEnabled && (
+                <span
+                  className="flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 max-w-[140px]"
+                  title={`Auto fetched from profile: ${getProfileSourceLabel(field.autoFill?.source)}`}
+                >
+                  <UserCheck className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{getProfileSourceLabel(field.autoFill?.source)}</span>
+                </span>
+              )}
               <div className="flex items-center gap-1">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">Req</label>
                 <Switch
@@ -280,7 +306,80 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                     Scoring {field.scoring?.enabled ? `(${field.scoring.maxPoints} pts)` : ''}
                   </Button>
                 )}
+                {supportsProfileAutoFill(field.type) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`h-7 text-xs ${autoFillEnabled ? 'border-blue-500 text-blue-700 bg-blue-50' : ''}`}
+                    onClick={() => setShowAutoFill(!showAutoFill)}
+                  >
+                    <UserCheck className="h-3 w-3 mr-1" />
+                    Auto Fetch from Profile{autoFillEnabled ? ` (${getProfileSourceLabel(field.autoFill?.source)})` : ''}
+                  </Button>
+                )}
               </div>
+
+              {showAutoFill && supportsProfileAutoFill(field.type) && (
+                <div className="space-y-2 p-3 border rounded-md bg-blue-50/50 border-blue-200 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-blue-800">Auto Fetch from Profile</Label>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-blue-700">Enable</label>
+                      <Switch
+                        checked={field.autoFill?.enabled || false}
+                        onCheckedChange={(enabled) => onUpdate({
+                          ...field,
+                          autoFill: enabled
+                            ? { enabled: true, source: field.autoFill?.source || "" }
+                            : undefined
+                        })}
+                        className="scale-75"
+                      />
+                    </div>
+                  </div>
+
+                  {field.autoFill?.enabled ? (
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-blue-700">Profile data to fetch as this field's value</Label>
+                      <Select
+                        value={field.autoFill?.source || ""}
+                        onValueChange={(source) => onUpdate({ ...field, autoFill: { enabled: true, source } })}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white">
+                          <SelectValue placeholder="Select profile data" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {autoFillGroups.map((group) => (
+                            <SelectGroup key={group.group}>
+                              <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                {group.group}
+                              </SelectLabel>
+                              {group.sources.map((source) => (
+                                <SelectItem key={source.value} value={source.value} className="text-xs">
+                                  {source.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.autoFill?.source ? (
+                        <p className="text-[11px] text-blue-700">
+                          Applicants see this field pre-filled with their <strong>{getProfileSourceLabel(field.autoFill.source)}</strong>. They can still edit it, and it stays empty when the profile has no such data.
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-amber-600">
+                          Pick which profile data to fetch — nothing is pre-filled until you do.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Off — applicants fill this field themselves.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {showConditional && availableFields.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 p-2 border rounded-md bg-muted/50 animate-fade-in">

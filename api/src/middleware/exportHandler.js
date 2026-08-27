@@ -12,6 +12,7 @@
 const mongoose = require('mongoose');
 const { convertToCSV } = require('../utils/csvHelper');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
+const { buildCoordinatorFilter, COORDINATOR_SCOPES } = require('../utils/coordinatorScope');
 const ResponseHelper = require('../utils/responseHelper');
 
 /**
@@ -23,6 +24,17 @@ const ResponseHelper = require('../utils/responseHelper');
 function buildRegionalFilter(req, Model) {
   const role = req.userFranchise?.role || req.userRole || req.user?.role;
   if (!role || role === 'super_admin' || role === 'state_admin') return {};
+
+  const adminScopeForRole = req.userFranchise?.adminScope || req.user?.adminScope;
+
+  // Coordinators are scoped by assigned scheme/project, not by region.
+  // Only applies to models that carry that field (e.g. Application).
+  const coordinatorField = COORDINATOR_SCOPES[role]?.field;
+  if (coordinatorField) {
+    return Model.schema.path(coordinatorField)
+      ? buildCoordinatorFilter(role, adminScopeForRole)
+      : {};
+  }
 
   const field =
     role === 'district_admin' ? 'district' :
@@ -38,7 +50,7 @@ function buildRegionalFilter(req, Model) {
     return new mongoose.Types.ObjectId(ref.toString());
   };
 
-  const adminScope = req.userFranchise?.adminScope || req.user?.adminScope;
+  const adminScope = adminScopeForRole;
 
   if (adminScope?.regions && adminScope.regions.length > 0) {
     return { [field]: { $in: adminScope.regions.map(toId) } };
