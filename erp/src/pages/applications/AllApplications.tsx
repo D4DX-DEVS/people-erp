@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ShortlistModal } from "@/components/modals/ShortlistModal";
 import { ReportsModal } from "@/components/modals/ReportsModal";
 import { Eye, CheckCircle, XCircle, Clock, CalendarIcon, FileText, Loader2, UserCheck, Grid, List, Filter, AlertTriangle } from "lucide-react";
@@ -101,6 +102,7 @@ export default function AllApplications() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Force refresh trigger
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
@@ -108,8 +110,11 @@ export default function AllApplications() {
   
   // Only state_admin and super_admin can review/approve applications
   const canReviewApplications = user && ['super_admin', 'state_admin'].includes(user.role);
-  // Only state_admin and super_admin can schedule/reschedule interviews
-  const canScheduleInterviews = user && ['super_admin', 'state_admin'].includes(user.role);
+  // Interview access follows the same RBAC permissions the API enforces
+  // (interviews.schedule / interviews.update), so granting a role those
+  // permissions is enough — no role list to keep in sync here.
+  const canScheduleInterviews = hasPermission('interviews.schedule');
+  const canRescheduleInterviews = hasPermission('interviews.update');
 
   useEffect(() => {
     if (!hasAdminAccess) {
@@ -163,6 +168,16 @@ export default function AllApplications() {
     refreshKey, // Add refreshKey to trigger re-fetch
   ]);
 
+  // Deep link support: /applications/all?application=<id> opens that application's
+  // detail modal directly, so dashboards can land on the actionable view.
+  const deepLinkApplicationId = searchParams.get('application');
+  useEffect(() => {
+    if (deepLinkApplicationId) {
+      setSelectedApplicationId(deepLinkApplicationId);
+      setShowDetailModal(true);
+    }
+  }, [deepLinkApplicationId]);
+
   if (!canViewApplications) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -208,11 +223,9 @@ export default function AllApplications() {
   };
 
   const getActionButton = (app: Application, isTableView: boolean = false) => {
-    // Unit Admin and District Admin can only view - no action buttons
-    if (!canReviewApplications) {
-      return null;
-    }
-
+    // Every branch below gates itself on the interview permission it needs, so
+    // there is no blanket role check here — that one used to hide the interview
+    // buttons from any role outside super_admin / state_admin.
     const hasInterviewScheduled = app.interview?.scheduledDate != null;
     const terminalStatuses = ['approved', 'rejected', 'completed', 'disbursed', 'cancelled'];
 
@@ -221,9 +234,9 @@ export default function AllApplications() {
       return null;
     }
 
-    // Interview already scheduled — show Reschedule button (only state/super admin)
+    // Interview already scheduled — show Reschedule button
     if (hasInterviewScheduled || app.status === 'interview_scheduled') {
-      if (!canScheduleInterviews) return null;
+      if (!canRescheduleInterviews) return null;
       return isTableView ? (
         <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
           <CalendarIcon className="h-4 w-4" />
@@ -235,7 +248,7 @@ export default function AllApplications() {
       );
     }
 
-    // Schedule interview — only state/super admin
+    // Schedule interview
     if (['pending', 'under_review', 'field_verification', 'on_hold'].includes(app.status)) {
       if (!canScheduleInterviews) return null;
       return isTableView ? (
@@ -518,6 +531,11 @@ export default function AllApplications() {
         onClose={() => {
           setShowDetailModal(false);
           setSelectedApplicationId(null);
+          if (searchParams.has('application')) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('application');
+            setSearchParams(next, { replace: true });
+          }
         }}
         onActionComplete={handleApplicationActionComplete}
         canApprove={!!canReviewApplications}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { X, FileText, Calendar, User, MapPin, IndianRupee, Download, Eye, CheckCircle, XCircle, Loader2, Plus, Trash2, AlertTriangle, AlertCircle, CheckCircle2, Repeat, MessageSquare, Upload, RotateCcw, ArrowRightLeft } from 'lucide-react';
+import { X, FileText, Calendar, User, MapPin, IndianRupee, Download, Eye, CheckCircle, XCircle, Loader2, Plus, Trash2, AlertTriangle, AlertCircle, CheckCircle2, Repeat, MessageSquare, Upload, RotateCcw, ArrowRightLeft, Pencil, Check } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -524,6 +524,12 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
   // Duplicate check state
   const [recheckingDuplicates, setRecheckingDuplicates] = useState(false);
 
+  // Requested amount inline edit (special cases — a scheme's flat figure does
+  // not fit every applicant)
+  const [editingRequestedAmount, setEditingRequestedAmount] = useState(false);
+  const [requestedAmountDraft, setRequestedAmountDraft] = useState('');
+  const [savingRequestedAmount, setSavingRequestedAmount] = useState(false);
+
   useEffect(() => {
     if (isOpen && applicationId) {
       fetchApplicationDetails();
@@ -598,6 +604,52 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
     
     fetchAvailableRoles();
   }, [showAction, application?._id]);
+
+  // Only the roles the API's PUT /applications/:id accepts may edit the amount
+  const canEditRequestedAmount = !!user && ['super_admin', 'state_admin', 'district_admin'].includes(user.role);
+
+  const startEditingRequestedAmount = () => {
+    setRequestedAmountDraft(String(application?.requestedAmount ?? 0));
+    setEditingRequestedAmount(true);
+  };
+
+  const saveRequestedAmount = async () => {
+    if (!applicationId) return;
+    const value = Number(requestedAmountDraft);
+    if (!Number.isFinite(value) || value < 1) {
+      toast({ title: 'Invalid amount', description: 'Enter a positive amount.', variant: 'destructive' });
+      return;
+    }
+
+    // approvedAmount must never exceed requestedAmount — the approval flow and
+    // the distribution timeline both rely on it
+    const approved = application?.approvedAmount || 0;
+    if (approved > 0 && value < approved) {
+      toast({
+        title: 'Amount too low',
+        description: `Already approved for \u20b9${approved.toLocaleString('en-IN')}. The requested amount cannot be below that.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setSavingRequestedAmount(true);
+    try {
+      await applicationsApi.update(applicationId, { requestedAmount: value });
+      toast({ title: 'Amount updated', description: `Requested amount set to \u20b9${value.toLocaleString('en-IN')}.` });
+      setEditingRequestedAmount(false);
+      await fetchApplicationDetails();
+      onActionComplete?.();
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to update the requested amount',
+        variant: 'destructive'
+      });
+    } finally {
+      setSavingRequestedAmount(false);
+    }
+  };
 
   const fetchApplicationDetails = async () => {
     if (!applicationId) return;
@@ -1851,8 +1903,52 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="p-3 rounded-lg bg-muted/50">
-                      <label className="text-sm font-medium text-muted-foreground">Requested Amount</label>
-                      <p className="text-lg font-semibold">₹{application.requestedAmount?.toLocaleString('en-IN') || '0'}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-medium text-muted-foreground">Requested Amount</label>
+                        {canEditRequestedAmount && !editingRequestedAmount && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={startEditingRequestedAmount}
+                            title="Edit requested amount"
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                        )}
+                      </div>
+                      {editingRequestedAmount ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={requestedAmountDraft}
+                            onChange={(e) => setRequestedAmountDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveRequestedAmount();
+                              if (e.key === 'Escape') setEditingRequestedAmount(false);
+                            }}
+                            disabled={savingRequestedAmount}
+                            className="h-8 text-base font-semibold"
+                            autoFocus
+                          />
+                          <Button size="sm" className="h-8 px-2" onClick={saveRequestedAmount} disabled={savingRequestedAmount}>
+                            {savingRequestedAmount ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2"
+                            onClick={() => setEditingRequestedAmount(false)}
+                            disabled={savingRequestedAmount}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-lg font-semibold">₹{application.requestedAmount?.toLocaleString('en-IN') || '0'}</p>
+                      )}
                     </div>
                     <div className="p-3 rounded-lg bg-green-50 border border-green-100">
                       <label className="text-sm font-medium text-muted-foreground">Approved Amount</label>

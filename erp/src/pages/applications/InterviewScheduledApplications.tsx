@@ -49,7 +49,7 @@ interface Application {
 
 export default function InterviewScheduledApplications() {
   const { user } = useAuth();
-  const { hasAnyPermission } = useRBAC();
+  const { hasAnyPermission, hasPermission } = useRBAC();
   
   const filterHook = useApplicationFilters('interview_scheduled');
   const { exportCSV, exportPDF, printData, exporting } = useExport({
@@ -79,8 +79,9 @@ export default function InterviewScheduledApplications() {
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'area_president', 'unit_admin', 'project_coordinator', 'scheme_coordinator'].includes(user.role);
   // Only state_admin and super_admin can review/approve applications
   const canReviewApplications = user && ['super_admin', 'state_admin'].includes(user.role);
-  // Only state_admin and super_admin can schedule/reschedule interviews
-  const canScheduleInterviews = user && ['super_admin', 'state_admin'].includes(user.role);
+  // Interview access follows the same RBAC permission the API enforces
+  // (interviews.update — every application on this page is already scheduled)
+  const canScheduleInterviews = hasPermission('interviews.update');
 
   useEffect(() => {
     if (!hasAdminAccess) {
