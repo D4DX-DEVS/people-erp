@@ -439,6 +439,13 @@ export const menuCategories: MenuCategory[] = [
         keywords: ["pages", "page builder", "about", "sections", "custom page"],
       },
       {
+        to: "/website-project-pages",
+        icon: FolderKanban,
+        label: "Project Pages",
+        permissions: ["website.read"],
+        keywords: ["project page", "project detail", "projects hub", "page builder"],
+      },
+      {
         to: "/banners",
         icon: ImageIcon,
         label: "Banners",

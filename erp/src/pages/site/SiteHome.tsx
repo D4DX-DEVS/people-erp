@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Heart, Users, GraduationCap, Home as HomeIcon, Briefcase, Stethoscope, HandHeart,
-  ArrowRight, Download, Play, Quote, FileText, ChevronRight, Sparkles, Target, Eye, Loader2,
+  Heart, Users, HandHeart, ArrowRight, Download, Play, Quote, FileText, ChevronRight, Sparkles, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,26 +17,12 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { HeroSlider } from "@/components/site/HeroSlider";
 import { useSiteData, getYouTubeId, videoThumb } from "@/hooks/useSiteData";
 import { contactMessages, volunteers } from "@/lib/api";
+import { resolveIcon } from "@/lib/siteIcons";
+import { ProjectCard } from "@/components/site/ProjectCard";
+import { iconBadgeStyle } from "@/lib/siteColors";
+import { resolveHomeLayout, type HomeSectionKey } from "@/types/siteHome";
 
-const ICONS: Record<string, any> = {
-  users: Users, heart: Heart, education: GraduationCap, graduation: GraduationCap,
-  home: HomeIcon, housing: HomeIcon, briefcase: Briefcase, livelihood: Briefcase,
-  health: Stethoscope, healthcare: Stethoscope, hands: HandHeart, target: Target, eye: Eye,
-};
-const iconFor = (name?: string) => ICONS[(name || "").toLowerCase()] || Sparkles;
-
-// Project category images mapping (matches admin panel)
-const CATEGORY_IMAGES: Record<string, string> = {
-  education: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&q=80",
-  healthcare: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&q=80",
-  housing: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&q=80",
-  livelihood: "https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=800&q=80",
-  emergency_relief: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=800&q=80",
-  infrastructure: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800&q=80",
-  social_welfare: "https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=800&q=80",
-  other: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=800&q=80",
-};
-const categoryImage = (category?: string) => CATEGORY_IMAGES[category || "other"] || CATEGORY_IMAGES.other;
+const iconFor = (name?: string) => resolveIcon(name);
 
 function SectionHeading({ eyebrow, title, subtitle }: { eyebrow?: string; title: string; subtitle?: string }) {
   return (
@@ -76,6 +61,8 @@ export default function SiteHome() {
   const mediaItems = data?.media || [];
   const donation = s.donation || {};
   const donateLink = donation.paymentLink || s.hero?.ctaLink;
+  const VisionIcon = resolveIcon(s.vision?.icon || "eye");
+  const MissionIcon = resolveIcon(s.mission?.icon || "target");
   const homePages = (data?.pages || [])
     .filter((p) => p.showOnHome)
     .sort((a, b) => (a.homeOrder || 0) - (b.homeOrder || 0));
@@ -130,40 +117,18 @@ export default function SiteHome() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <SiteHeader donateLink={donateLink} />
+  const layout = resolveHomeLayout(s.homeLayout).filter((item) => item.visible);
 
-      {/* HERO */}
-      {banners.length > 0 ? (
-        <HeroSlider banners={banners} hero={s.hero} />
-      ) : (
-        <section className="relative overflow-hidden bg-gradient-hero py-24 text-center text-primary-foreground">
-          <div className="container mx-auto px-4">
-            <h1 className="mx-auto max-w-3xl text-3xl font-extrabold md:text-5xl">
-              {s.hero?.title || org.displayName || org.erpTitle}
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/90">
-              {s.hero?.subtitle || org.tagline}
-            </p>
-            {donateLink && (
-              <Button size="lg" className="mt-8 rounded-full shadow-glow" onClick={() => window.open(donateLink, "_blank")}>
-                <Heart className="mr-2 h-4 w-4" /> Donate Now
-              </Button>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* IMPACT COUNTERS */}
-      {counts.length > 0 && (
+  // Home sections, rendered in the order chosen in Website Settings → Home Page Layout.
+  const renderers: Record<HomeSectionKey, () => ReactNode> = {
+    counters: () => counts.length > 0 && (
         <section className="border-b border-border/40 bg-card py-12">
           <div className="container mx-auto grid grid-cols-2 gap-6 px-4 md:grid-cols-4">
             {counts.map((c, i) => {
               const Icon = iconFor(c.icon);
               return (
                 <div key={c._id || i} className="text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl" style={iconBadgeStyle(c.color)}>
                     <Icon className="h-6 w-6" />
                   </div>
                   <div className="text-3xl font-extrabold text-foreground md:text-4xl">{c.count.toLocaleString()}+</div>
@@ -173,9 +138,8 @@ export default function SiteHome() {
             })}
           </div>
         </section>
-      )}
-
-      {/* ABOUT + VISION / MISSION */}
+      ),
+    about: () => (
       <section id="about" className="scroll-mt-20 py-20">
         <div className="container mx-auto grid items-center gap-12 px-4 lg:grid-cols-2">
           <div className="space-y-5">
@@ -188,7 +152,7 @@ export default function SiteHome() {
               {s.vision?.description && (
                 <Card className="border-border/60">
                   <CardContent className="space-y-2 p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Eye className="h-5 w-5" /></div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={iconBadgeStyle(s.vision?.color)}><VisionIcon className="h-5 w-5" /></div>
                     <h3 className="font-semibold">{s.vision?.title || "Our Vision"}</h3>
                     <p className="text-sm text-muted-foreground">{s.vision.description}</p>
                   </CardContent>
@@ -197,7 +161,7 @@ export default function SiteHome() {
               {s.mission?.description && (
                 <Card className="border-border/60">
                   <CardContent className="space-y-2 p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Target className="h-5 w-5" /></div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={iconBadgeStyle(s.mission?.color)}><MissionIcon className="h-5 w-5" /></div>
                     <h3 className="font-semibold">{s.mission?.title || "Our Mission"}</h3>
                     <p className="text-sm text-muted-foreground">{s.mission.description}</p>
                   </CardContent>
@@ -224,7 +188,7 @@ export default function SiteHome() {
               return (
                 <Card key={i} className="border-border/60 transition-shadow hover:shadow-lg">
                   <CardContent className="space-y-3 p-6">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" /></div>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={iconBadgeStyle(v.color)}><Icon className="h-5 w-5" /></div>
                     <h3 className="font-semibold">{v.title}</h3>
                     <p className="text-sm text-muted-foreground">{v.description}</p>
                   </CardContent>
@@ -234,9 +198,8 @@ export default function SiteHome() {
           </div>
         )}
       </section>
-
-      {/* DYNAMIC PAGES OVERVIEW */}
-      {homePages.length > 0 && (
+    ),
+    pages: () => homePages.length > 0 && (
         <section id="pages" className="scroll-mt-20 border-t border-border/40 py-20 [overflow-wrap:anywhere]">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Explore" title="Discover More" subtitle="Dive deeper into who we are and what we do." />
@@ -274,32 +237,13 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* PROJECTS */}
-      {projects.length > 0 && (
+      ),
+    projects: () => projects.length > 0 && (
         <section id="projects" className="scroll-mt-20 bg-muted/30 py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="What we do" title="Our Projects" subtitle="Initiatives transforming lives in our communities." />
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {projects.slice(0, 6).map((p) => (
-                <Card key={p._id} className="group overflow-hidden border-border/60 transition-shadow hover:shadow-xl">
-                  <div className="relative h-40 overflow-hidden">
-                    <img
-                      src={categoryImage(p.category)}
-                      alt={p.name}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                  </div>
-                  <CardContent className="space-y-2 p-6">
-                    {p.category && <Badge variant="secondary" className="capitalize">{p.category.replace(/_/g, " ")}</Badge>}
-                    <h3 className="text-lg font-semibold">{p.name}</h3>
-                    <p className="line-clamp-3 text-sm text-muted-foreground">{p.description}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              {projects.slice(0, 6).map((p) => <ProjectCard key={p._id} project={p} />)}
             </div>
             <div className="mt-8 text-center">
               <Button variant="outline" className="rounded-full" onClick={() => navigate("/projects-hub")}>
@@ -308,10 +252,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* SCHEMES */}
-      {schemes.length > 0 && (
+      ),
+    schemes: () => schemes.length > 0 && (
         <section className="py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Support programs" title="Schemes & Programs" subtitle="Programs you or your community can apply for." />
@@ -333,10 +275,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* NEWS & EVENTS */}
-      {news.length > 0 && (
+      ),
+    news: () => news.length > 0 && (
         <section id="news" className="scroll-mt-20 bg-muted/30 py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Updates" title="News & Events" subtitle="Latest happenings and announcements." />
@@ -366,10 +306,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* GALLERY */}
-      {gallery.length > 0 && (
+      ),
+    gallery: () => gallery.length > 0 && (
         <section id="gallery" className="scroll-mt-20 py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Moments" title="Gallery" subtitle="Glimpses from our work on the ground." />
@@ -398,10 +336,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* VIDEOS */}
-      {videos.length > 0 && (
+      ),
+    videos: () => videos.length > 0 && (
         <section id="videos" className="scroll-mt-20 bg-muted/30 py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Watch" title="Videos" subtitle="Stories of change in motion." />
@@ -438,10 +374,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* BLOGS */}
-      {blogs.length > 0 && (
+      ),
+    blogs: () => blogs.length > 0 && (
         <section className="py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Read" title="From our Blog" subtitle="Perspectives, insights and stories." />
@@ -469,10 +403,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* RESOURCES / BROCHURES */}
-      {brochures.length > 0 && (
+      ),
+    brochures: () => brochures.length > 0 && (
         <section className="bg-muted/30 py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Downloads" title="Reports & Publications" subtitle="Download our reports, brochures and guidelines." />
@@ -491,10 +423,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* MEDIA COVERAGE */}
-      {mediaItems.length > 0 && (
+      ),
+    media: () => mediaItems.length > 0 && (
         <section className="py-20">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="In the news" title="Media Coverage" />
@@ -512,10 +442,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* DONATION */}
-      {donation.enabled && (
+      ),
+    donation: () => donation.enabled && (
         <section className="py-20">
           <div className="container mx-auto px-4">
             <div className="overflow-hidden rounded-3xl bg-gradient-hero p-8 text-primary-foreground md:p-12">
@@ -543,10 +471,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* PARTNERS */}
-      {partners.length > 0 && (
+      ),
+    partners: () => partners.length > 0 && (
         <section className="border-y border-border/40 bg-muted/30 py-14">
           <div className="container mx-auto px-4">
             <p className="mb-8 text-center text-sm font-semibold uppercase tracking-widest text-muted-foreground">Our Associates & Partners</p>
@@ -563,10 +489,8 @@ export default function SiteHome() {
             </div>
           </div>
         </section>
-      )}
-
-      {/* FAQ */}
-      {faqs.length > 0 && (
+      ),
+    faq: () => faqs.length > 0 && (
         <section id="faq" className="scroll-mt-20 py-20">
           <div className="container mx-auto max-w-3xl px-4">
             <SectionHeading eyebrow="Help" title="Frequently Asked Questions" />
@@ -580,9 +504,8 @@ export default function SiteHome() {
             </Accordion>
           </div>
         </section>
-      )}
-
-      {/* CONTACT + VOLUNTEER */}
+      ),
+    contact: () => (
       <section id="contact" className="scroll-mt-20 bg-muted/30 py-20">
         <div className="container mx-auto grid gap-10 px-4 lg:grid-cols-2">
           <div>
@@ -621,6 +544,37 @@ export default function SiteHome() {
           </div>
         </div>
       </section>
+    ),
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <SiteHeader donateLink={donateLink} />
+
+      {/* HERO */}
+      {banners.length > 0 ? (
+        <HeroSlider banners={banners} hero={s.hero} />
+      ) : (
+        <section className="relative overflow-hidden bg-gradient-hero py-24 text-center text-primary-foreground">
+          <div className="container mx-auto px-4">
+            <h1 className="mx-auto max-w-3xl text-3xl font-extrabold md:text-5xl">
+              {s.hero?.title || org.displayName || org.erpTitle}
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/90">
+              {s.hero?.subtitle || org.tagline}
+            </p>
+            {donateLink && (
+              <Button size="lg" className="mt-8 rounded-full shadow-glow" onClick={() => window.open(donateLink, "_blank")}>
+                <Heart className="mr-2 h-4 w-4" /> Donate Now
+              </Button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {layout.map(({ key }) => (
+        <Fragment key={key}>{renderers[key]()}</Fragment>
+      ))}
 
       <SiteFooter settings={s} />
 

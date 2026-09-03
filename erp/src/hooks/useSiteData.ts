@@ -1,20 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { website } from "@/lib/api";
 import type { SitePageSummary } from "@/types/sitePage";
+import type { NavigationSettings } from "@/types/siteNavigation";
+import type { HomeLayoutItem } from "@/types/siteHome";
+import type { PublicProject } from "@/lib/siteProjects";
 
 export interface SiteValue {
+  _id?: string;
   title?: string;
   description?: string;
   icon?: string;
+  color?: string;
+  order?: number;
 }
 
 export interface SiteSettings {
+  homeLayout?: HomeLayoutItem[];
+  navigation?: NavigationSettings;
   aboutUs?: { title?: string; description?: string; imageUrl?: string };
   hero?: { title?: string; subtitle?: string; ctaText?: string; ctaLink?: string; secondaryCtaText?: string; secondaryCtaLink?: string };
-  vision?: { title?: string; description?: string };
-  mission?: { title?: string; description?: string };
+  appearance?: { primaryColor?: string; gradientColor?: string };
+  vision?: { title?: string; description?: string; icon?: string; color?: string };
+  mission?: { title?: string; description?: string; icon?: string; color?: string };
   values?: SiteValue[];
-  counts?: Array<{ _id?: string; title: string; count: number; icon?: string }>;
+  counts?: Array<{ _id?: string; title: string; count: number; icon?: string; color?: string }>;
   contactDetails?: { phone?: string; email?: string; address?: string; whatsapp?: string };
   socialMedia?: { facebook?: string; instagram?: string; youtube?: string; twitter?: string; linkedin?: string };
   donation?: {
@@ -28,7 +37,7 @@ export interface SiteSettings {
 export interface SiteHomeData {
   settings: SiteSettings;
   banners: Array<{ _id: string; title?: string; description?: string; imageUrl: string; link?: string }>;
-  projects: Array<{ _id: string; name: string; description?: string; category?: string; status?: string }>;
+  projects: PublicProject[];
   schemes: Array<{ _id: string; name?: string; title?: string; description?: string; category?: string }>;
   news: Array<{ _id: string; title: string; description?: string; category?: string; imageUrl?: string; publishDate?: string; featured?: boolean }>;
   blogs: Array<{ _id: string; title: string; slug: string; excerpt?: string; author?: string; coverImageUrl?: string; category?: string; publishDate?: string }>;

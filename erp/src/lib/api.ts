@@ -2225,6 +2225,22 @@ export const sitePages = {
   })
 };
 
+// Project detail pages (admin builder + public rendering)
+export const projectPages = {
+  // Public
+  getPublicBySlug: (slug: string) => apiClient.request(`/project-pages/public/${slug}`),
+  // Admin
+  getAll: () => apiClient.request('/project-pages'),
+  getByProject: (projectId: string) => apiClient.request(`/project-pages/${projectId}`),
+  save: (projectId: string, data: any) => apiClient.request(`/project-pages/${projectId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  delete: (projectId: string) => apiClient.request(`/project-pages/${projectId}`, {
+    method: 'DELETE'
+  })
+};
+
 // Banners API
 export const banners = {
   getAll: () => apiClient.request('/banners'),

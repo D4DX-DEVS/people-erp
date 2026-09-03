@@ -2382,6 +2382,67 @@ Convert audio to Malayalam text (Google Speech-to-Text).
 | PUT | `/api/website/settings/counter/:id` | Private — `settings.write` | Update counter |
 | DELETE | `/api/website/settings/counter/:id` | Private — `settings.write` | Delete counter |
 
+#### Header navigation (`navigation` field on PUT `/api/website/settings`)
+
+Controls the public site's top bar. Returned unchanged by `/api/website/home` and `/api/website/public-settings`.
+
+```json
+{
+  "navigation": {
+    "customized": true,
+    "menuAlignment": "center",
+    "items": [
+      { "type": "link", "label": "Home", "kind": "home", "target": "/", "visible": true },
+      { "type": "dropdown", "label": "Our Work", "children": [
+        { "label": "Projects", "kind": "builtin", "target": "/projects-hub" },
+        { "label": "Team", "kind": "page", "target": "/p/team", "openInNewTab": false }
+      ]}
+    ],
+    "buttons": [
+      { "label": "Donate", "kind": "donate", "target": "", "style": "primary", "icon": "heart", "openInNewTab": true },
+      { "label": "Login", "kind": "builtin", "target": "/login", "style": "outline", "icon": "" }
+    ]
+  }
+}
+```
+
+- `customized: false` = automatic menu (built-in links + every published page with `showInNav`); `true` = the stored `items`/`buttons` are used as-is.
+- `menuAlignment`: `left` (next to logo) · `center` · `right` (next to buttons).
+- `kind`: `home` · `section` (`/#anchor` on the home page) · `builtin` · `page` (`/p/:slug`) · `donate` (resolved from `donation.paymentLink`, hidden when empty) · `custom` (any URL).
+- Server sanitizes: labels ≤ 60 chars, targets ≤ 500 chars, `javascript:`/`data:` URLs dropped, max 30 items / 30 children per dropdown / 6 buttons, `order` rewritten from array position.
+
+#### Home page layout (`homeLayout` field on PUT `/api/website/settings`)
+
+Ordered list of home sections; array order is display order. Keys: `counters` · `about` · `pages` · `projects` · `schemes` · `news` · `gallery` · `videos` · `blogs` · `brochures` · `media` · `donation` · `partners` · `faq` · `contact`.
+
+```json
+{ "homeLayout": [ { "key": "about", "visible": true }, { "key": "counters", "visible": false } ] }
+```
+
+Unknown keys are dropped, duplicates ignored, and any section not listed is appended as visible. The hero banner and footer are fixed. The public home page skips sections that have no content regardless of this setting.
+
+#### Colours & icons
+
+- `appearance: { primaryColor, gradientColor }` — site-wide palette as hex strings (`""` = app default theme). Invalid values are stored as `""`. The public site derives every brand CSS variable (buttons, links, badges, hero gradient) from these.
+- `counts[].icon` / `counts[].color`, `values[].icon` / `values[].color`, `vision.icon` / `vision.color`, `mission.icon` / `mission.color` — icon is a kebab-case Lucide name from the curated picker (e.g. `graduation-cap`); colour is a swatch name (`teal`, `rose`, …), a hex, or `""` for the brand colour.
+- Site pages (`/api/site-pages`): each section accepts `icon`, `accentColor` (swatch/hex, drives section + item icons and highlights), `background` (`default` · `muted` · `primary` · `tint` · `custom`) and `backgroundColor` (hex, used with `custom`); each item accepts `color` (overrides the section accent).
+
+#### Project pages (`/api/project-pages`)
+
+One public detail page per project, built with the same section types as site pages and rendered at `/projects-hub/:slug`.
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/api/project-pages/public/:slug` | Public | `{ page, project }` — published page (sections sorted, live-content sections resolved) + the public slice of the project. 404 unless the page is published **and** the project is `approved` / `active` / `completed`. |
+| GET | `/api/project-pages` | `website.read` | Every project in scope with its page: `[{ project: {_id,name,code,category,status,…}, page: {_id,slug,status,coverImageUrl,updatedAt} \| null }]`. |
+| GET | `/api/project-pages/:projectId` | `website.read` | `{ project, page }` — `page` is `null` until built. |
+| PUT | `/api/project-pages/:projectId` | `website.write` | Create-or-update. Body: `slug`, `status` (`draft`/`published`), `summary`, `coverImageUrl`/`coverImageKey`, `hero`, `overview`, `sections`, `seo`. Slug is made unique per franchise (`-2`, `-3`…). Returns `201` on create. |
+| DELETE | `/api/project-pages/:projectId` | `website.delete` | Deletes the page (not the project) and its uploaded images. |
+
+- Images are uploaded through `POST /api/site-pages/upload-image` (same as site pages).
+- `overview` = `{ visible, showDates, showProgress, showBeneficiaries, showBudget, showMilestones, accentColor, background, backgroundColor }`. The public endpoint only includes `budget.*` when `showBudget` is on and `progress.milestones` when `showMilestones` is on; other project fields (`name`, `code`, `description`, `category`, `status`, `startDate`, `endDate`, `progress.percentage`, `targetBeneficiaries.estimated/actual`) are always sent.
+- `summary` and `coverImageUrl` override the card text / category stock image wherever project cards appear: `GET /api/website/home` (`projects[]`), `GET /api/website/projects`, and `projects` live-content sections. Those records gain `pageSlug` when a published page exists, so the frontend can link the card to `/projects-hub/:pageSlug`.
+
 ---
 
 ## 30. Application Configuration / Settings

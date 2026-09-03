@@ -32,6 +32,8 @@ export interface SectionItem {
   imageUrl?: string;
   imageKey?: string;
   icon?: string;
+  /** Icon colour: swatch name or hex. Empty = the section's accent colour. */
+  color?: string;
   link?: string;
   value?: string;
   order?: number;
@@ -43,11 +45,19 @@ export interface SectionImage {
   caption?: string;
 }
 
+export type SectionBackground = "default" | "muted" | "primary" | "tint" | "custom";
+
 export interface PageSection {
   _id?: string;
   type: SectionType;
   title?: string;
   subtitle?: string;
+  /** Lucide icon shown above the heading. */
+  icon?: string;
+  /** Swatch name or hex used for the section icon, item icons and highlights. Empty = brand colour. */
+  accentColor?: string;
+  /** Hex used when `background` is "custom". */
+  backgroundColor?: string;
   content?: string;
   imageUrl?: string;
   imageKey?: string;
@@ -62,7 +72,7 @@ export interface PageSection {
   ctaText?: string;
   ctaLink?: string;
   columns?: number;
-  background?: "default" | "muted" | "primary";
+  background?: SectionBackground;
   order?: number;
   /** UI-only: builder expand/collapse state. Stripped before save. */
   _expanded?: boolean;
@@ -121,6 +131,14 @@ export const SECTION_TYPE_LABELS: Record<SectionType, string> = {
   content: "Live Content Feed",
 };
 
+export const BACKGROUND_LABELS: Record<SectionBackground, string> = {
+  default: "Plain",
+  muted: "Soft grey",
+  primary: "Brand gradient",
+  tint: "Accent tint",
+  custom: "Custom colour",
+};
+
 export const CONTENT_SOURCE_LABELS: Record<Exclude<ContentSource, "">, string> = {
   news: "News & Events",
   blogs: "Blogs",
@@ -155,6 +173,9 @@ export function emptySection(type: SectionType, order: number): PageSection {
     type,
     title: "",
     subtitle: "",
+    icon: "",
+    accentColor: "",
+    backgroundColor: "",
     content: "",
     imageUrl: "",
     imageKey: "",

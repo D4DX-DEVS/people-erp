@@ -4,6 +4,64 @@ const orgConfig = require('../config/orgConfig');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
 const { uploadToSpaces, deleteFromSpaces } = require('../utils/s3Upload');
 
+const NAV_LINK_KINDS = WebsiteSettings.NAV_LINK_KINDS;
+const MAX_NAV_ITEMS = 30;
+const MAX_NAV_BUTTONS = 6;
+
+// Public-facing links: never persist script URLs, cap lengths, and coerce every field to its expected type.
+const cleanNavTarget = (value) => {
+  const target = String(value || '').trim().slice(0, 500);
+  return /^\s*(javascript|data|vbscript):/i.test(target) ? '' : target;
+};
+const cleanNavLink = (link, index) => {
+  const l = link && typeof link === 'object' ? link : {};
+  return {
+    ...(l._id ? { _id: l._id } : {}),
+    label: String(l.label || '').trim().slice(0, 60),
+    kind: NAV_LINK_KINDS.includes(l.kind) ? l.kind : 'custom',
+    target: cleanNavTarget(l.target),
+    openInNewTab: !!l.openInNewTab,
+    visible: l.visible !== false,
+    order: index
+  };
+};
+const sanitizeNavigation = (nav) => {
+  const n = nav && typeof nav === 'object' ? nav : {};
+  const items = (Array.isArray(n.items) ? n.items : []).slice(0, MAX_NAV_ITEMS).map((item, i) => ({
+    ...cleanNavLink(item, i),
+    type: item && item.type === 'dropdown' ? 'dropdown' : 'link',
+    children: (item && Array.isArray(item.children) ? item.children : []).slice(0, MAX_NAV_ITEMS).map(cleanNavLink)
+  }));
+  const buttons = (Array.isArray(n.buttons) ? n.buttons : []).slice(0, MAX_NAV_BUTTONS).map((btn, i) => ({
+    ...cleanNavLink(btn, i),
+    style: btn && btn.style === 'outline' ? 'outline' : 'primary',
+    icon: String((btn && btn.icon) || '').trim().slice(0, 30)
+  }));
+  return {
+    customized: !!n.customized,
+    menuAlignment: ['left', 'center', 'right'].includes(n.menuAlignment) ? n.menuAlignment : 'center',
+    items,
+    buttons
+  };
+};
+
+const HOME_SECTION_KEYS = WebsiteSettings.HOME_SECTION_KEYS;
+// Known keys only, no duplicates, and every section present so nothing silently disappears.
+const sanitizeHomeLayout = (layout) => {
+  const seen = new Set();
+  const out = [];
+  (Array.isArray(layout) ? layout : []).forEach((item) => {
+    const key = item && typeof item === 'object' ? item.key : item;
+    if (!HOME_SECTION_KEYS.includes(key) || seen.has(key)) return;
+    seen.add(key);
+    out.push({ key, visible: !(item && typeof item === 'object' && item.visible === false) });
+  });
+  HOME_SECTION_KEYS.forEach((key) => { if (!seen.has(key)) out.push({ key, visible: true }); });
+  return out;
+};
+
+const cleanHex = (value) => (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(value || '').trim()) ? String(value).trim() : '');
+
 class WebsiteController {
   /**
    * Get website settings
@@ -67,7 +125,7 @@ class WebsiteController {
    */
   async updateSettings(req, res) {
     try {
-      let { aboutUs, counts, contactDetails, socialMedia, hero, vision, mission, values, donation, seo, footer } = req.body;
+      let { aboutUs, counts, contactDetails, socialMedia, hero, vision, mission, values, donation, seo, footer, navigation, appearance, homeLayout } = req.body;
       const userId = req.user._id;
 
       // Parse JSON strings if they come from FormData
@@ -83,6 +141,9 @@ class WebsiteController {
       donation = parseMaybe(donation);
       seo = parseMaybe(seo);
       footer = parseMaybe(footer);
+      navigation = parseMaybe(navigation);
+      appearance = parseMaybe(appearance);
+      homeLayout = parseMaybe(homeLayout);
 
       // Normalize seo.keywords to an array (accept array or comma-separated string)
       if (seo && seo.keywords !== undefined) {
@@ -113,6 +174,14 @@ class WebsiteController {
       if (donation) settings.donation = donation;
       if (seo) settings.seo = seo;
       if (footer) settings.footer = footer;
+      if (navigation) settings.navigation = sanitizeNavigation(navigation);
+      if (homeLayout) settings.homeLayout = sanitizeHomeLayout(homeLayout);
+      if (appearance) {
+        settings.appearance = {
+          primaryColor: cleanHex(appearance.primaryColor),
+          gradientColor: cleanHex(appearance.gradientColor)
+        };
+      }
       
       settings.updatedBy = userId;
       await settings.save();

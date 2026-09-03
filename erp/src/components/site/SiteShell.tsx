@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { useSiteData } from "@/hooks/useSiteData";
 
 interface SiteShellProps {
-  children: ReactNode;
+  children?: ReactNode;
   /** Show the full-page spinner while the page's own data is loading too. */
   loading?: boolean;
 }

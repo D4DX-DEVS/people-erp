@@ -7,15 +7,27 @@ import { Textarea } from "@/components/ui/textarea";
 import VoiceTextarea from "@/components/ui/VoiceTextarea";
 import { useToast } from "@/hooks/use-toast";
 import { website } from "@/lib/api";
-import { Loader2, Plus, Trash2, Save, Globe, Users, Phone, Mail, MapPin, Facebook, Instagram, Youtube, Twitter, Upload, X, ImageIcon } from "lucide-react";
+import { Loader2, Plus, Trash2, Save, Globe, Users, Phone, Mail, MapPin, Facebook, Instagram, Youtube, Twitter, Upload, X, ImageIcon, Menu, Palette, ArrowUp, ArrowDown, Heart, LayoutList } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { useConfig } from "@/contexts/ConfigContext";
+import { NavigationBuilder } from "@/components/site/NavigationBuilder";
+import { normalizeNavigation, type NavigationSettings } from "@/types/siteNavigation";
+import { IconPicker } from "@/components/site/IconPicker";
+import { HomeLayoutEditor } from "@/components/site/HomeLayoutEditor";
+import { resolveHomeLayout, type HomeLayoutItem } from "@/types/siteHome";
+import { ColorPicker } from "@/components/site/ColorPicker";
+import { THEME_PRESETS, themeStyle, colorValue, isHex } from "@/lib/siteColors";
+import type { SiteValue } from "@/hooks/useSiteData";
+
+/** Pickers hand back swatch names; the site-wide palette is stored as hex ("" = app default). */
+const toHex = (v: string) => (isHex(v) ? v : v && v !== "primary" ? colorValue(v) : "");
 
 interface Counter {
   _id?: string;
   title: string;
   count: number;
   icon: string;
+  color?: string;
   order: number;
 }
 
@@ -54,14 +66,22 @@ export default function WebsiteSettings() {
   // Hero
   const [hero, setHero] = useState({ title: "", subtitle: "", ctaText: "", ctaLink: "", secondaryCtaText: "", secondaryCtaLink: "" });
   // Vision & Mission
-  const [vision, setVision] = useState({ title: "", description: "" });
-  const [mission, setMission] = useState({ title: "", description: "" });
+  const [vision, setVision] = useState({ title: "", description: "", icon: "", color: "" });
+  const [mission, setMission] = useState({ title: "", description: "", icon: "", color: "" });
+  // Core values
+  const [values, setValues] = useState<SiteValue[]>([]);
+  // Site-wide colour palette
+  const [appearance, setAppearance] = useState({ primaryColor: "", gradientColor: "" });
+  // Home page section order / visibility
+  const [homeLayout, setHomeLayout] = useState<HomeLayoutItem[]>(() => resolveHomeLayout([]));
   // Donation
   const [donation, setDonation] = useState({ enabled: false, heading: "", description: "", accountName: "", accountNumber: "", bankName: "", ifsc: "", upiId: "", paymentLink: "" });
   // SEO
   const [seo, setSeo] = useState({ title: "", description: "", keywords: "" });
   // Footer
   const [footer, setFooter] = useState({ description: "", copyrightText: "" });
+  // Header & navigation
+  const [navigation, setNavigation] = useState<NavigationSettings>(() => normalizeNavigation(null));
 
   useEffect(() => {
     loadSettings();
@@ -95,8 +115,11 @@ export default function WebsiteSettings() {
           secondaryCtaText: settings.hero?.secondaryCtaText || "",
           secondaryCtaLink: settings.hero?.secondaryCtaLink || "",
         });
-        setVision({ title: settings.vision?.title || "", description: settings.vision?.description || "" });
-        setMission({ title: settings.mission?.title || "", description: settings.mission?.description || "" });
+        setVision({ title: settings.vision?.title || "", description: settings.vision?.description || "", icon: settings.vision?.icon || "", color: settings.vision?.color || "" });
+        setMission({ title: settings.mission?.title || "", description: settings.mission?.description || "", icon: settings.mission?.icon || "", color: settings.mission?.color || "" });
+        setValues(Array.isArray(settings.values) ? settings.values : []);
+        setAppearance({ primaryColor: settings.appearance?.primaryColor || "", gradientColor: settings.appearance?.gradientColor || "" });
+        setHomeLayout(resolveHomeLayout(settings.homeLayout));
         setDonation({
           enabled: !!settings.donation?.enabled,
           heading: settings.donation?.heading || "",
@@ -114,6 +137,7 @@ export default function WebsiteSettings() {
           keywords: Array.isArray(settings.seo?.keywords) ? settings.seo.keywords.join(", ") : (settings.seo?.keywords || ""),
         });
         setFooter({ description: settings.footer?.description || "", copyrightText: settings.footer?.copyrightText || "" });
+        setNavigation(normalizeNavigation(settings.navigation));
       }
     } catch (error: any) {
       toast({
@@ -157,7 +181,16 @@ export default function WebsiteSettings() {
           ...seo,
           keywords: seo.keywords.split(",").map((k) => k.trim()).filter(Boolean),
         },
-        footer
+        footer,
+        // Drop the builder's UI-only expand/collapse flags before saving
+        navigation: {
+          ...navigation,
+          items: navigation.items.map(({ _expanded, ...item }) => item),
+          buttons: navigation.buttons.map(({ _expanded, ...button }) => button),
+        },
+        appearance,
+        homeLayout,
+        values: values.map((v, i) => ({ ...v, order: i }))
       };
 
       await website.updateSettings(data);
@@ -234,6 +267,18 @@ export default function WebsiteSettings() {
     setCounters(updated);
   };
 
+  const updateValue = (index: number, patch: Partial<SiteValue>) =>
+    setValues(values.map((v, i) => (i === index ? { ...v, ...patch } : v)));
+  const moveValue = (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= values.length) return;
+    const next = values.slice();
+    [next[index], next[j]] = [next[j], next[index]];
+    setValues(next);
+  };
+
+  const palette = themeStyle(appearance.primaryColor, appearance.gradientColor);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -266,6 +311,118 @@ export default function WebsiteSettings() {
           </Button>
         )}
       </div>
+
+      {/* Header & Navigation */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Menu className="h-5 w-5" />
+            Header & Navigation
+          </CardTitle>
+          <CardDescription>
+            Choose which links, dropdown menus and buttons appear in the top bar of your website, what they are called, and where they sit.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <NavigationBuilder
+            value={navigation}
+            onChange={setNavigation}
+            donateLink={donation.paymentLink || hero.ctaLink}
+            disabled={!canEdit}
+            themeStyle={palette}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Colours & Appearance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Colours & Appearance
+          </CardTitle>
+          <CardDescription>
+            Pick a palette for the whole website. Buttons, links, badges, icons and the hero gradient all follow the brand colour.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <Label>Quick palettes</Label>
+            <div className="flex flex-wrap gap-2">
+              {THEME_PRESETS.map((p) => {
+                const active = appearance.primaryColor === p.primary && appearance.gradientColor === p.gradient;
+                return (
+                  <button
+                    key={p.name}
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => setAppearance({ primaryColor: p.primary, gradientColor: p.gradient })}
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors hover:bg-muted disabled:opacity-60 ${active ? "border-primary bg-primary/10" : "border-border"}`}
+                  >
+                    <span className="flex -space-x-1">
+                      <span className="h-4 w-4 rounded-full border border-white" style={{ background: p.primary || "hsl(199 89% 45%)" }} />
+                      <span className="h-4 w-4 rounded-full border border-white" style={{ background: p.gradient || "hsl(199 85% 55%)" }} />
+                    </span>
+                    {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Brand colour</Label>
+              <ColorPicker
+                value={appearance.primaryColor}
+                defaultLabel="App default (blue)"
+                disabled={!canEdit}
+                onChange={(v) => setAppearance({ ...appearance, primaryColor: toHex(v) })}
+              />
+              <p className="text-xs text-muted-foreground">Main colour for buttons, links, badges and icons.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Gradient accent</Label>
+              <ColorPicker
+                value={appearance.gradientColor}
+                defaultLabel="Auto (lighter brand colour)"
+                disabled={!canEdit}
+                onChange={(v) => setAppearance({ ...appearance, gradientColor: toHex(v) })}
+              />
+              <p className="text-xs text-muted-foreground">Second colour of the hero and call-to-action gradients.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Preview</Label>
+            <div className="rounded-xl border border-border/60 bg-background p-4" style={palette}>
+              <div className="rounded-2xl bg-gradient-hero p-6 text-primary-foreground">
+                <p className="text-xs uppercase tracking-wider opacity-80">Hero banner</p>
+                <p className="text-xl font-bold">Empowering communities</p>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <Button type="button" className="pointer-events-none rounded-full shadow-glow">Donate</Button>
+                <Button type="button" variant="outline" className="pointer-events-none rounded-full">Learn more</Button>
+                <span className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Section label</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Heart className="h-5 w-5" /></span>
+                <span className="text-sm font-medium text-primary">Read more →</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Home Page Layout */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LayoutList className="h-5 w-5" />
+            Home Page Layout
+          </CardTitle>
+          <CardDescription>Choose the order of the sections on your home page and hide the ones you don't want to show.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <HomeLayoutEditor value={homeLayout} onChange={setHomeLayout} disabled={!canEdit} />
+        </CardContent>
+      </Card>
 
       {/* About Us Section */}
       <Card>
@@ -367,7 +524,7 @@ export default function WebsiteSettings() {
         <CardContent className="space-y-4">
           {/* Existing Counters */}
           {counters.map((counter, index) => (
-            <div key={index} className="flex gap-2 items-end p-4 border rounded-lg">
+            <div key={index} className="flex flex-wrap gap-2 items-end p-4 border rounded-lg">
               <div className="flex-1 space-y-2">
                 <Label>Title</Label>
                 <Input
@@ -384,6 +541,14 @@ export default function WebsiteSettings() {
                   onChange={(e) => handleUpdateCounter(index, 'count', parseInt(e.target.value) || 0)}
                   disabled={!canEdit}
                 />
+              </div>
+              <div className="w-44 space-y-2">
+                <Label>Icon</Label>
+                <IconPicker value={counter.icon} color={counter.color} disabled={!canEdit} onChange={(v) => handleUpdateCounter(index, 'icon', v)} />
+              </div>
+              <div className="w-36 space-y-2">
+                <Label>Colour</Label>
+                <ColorPicker value={counter.color} defaultLabel="Brand" disabled={!canEdit} onChange={(v) => handleUpdateCounter(index, 'color', v)} />
               </div>
               {canEdit && (
                 <Button
@@ -587,7 +752,70 @@ export default function WebsiteSettings() {
               <VoiceTextarea rows={4} value={vision.description} onChange={(e) => setVision({ ...vision, description: e.target.value })} disabled={!canEdit} /></div>
             <div className="space-y-2"><Label>Mission Description</Label>
               <VoiceTextarea rows={4} value={mission.description} onChange={(e) => setMission({ ...mission, description: e.target.value })} disabled={!canEdit} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Vision Icon</Label>
+                <IconPicker value={vision.icon} color={vision.color} placeholder="Default (eye)" allowNone={false} disabled={!canEdit} onChange={(v) => setVision({ ...vision, icon: v })} /></div>
+              <div className="space-y-2"><Label>Colour</Label>
+                <ColorPicker value={vision.color} defaultLabel="Brand" disabled={!canEdit} onChange={(v) => setVision({ ...vision, color: v })} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Mission Icon</Label>
+                <IconPicker value={mission.icon} color={mission.color} placeholder="Default (target)" allowNone={false} disabled={!canEdit} onChange={(v) => setMission({ ...mission, icon: v })} /></div>
+              <div className="space-y-2"><Label>Colour</Label>
+                <ColorPicker value={mission.color} defaultLabel="Brand" disabled={!canEdit} onChange={(v) => setMission({ ...mission, color: v })} /></div>
+            </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Core Values */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Heart className="h-5 w-5" />
+            Core Values
+          </CardTitle>
+          <CardDescription>Value cards shown under the About section on the home page, each with its own icon and colour.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {values.length === 0 && (
+            <p className="text-sm text-muted-foreground">No values yet. Add one below — for example “Compassion”, “Transparency” or “Community first”.</p>
+          )}
+          {values.map((v, index) => (
+            <div key={v._id || index} className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">Value {index + 1}</span>
+                {canEdit && (
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} onClick={() => moveValue(index, -1)}>
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={index === values.length - 1} onClick={() => moveValue(index, 1)}>
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setValues(values.filter((_, i) => i !== index))}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-3 md:grid-cols-[1fr_200px_160px]">
+                <div className="space-y-2"><Label>Title</Label>
+                  <Input value={v.title || ""} placeholder="e.g. Compassion" disabled={!canEdit} onChange={(e) => updateValue(index, { title: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Icon</Label>
+                  <IconPicker value={v.icon} color={v.color} disabled={!canEdit} onChange={(icon) => updateValue(index, { icon })} /></div>
+                <div className="space-y-2"><Label>Colour</Label>
+                  <ColorPicker value={v.color} defaultLabel="Brand" disabled={!canEdit} onChange={(color) => updateValue(index, { color })} /></div>
+              </div>
+              <div className="space-y-2"><Label>Description</Label>
+                <VoiceTextarea rows={2} value={v.description || ""} disabled={!canEdit} onChange={(e) => updateValue(index, { description: e.target.value })} /></div>
+            </div>
+          ))}
+          {canEdit && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setValues([...values, { title: "", description: "", icon: "heart", color: "" }])}>
+              <Plus className="mr-2 h-4 w-4" /> Add Value
+            </Button>
+          )}
         </CardContent>
       </Card>
 

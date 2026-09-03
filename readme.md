@@ -685,7 +685,7 @@ State
 
 A built-in content management system for public-facing organizational websites.
 
-- **Website Settings**: Organization info, counters, display configuration
+- **Website Settings**: Organization info, counters, display configuration, a header/navigation builder (menu links, dropdown menus of pages, action buttons, menu position) with live preview, site-wide colour palettes, core values, icon/colour pickers for counters, values and page sections, and a home page layout editor (reorder / hide sections)
 - **Banner Management**: Homepage banners with image upload, ordering, and scheduling
 - **News & Events**: CRUD for news articles and events with public/private visibility
 - **Brochures**: Document management with download tracking

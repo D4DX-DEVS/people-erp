@@ -12,6 +12,7 @@ const Blog = require('../models/Blog');
 const MediaCoverage = require('../models/MediaCoverage');
 const SitePage = require('../models/SitePage');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
+const { attachProjectPages, PUBLIC_PROJECT_STATUSES } = require('../utils/siteContent');
 
 /**
  * Aggregated public home payload — one call returns every section needed
@@ -61,6 +62,9 @@ exports.getHome = async (req, res) => {
         .select('title slug navLabel navOrder showInNav showOnHome homeOrder summary hero.imageUrl hero.title').lean()
     ]);
 
+    // Link project cards to their published detail pages (slug + cover image)
+    const projectsWithPages = await attachProjectPages(projects || [], scope);
+
     // Trim gallery image payload to cover thumbnails for the home grid
     const gallerySummary = (gallery || []).map(a => ({
       _id: a._id,
@@ -75,7 +79,7 @@ exports.getHome = async (req, res) => {
       data: {
         settings: settings || {},
         banners: banners || [],
-        projects: projects || [],
+        projects: projectsWithPages,
         schemes: schemes || [],
         news: news || [],
         blogs: blogs || [],
@@ -111,7 +115,7 @@ exports.getProjects = async (req, res) => {
       ? ['completed']
       : status === 'ongoing'
         ? ['active', 'approved']
-        : ['active', 'approved', 'completed'];
+        : PUBLIC_PROJECT_STATUSES;
     const filter = { status: { $in: statusIn }, ...scope };
     // Whitelist category — query params can arrive as objects (qs bracket
     // notation), which must never reach the Mongo filter on a public route.
@@ -126,7 +130,7 @@ exports.getProjects = async (req, res) => {
 
     res.json({
       success: true,
-      data: projects,
+      data: await attachProjectPages(projects, scope),
       pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     });
   } catch (error) {

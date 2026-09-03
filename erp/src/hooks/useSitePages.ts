@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { sitePages } from "@/lib/api";
+import { sitePages, projectPages } from "@/lib/api";
 import type { SitePage, SitePageSummary } from "@/types/sitePage";
+import type { PublicProjectDetail } from "@/types/projectPage";
 
 /** Published dynamic pages (nav + home overview). Cached and shared across the public site. */
 export function usePublicPages() {
@@ -21,6 +22,19 @@ export function usePublicPage(slug?: string) {
     queryFn: async () => {
       const res: any = await sitePages.getPublicBySlug(slug!);
       return (res?.data || null) as SitePage | null;
+    },
+    enabled: !!slug,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/** One published project detail page by slug (page + public project facts). */
+export function usePublicProjectPage(slug?: string) {
+  return useQuery({
+    queryKey: ["project-page", slug],
+    queryFn: async () => {
+      const res: any = await projectPages.getPublicBySlug(slug!);
+      return (res?.data || null) as PublicProjectDetail | null;
     },
     enabled: !!slug,
     staleTime: 1000 * 60 * 5,

@@ -1,23 +1,7 @@
 const SitePage = require('../models/SitePage');
-const NewsEvent = require('../models/NewsEvent');
-const Blog = require('../models/Blog');
-const GalleryAlbum = require('../models/GalleryAlbum');
-const Video = require('../models/Video');
-const Project = require('../models/Project');
-const Brochure = require('../models/Brochure');
-const Partner = require('../models/Partner');
-const FAQ = require('../models/Faq');
 const { uploadToSpaces, deleteFromSpaces } = require('../utils/s3Upload');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
-
-const slugify = (text) =>
-  String(text || '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+const { slugify, hydrateSections, collectImageKeys } = require('../utils/siteContent');
 
 // Reserved public-route slugs a dynamic page must not shadow
 const RESERVED_SLUGS = ['news', 'blogs', 'gallery', 'videos', 'projects', 'public'];
@@ -38,59 +22,6 @@ async function uniqueSlug(base, scope, excludeId) {
     if (!clash) return candidate;
     candidate = `${slug}-${n++}`;
   }
-}
-
-/** Fetch live content for a 'content' section from the matching collection. */
-async function resolveContentSource(source, limit, scope) {
-  const lim = Math.min(Math.max(parseInt(limit) || 6, 1), 24);
-  switch (source) {
-    case 'news':
-      return NewsEvent.find({ status: 'published', ...scope }).sort({ publishDate: -1, createdAt: -1 }).limit(lim)
-        .select('title description category imageUrl publishDate').lean();
-    case 'blogs':
-      return Blog.find({ status: 'published', ...scope }).sort({ publishDate: -1 }).limit(lim)
-        .select('title slug excerpt author coverImageUrl category publishDate').lean();
-    case 'gallery': {
-      const albums = await GalleryAlbum.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).limit(lim)
-        .select('title category coverImageUrl images').lean();
-      return albums.map(a => ({
-        _id: a._id,
-        title: a.title,
-        category: a.category,
-        coverImageUrl: a.coverImageUrl || (a.images && a.images[0] && a.images[0].imageUrl) || '',
-        imageCount: (a.images || []).length
-      }));
-    }
-    case 'videos':
-      return Video.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).limit(lim)
-        .select('title description videoUrl thumbnailUrl category').lean();
-    case 'projects':
-      return Project.find({ status: { $in: ['active', 'approved', 'completed'] }, ...scope }).sort({ createdAt: -1 }).limit(lim)
-        .select('name description category status').lean();
-    case 'brochures':
-      return Brochure.find({ status: 'active', ...scope }).sort({ createdAt: -1 }).limit(lim)
-        .select('title description fileUrl fileName category').lean();
-    case 'partners':
-      return Partner.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).limit(lim)
-        .select('name logoUrl link').lean();
-    case 'faqs':
-      return FAQ.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).limit(lim)
-        .select('question answer category').lean();
-    default:
-      return [];
-  }
-}
-
-/** Collect every stored file key on a page for cleanup. */
-function collectImageKeys(page) {
-  const keys = [];
-  if (page.hero && page.hero.imageKey) keys.push(page.hero.imageKey);
-  (page.sections || []).forEach(s => {
-    if (s.imageKey) keys.push(s.imageKey);
-    (s.images || []).forEach(img => img.imageKey && keys.push(img.imageKey));
-    (s.items || []).forEach(it => it.imageKey && keys.push(it.imageKey));
-  });
-  return keys;
 }
 
 /**
@@ -123,14 +54,7 @@ exports.getPublicBySlug = async (req, res) => {
       .lean();
     if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
 
-    page.sections = (page.sections || []).sort((a, b) => (a.order || 0) - (b.order || 0));
-    await Promise.all(
-      page.sections
-        .filter(s => s.type === 'content' && s.contentSource)
-        .map(async s => {
-          s.contentItems = await resolveContentSource(s.contentSource, s.contentLimit, scope);
-        })
-    );
+    page.sections = await hydrateSections(page.sections, scope);
 
     res.json({ success: true, data: page });
   } catch (error) {
