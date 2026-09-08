@@ -10,13 +10,15 @@ const L = 50;                 // left content edge
 const R = 545;                // right content edge
 const CW = R - L;             // 495pt content width
 const GUT = 14;               // grid gutter
-const COL_W = (CW - GUT) / 2; // 240.5pt per grid column
 const PAD = 7;                // value box inner padding
 const MIN_BOX_H = 22;         // matches min-h-[2rem] on screen
 const BLANK_BOX_H = 26;       // taller empty box on blank forms
 const CONT_TOP = 64;          // content top on continuation pages
 const FOOTER_RESERVE = 58;    // space kept free at the bottom of every page
 const MAX_EMBED_BYTES = 4 * 1024 * 1024; // largest inline image embedded in the PDF
+const PHOTO_W = 99;           // passport photo box, 35mm x 45mm
+const PHOTO_H = 127;
+const PHOTO_FETCH_MS = 8000;  // give up on a slow CDN rather than stall the download
 
 const C = {
   text: '#111827',
@@ -156,6 +158,10 @@ class ApplicationPdfService {
     const fileName = `application-${application.applicationNumber || application._id}.pdf`;
     const filePath = path.join(this.outputDir, fileName);
 
+    const formData = this._plainFormData(application.formData);
+    const photoField = this._profilePhotoField(formConfig);
+    const photo = photoField ? await this._loadPhoto(formData[`field_${photoField.id}`]) : null;
+
     const doc = this._createDoc({
       Title: `Application - ${application.applicationNumber}`,
       Subject: 'Application Form'
@@ -170,9 +176,10 @@ class ApplicationPdfService {
     ].filter(Boolean).join('  ·  '));
 
     this._addHeader(doc);
+    if (photoField) this._drawPhotoBox(doc, photo, false);
     this._addApplicationTitle(doc, application);
     this._addBeneficiaryInfo(doc, application);
-    this._addFormData(doc, formConfig, this._plainFormData(application.formData), false);
+    this._addFormData(doc, formConfig, formData, false);
     this._addDocumentsList(doc, application.documents || []);
     this._addFooters(doc);
     doc.end();
@@ -205,6 +212,7 @@ class ApplicationPdfService {
     this._attachRunningHeader(doc, schemeName || formConfig?.title || 'Application Form');
 
     this._addHeader(doc);
+    if (this._profilePhotoField(formConfig)) this._drawPhotoBox(doc, null, true);
     this._addBlankFormTitle(doc, schemeName, formConfig);
     this._addFormData(doc, formConfig, {}, true);
     this._addFooters(doc);
@@ -293,28 +301,30 @@ class ApplicationPdfService {
   }
 
   _addApplicationTitle(doc, application) {
+    const w = this._availWidth(doc);
     doc.fontSize(16).fillColor(C.text);
-    this._t(doc, application.scheme?.name || 'Application Form', L, doc.y, { align: 'center', width: CW }, true);
+    this._t(doc, application.scheme?.name || 'Application Form', L, doc.y, { align: 'center', width: w }, true);
     doc.y += 4;
 
     doc.fontSize(10).fillColor(C.muted);
-    this._t(doc, `Application No: ${application.applicationNumber || '—'}`, L, doc.y, { align: 'center', width: CW });
+    this._t(doc, `Application No: ${application.applicationNumber || '—'}`, L, doc.y, { align: 'center', width: w });
     doc.y += 6;
 
-    this._statusPill(doc, this._formatStatus(application.status), application.status, L + CW / 2, doc.y);
+    this._statusPill(doc, this._formatStatus(application.status), application.status, L + w / 2, doc.y);
 
     doc.fontSize(9).fillColor(C.muted);
-    this._t(doc, `Applied: ${this._formatDate(application.createdAt)}`, L, doc.y, { align: 'center', width: CW });
+    this._t(doc, `Applied: ${this._formatDate(application.createdAt)}`, L, doc.y, { align: 'center', width: w });
     doc.fillColor(C.text);
     doc.y += 12;
   }
 
   _addBlankFormTitle(doc, schemeName, formConfig) {
+    const w = this._availWidth(doc);
     doc.fontSize(16).fillColor(C.text);
-    this._t(doc, schemeName || formConfig?.title || 'Application Form', L, doc.y, { align: 'center', width: CW }, true);
+    this._t(doc, schemeName || formConfig?.title || 'Application Form', L, doc.y, { align: 'center', width: w }, true);
     doc.y += 4;
     doc.fontSize(9.5).fillColor(C.muted);
-    this._t(doc, 'Application Form — Please Fill All Required Fields (*)', L, doc.y, { align: 'center', width: CW });
+    this._t(doc, 'Application Form — Please Fill All Required Fields (*)', L, doc.y, { align: 'center', width: w });
     doc.fillColor(C.text);
     doc.y += 14;
   }
@@ -328,6 +338,80 @@ class ApplicationPdfService {
     doc.fillColor(palette.fg).text(label, centerX - w / 2, y + 4.6, { width: w, align: 'center', lineBreak: false });
     doc.fillColor(C.text);
     doc.y = y + h + 8;
+  }
+
+  // ─── Profile photo (passport box at the top right) ─────────────────────────
+
+  /** First enabled profile-photo field in the form, if the admin added one */
+  _profilePhotoField(formConfig) {
+    const pages = (formConfig && Array.isArray(formConfig.pages)) ? formConfig.pages : [];
+    for (const page of pages) {
+      const hit = this._allFields(page).find(f => f && f.enabled !== false && f.type === 'profile_photo');
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /** Resolve the stored photo value (CDN URL or inline data URL) to a PNG/JPEG buffer */
+  async _loadPhoto(value) {
+    if (value && typeof value === 'object' && typeof value.dataUrl === 'string') {
+      return this._dataUrlToImageBuffer(value.dataUrl, value.mimeType);
+    }
+    if (typeof value !== 'string' || !/^https?:\/\//i.test(value)) return null;
+    try {
+      const res = await fetch(value, { signal: AbortSignal.timeout(PHOTO_FETCH_MS) });
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > MAX_EMBED_BYTES) return null;
+      const isPng = buf[0] === 0x89 && buf[1] === 0x50;
+      const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
+      return (isPng || isJpeg) ? buf : null;
+    } catch (e) {
+      return null; // unreachable CDN — the box still prints, just empty
+    }
+  }
+
+  /**
+   * Passport-size box under the letterhead at the right edge. Reserves that
+   * region so the title and grid rows beside it stay to its left.
+   */
+  _drawPhotoBox(doc, buffer, isBlank) {
+    const x = R - PHOTO_W;
+    const y = doc.y;
+    doc.roundedRect(x, y, PHOTO_W, PHOTO_H, 3).lineWidth(0.8)
+      .fillAndStroke(isBlank ? '#ffffff' : C.boxBg, isBlank ? C.blankLine : C.boxBorder);
+    doc.lineWidth(1).strokeColor('#000000');
+
+    let drawn = false;
+    if (buffer) {
+      try {
+        doc.image(buffer, x + 2, y + 2, { cover: [PHOTO_W - 4, PHOTO_H - 4], align: 'center', valign: 'center' });
+        drawn = true;
+      } catch (e) { /* unreadable image — fall through to the placeholder */ }
+    }
+    if (!drawn) {
+      doc.fontSize(7.5).fillColor(C.placeholder);
+      const lines = isBlank ? ['Affix passport', 'size photograph'] : ['No photo', 'uploaded'];
+      lines.forEach((line, i) => this._t(doc, line, x + 6, y + PHOTO_H / 2 - 10 + i * 10,
+        { width: PHOTO_W - 12, align: 'center', lineBreak: false }));
+      doc.fillColor(C.text);
+    }
+
+    doc._photoReserve = { page: doc.bufferedPageRange().count, bottom: y + PHOTO_H + 10, width: PHOTO_W + GUT };
+    doc.y = y;
+  }
+
+  /** Content width at the cursor — narrower while beside the photo box */
+  _availWidth(doc) {
+    const r = doc._photoReserve;
+    if (r && doc.bufferedPageRange().count === r.page && doc.y < r.bottom) return CW - r.width;
+    return CW;
+  }
+
+  /** Full-width blocks (tables) must start below the photo box */
+  _clearPhotoReserve(doc) {
+    const r = doc._photoReserve;
+    if (r && doc.bufferedPageRange().count === r.page && doc.y < r.bottom) doc.y = r.bottom;
   }
 
   // ─── Applicant summary ──────────────────────────────────────────────────────
@@ -367,6 +451,13 @@ class ApplicationPdfService {
     const data = formData || {};
     const consumed = new Set();
     let rendered = false;
+
+    // The profile photo is drawn in the letterhead, never as a grid cell
+    for (const page of configPages) {
+      for (const f of this._allFields(page)) {
+        if (f && f.type === 'profile_photo') consumed.add(`field_${f.id}`);
+      }
+    }
 
     configPages.forEach((page, pageIdx) => {
       const fields = this._pageFields(page);
@@ -408,15 +499,21 @@ class ApplicationPdfService {
     }
   }
 
-  /** Renderable fields of a page (defensively includes section-nested fields) */
-  _pageFields(page) {
+  /** Every field on a page, including section-nested ones */
+  _allFields(page) {
     const all = [...(page.fields || [])];
     if (Array.isArray(page.sections)) {
       for (const section of page.sections) {
         if (Array.isArray(section.fields)) all.push(...section.fields);
       }
     }
-    return all.filter(f => f && f.enabled !== false && !['title', 'html', 'group', 'page'].includes(f.type));
+    return all;
+  }
+
+  /** Renderable fields of a page (defensively includes section-nested fields) */
+  _pageFields(page) {
+    return this._allFields(page).filter(f => f && f.enabled !== false
+      && !['title', 'html', 'group', 'page', 'profile_photo'].includes(f.type));
   }
 
   /**
@@ -447,10 +544,11 @@ class ApplicationPdfService {
 
   _renderSectionHeader(doc, title) {
     this._ensureSpace(doc, 46);
+    const w = this._availWidth(doc);
     doc.fontSize(9).fillColor(C.muted);
-    this._t(doc, String(title).toUpperCase(), L, doc.y, { width: CW, characterSpacing: 0.6 }, true);
+    this._t(doc, String(title).toUpperCase(), L, doc.y, { width: w, characterSpacing: 0.6 }, true);
     doc.y += 3;
-    doc.moveTo(L, doc.y).lineTo(R, doc.y).lineWidth(0.6).strokeColor(C.rule).stroke();
+    doc.moveTo(L, doc.y).lineTo(L + w, doc.y).lineWidth(0.6).strokeColor(C.rule).stroke();
     doc.lineWidth(1).strokeColor('#000000').fillColor(C.text);
     doc.y += 10;
   }
@@ -460,12 +558,14 @@ class ApplicationPdfService {
   _renderGrid(doc, entries, isBlank) {
     for (let i = 0; i < entries.length; i += 2) {
       const pair = [entries[i], entries[i + 1]].filter(Boolean);
-      const cells = pair.map(entry => this._prepareCell(doc, entry, COL_W, isBlank));
+      // Rows beside the profile photo box use the narrower width left of it
+      const colW = (this._availWidth(doc) - GUT) / 2;
+      const cells = pair.map(entry => this._prepareCell(doc, entry, colW, isBlank));
       const rowH = Math.max(...cells.map(c => c.height));
 
       this._ensureSpace(doc, rowH + 4);
       const y = doc.y;
-      cells.forEach((cell, idx) => this._drawCell(doc, cell, L + idx * (COL_W + GUT), y));
+      cells.forEach((cell, idx) => this._drawCell(doc, cell, L + idx * (colW + GUT), y));
       doc.y = y + rowH + 12;
     }
   }
@@ -609,6 +709,7 @@ class ApplicationPdfService {
   }
 
   _renderTableField(doc, entry, formData, isBlank) {
+    this._clearPhotoReserve(doc);
     const field = entry.field || {};
     const isMatrix = field.type === 'row' || field.type === 'column';
     const columnTitles = Array.isArray(field.columnTitles) ? field.columnTitles : [];

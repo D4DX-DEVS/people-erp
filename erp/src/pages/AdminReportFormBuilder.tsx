@@ -383,6 +383,7 @@ export default function AdminReportFormBuilder() {
               pages={pages}
               onUpdatePages={(p) => { setPages(p); setHasUnsavedChanges(true); }}
               onAddField={addField}
+              hideProfilePhoto
             />
           )}
         </div>

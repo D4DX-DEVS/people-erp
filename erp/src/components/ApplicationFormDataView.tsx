@@ -1,5 +1,6 @@
 import React from 'react';
 import { Download, FileText } from 'lucide-react';
+import { ProfilePhotoBox, photoSrc, profilePhotoFields } from '@/components/formbuilder/ProfilePhotoBox';
 
 interface ApplicationFormDataViewProps {
   formData: any;
@@ -225,11 +226,14 @@ const ApplicationFormDataView: React.FC<ApplicationFormDataViewProps> = ({ formD
       .join(' ') || fieldKey;
   };
 
+  // Profile photo fields are shown in the top-right frame, not in the grid
+  const photoFields = profilePhotoFields(formConfig);
+  const photoKeys = new Set(photoFields.map(f => f.key));
   const entries = Object.entries(formData).filter(
-    ([key]) => !['_id', '__v', 'id'].includes(key) && !key.endsWith('__rowMeta'),
+    ([key]) => !['_id', '__v', 'id'].includes(key) && !key.endsWith('__rowMeta') && !photoKeys.has(key),
   );
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && photoFields.length === 0) {
     return (
       <div className="text-center py-8">
         <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
@@ -289,7 +293,19 @@ const ApplicationFormDataView: React.FC<ApplicationFormDataViewProps> = ({ formD
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      {/* Profile photo sits at the top right, like a printed application */}
+      {photoFields.length > 0 && (
+        <div className="flex gap-4 sm:order-last">
+          {photoFields.map(({ key, label }) => (
+            <div key={key} className="flex flex-col items-center gap-1">
+              <ProfilePhotoBox src={photoSrc(formData[key])} />
+              <span className="text-xs text-muted-foreground">{label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    <div className="min-w-0 flex-1 space-y-6">
       {pages.map((page, pi) => (
         <div key={pi} className="space-y-4">
           {page.title && (
@@ -321,6 +337,7 @@ const ApplicationFormDataView: React.FC<ApplicationFormDataViewProps> = ({ formD
           ))}
         </div>
       ))}
+    </div>
     </div>
   );
 };

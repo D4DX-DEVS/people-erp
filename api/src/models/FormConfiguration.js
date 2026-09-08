@@ -16,7 +16,7 @@ const fieldSchema = new mongoose.Schema({
   type: {
     type: String,
     required: [true, 'Field type is required'],
-    enum: ['text', 'email', 'phone', 'number', 'date', 'datetime', 'textarea', 'select', 'radio', 'checkbox', 'file', 'url', 'password', 'title', 'html', 'group', 'page', 'row', 'column', 'dropdown', 'multiselect', 'yesno', 'time']
+    enum: ['text', 'email', 'phone', 'number', 'date', 'datetime', 'textarea', 'select', 'radio', 'checkbox', 'file', 'profile_photo', 'url', 'password', 'title', 'html', 'group', 'page', 'row', 'column', 'dropdown', 'multiselect', 'yesno', 'time']
   },
   required: {
     type: Boolean,

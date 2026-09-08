@@ -55,9 +55,11 @@ interface FieldEditorProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   availableFields?: Field[];
+  /** Admin-report forms have no applicant, so no profile photo */
+  hideProfilePhoto?: boolean;
 }
 
-export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, availableFields = [] }: FieldEditorProps) {
+export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, availableFields = [], hideProfilePhoto = false }: FieldEditorProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showConditional, setShowConditional] = useState(false);
   const [showScoring, setShowScoring] = useState(false);
@@ -100,6 +102,7 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                   <SelectItem value="multiselect">Multi-Select</SelectItem>
                   <SelectItem value="radio">Radio</SelectItem>
                   <SelectItem value="file">File Upload</SelectItem>
+                  {!hideProfilePhoto && <SelectItem value="profile_photo">Profile Photo</SelectItem>}
                   <SelectItem value="title">Title/Heading</SelectItem>
                   {/* <SelectItem value="html">HTML Editor</SelectItem> */}
                   {/* <SelectItem value="group">Field Group</SelectItem> */}

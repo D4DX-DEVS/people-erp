@@ -44,9 +44,11 @@ interface FormCanvasProps {
   pages: Page[];
   onUpdatePages: (pages: Page[]) => void;
   onAddField: (pageId: number, field: Field) => void;
+  /** Admin-report forms have no applicant, so no profile photo */
+  hideProfilePhoto?: boolean;
 }
 
-export function FormCanvas({ pages, onUpdatePages, onAddField }: FormCanvasProps) {
+export function FormCanvas({ pages, onUpdatePages, onAddField, hideProfilePhoto = false }: FormCanvasProps) {
   const [activePage, setActivePage] = useState(0);
   const [dragStartIdx, setDragStartIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -150,6 +152,7 @@ export function FormCanvas({ pages, onUpdatePages, onAddField }: FormCanvasProps
       required: false,
       enabled: true,
       pageId,
+      ...(fieldType === 'profile_photo' ? { label: 'Profile Photo' } : {}),
       ...(['select', 'radio', 'checkbox', 'dropdown', 'multiselect'].includes(fieldType) ? {
         options: [
           { label: 'Option 1', value: 'option_1' },
@@ -243,7 +246,7 @@ export function FormCanvas({ pages, onUpdatePages, onAddField }: FormCanvasProps
                 {page.fields.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground mb-4">No fields added yet</p>
-                    <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type)} />
+                    <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type)} hideProfilePhoto={hideProfilePhoto} />
                   </div>
                 ) : (
                   <>
@@ -251,13 +254,14 @@ export function FormCanvas({ pages, onUpdatePages, onAddField }: FormCanvasProps
                       <div key={field.id} className="space-y-2">
                         <FieldEditor
                           field={field}
+                          hideProfilePhoto={hideProfilePhoto}
                           onUpdate={(f) => updateField(page.id, f)}
                           onDelete={(id) => deleteField(page.id, id)}
                           onMoveUp={fieldIdx > 0 ? () => moveField(page.id, field.id, 'up') : undefined}
                           onMoveDown={fieldIdx < page.fields.length - 1 ? () => moveField(page.id, field.id, 'down') : undefined}
                           availableFields={pages.flatMap(p => p.fields).filter(f => f.id !== field.id)}
                         />
-                        <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type, field.id)} />
+                        <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type, field.id)} hideProfilePhoto={hideProfilePhoto} />
                       </div>
                     ))}
                   </>

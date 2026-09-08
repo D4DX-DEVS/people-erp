@@ -163,7 +163,7 @@ export const SCORING_CONDITIONS_BY_TYPE: Record<string, { value: string; label: 
 };
 
 // Field types that cannot have scoring
-export const NON_SCORABLE_TYPES = ['title', 'html', 'page', 'group', 'row', 'column'];
+export const NON_SCORABLE_TYPES = ['title', 'html', 'page', 'group', 'row', 'column', 'profile_photo'];
 
 // Check if a field type supports scoring
 export function isScorableType(type: string): boolean {

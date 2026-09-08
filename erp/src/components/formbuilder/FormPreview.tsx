@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { CopyPlus, Info, UserCheck } from "lucide-react";
 import { FileUploadField } from "./FileUploadField";
+import { ProfilePhotoBox } from "./ProfilePhotoBox";
 import { type FieldAutoFill, getProfileSourceLabel } from "@/lib/profileAutoFill";
 
 interface Field {
@@ -342,19 +343,37 @@ export function FormPreview({ formTitle, formDescription, pages, instructions, s
             </ol>
           </div>
         )}
-        {pages.map((page, pageIdx) => (
-          <div key={page.id} className="space-y-4">
-            {pages.length > 1 && (
-              <div className="pb-2">
-                <h3 className="font-semibold text-primary">
-                  {page.title || `Page ${pageIdx + 1}`}
-                </h3>
-                <Separator className="mt-2" />
-              </div>
-            )}
-            {page.fields.filter(f => f.enabled).map(renderField)}
-          </div>
-        ))}
+        {pages.map((page, pageIdx) => {
+          const enabledFields = page.fields.filter(f => f.enabled);
+          const photoFields = enabledFields.filter(f => f.type === "profile_photo");
+          return (
+            <div key={page.id} className="space-y-4">
+              {pages.length > 1 && (
+                <div className="pb-2">
+                  <h3 className="font-semibold text-primary">
+                    {page.title || `Page ${pageIdx + 1}`}
+                  </h3>
+                  <Separator className="mt-2" />
+                </div>
+              )}
+              {/* Profile photo sits at the top right, like a printed application */}
+              {photoFields.length > 0 && (
+                <div className="flex justify-end gap-4">
+                  {photoFields.map((field) => (
+                    <div key={field.id} className="flex flex-col items-center gap-1">
+                      <ProfilePhotoBox placeholder="Upload photo" />
+                      <span className="text-xs text-muted-foreground">
+                        {field.label}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {enabledFields.filter(f => f.type !== "profile_photo").map(renderField)}
+            </div>
+          );
+        })}
         <Button className="w-full bg-gradient-primary" disabled>
           Submit Application
         </Button>

@@ -4,11 +4,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { 
   Type, AlignLeft, Hash, Mail, Phone, Calendar, 
   CheckSquare, List, Circle, Upload, Heading1,
-  Code, Users, Table, Layout
+  Code, Users, Table, Layout, UserSquare
 } from "lucide-react";
 
 interface AddFieldPopoverProps {
   onAddField: (fieldType: string) => void;
+  /** Admin-report forms have no applicant, so no profile photo */
+  hideProfilePhoto?: boolean;
 }
 
 const fieldTypes = [
@@ -22,13 +24,15 @@ const fieldTypes = [
   { type: "select", label: "Dropdown", icon: List },
   { type: "radio", label: "Radio", icon: Circle },
   { type: "file", label: "File Upload", icon: Upload },
+  { type: "profile_photo", label: "Profile Photo", icon: UserSquare },
   { type: "title", label: "Title", icon: Heading1 },
   // { type: "html", label: "HTML", icon: Code },
   // { type: "group", label: "Group", icon: Users },
   { type: "row", label: "Row/Column", icon: Table },
 ];
 
-export function AddFieldPopover({ onAddField }: AddFieldPopoverProps) {
+export function AddFieldPopover({ onAddField, hideProfilePhoto = false }: AddFieldPopoverProps) {
+  const visibleTypes = hideProfilePhoto ? fieldTypes.filter((t) => t.type !== "profile_photo") : fieldTypes;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -43,7 +47,7 @@ export function AddFieldPopover({ onAddField }: AddFieldPopoverProps) {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="center">
         <div className="grid grid-cols-3 gap-1">
-          {fieldTypes.map(({ type, label, icon: Icon }) => (
+          {visibleTypes.map(({ type, label, icon: Icon }) => (
             <Button
               key={type}
               variant="ghost"

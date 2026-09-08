@@ -10,6 +10,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import VoiceToTextButton from '../ui/VoiceToTextButton';
 import { Checkbox } from '../ui/checkbox';
+import { ProfilePhotoBox, photoSrc, profilePhotoFields } from '../formbuilder/ProfilePhotoBox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { applications as applicationsApi, interviews, locations as locationsApi } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -1228,12 +1229,15 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
       );
     }
 
+    // Profile photo fields are shown in the top-right frame, not in the grid
+    const photoFields = profilePhotoFields(formConfig);
+    const photoKeys = new Set(photoFields.map(f => f.key));
     const entries = Object.entries(formData).filter(([key]) => 
       // Filter out internal fields and row metadata keys
-      !['_id', '__v', 'id'].includes(key) && !key.endsWith('__rowMeta')
+      !['_id', '__v', 'id'].includes(key) && !key.endsWith('__rowMeta') && !photoKeys.has(key)
     );
     
-    if (entries.length === 0) {
+    if (entries.length === 0 && photoFields.length === 0) {
       return (
         <div className="text-center py-8 bg-muted/50 rounded-lg">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
@@ -1319,7 +1323,19 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
     };
 
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        {/* Profile photo sits at the top right, like a printed application */}
+        {photoFields.length > 0 && (
+          <div className="flex gap-4 sm:order-last">
+            {photoFields.map(({ key, label }) => (
+              <div key={key} className="flex flex-col items-center gap-1">
+                <ProfilePhotoBox src={photoSrc(formData[key])} />
+                <span className="text-xs text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      <div className="min-w-0 flex-1 space-y-4">
         {/* Regular key-value fields in 2-col grid */}
         {regularEntries.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1350,6 +1366,7 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
             </div>
           );
         })}
+      </div>
       </div>
     );
   };

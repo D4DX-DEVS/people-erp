@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProfilePhotoBox } from "@/components/formbuilder/ProfilePhotoBox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -514,8 +515,8 @@ export default function BeneficiaryApplication() {
       return "";
     }
 
-    // File upload validation: value is the CDN URL stored after upload
-    if (field.type === "file") {
+    // File / profile photo upload validation: value is the CDN URL stored after upload
+    if (field.type === "file" || field.type === "profile_photo") {
       if (field.required && (!value || typeof value !== "string" || !value.startsWith("http"))) {
         return `${field.label} is required`;
       }
@@ -767,6 +768,53 @@ export default function BeneficiaryApplication() {
       }
     }
     return null;
+  };
+
+  // Profile photo sits at the top right of the form card, like a printed application
+  const renderProfilePhoto = (field: FormField) => {
+    const fieldKey = `field_${field.id}`;
+    const value = formData[fieldKey];
+    const error = errors[fieldKey];
+    const uploading = uploadingFields[fieldKey];
+    const hasPhoto = typeof value === "string" && value.startsWith("http");
+
+    return (
+      <div key={field.id} className="flex flex-col items-center gap-1.5">
+        <label
+          htmlFor={fieldKey}
+          title="Click to upload a photo"
+          className={`cursor-pointer ${uploading ? "pointer-events-none opacity-60" : ""}`}
+        >
+          <ProfilePhotoBox
+            src={hasPhoto ? value : undefined}
+            placeholder="Upload photo"
+            className={error ? "border-red-500" : ""}
+          />
+        </label>
+        <input
+          id={fieldKey}
+          type="file"
+          accept="image/jpeg,image/png"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFormFileUpload(fieldKey, String(field.id), file);
+            e.target.value = "";
+          }}
+        />
+        <span className="text-xs text-center text-muted-foreground">
+          {field.label}
+          {field.required && <span className="text-red-500 ml-1">*</span>}
+        </span>
+        {uploading && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
+          </span>
+        )}
+        {error && <p className="text-xs text-red-500 text-center">{error}</p>}
+      </div>
+    );
   };
 
   const renderField = (field: FormField) => {
@@ -1311,6 +1359,7 @@ export default function BeneficiaryApplication() {
 
   const currentPageData = scheme.formConfig.pages[currentSection];
   const progress = ((currentSection + 1) / scheme.formConfig.pages.length) * 100;
+  const photoFields = currentPageData.fields.filter((f) => f.enabled && f.type === "profile_photo");
 
   // Show instructions screen if instructions exist and haven't been accepted yet
   const formInstructions = scheme.formConfig.instructions || [];
@@ -1523,14 +1572,19 @@ export default function BeneficiaryApplication() {
 
         {/* Form Section */}
         <Card>
-          <CardHeader>
-            <CardTitle>{currentPageData.title}</CardTitle>
-            {currentPageData.description && (
-              <CardDescription>{currentPageData.description}</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+            <div className="space-y-1.5">
+              <CardTitle>{currentPageData.title}</CardTitle>
+              {currentPageData.description && (
+                <CardDescription>{currentPageData.description}</CardDescription>
+              )}
+            </div>
+            {photoFields.length > 0 && (
+              <div className="flex gap-4">{photoFields.map(renderProfilePhoto)}</div>
             )}
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentPageData.fields.map(renderField)}
+            {currentPageData.fields.filter((f) => f.type !== "profile_photo").map(renderField)}
           </CardContent>
         </Card>
 
