@@ -1312,6 +1312,52 @@ export const applications = {
     }
     return response.json();
   },
+  // Optional supporting file on a verification stage
+  uploadStageAttachment: async (id: string, stageId: string, file: File, note?: string) => {
+    const formData = new FormData();
+    formData.append('document', file);
+    if (note) formData.append('note', note);
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+    const slug = getFranchiseSlug();
+    if (slug) headers['X-Franchise-Slug'] = slug;
+    const response = await fetch(`${baseUrl}/applications/${id}/stages/${stageId}/attachments`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to upload attachment');
+    }
+    return response.json();
+  },
+  deleteStageAttachment: (id: string, stageId: string, attachmentId: string) =>
+    extendedApiClient.request(`/applications/${id}/stages/${stageId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    }),
+  // Admin-side replacement of a form file field (returns the stored file's public URL)
+  uploadFormFile: async (file: File, folder: string): Promise<{ url: string; originalName?: string; mimetype?: string; size?: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+    const slug = getFranchiseSlug();
+    if (slug) headers['X-Franchise-Slug'] = slug;
+    const response = await fetch(`${baseUrl}/upload/single`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success || !data.data?.file?.url) {
+      throw new Error(data.message || 'File upload failed');
+    }
+    return data.data.file;
+  },
   syncStatus: (id: string) =>
     extendedApiClient.request(`/applications/${id}/sync-status`, {
       method: 'POST',

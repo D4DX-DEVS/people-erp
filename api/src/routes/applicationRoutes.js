@@ -14,6 +14,8 @@ const {
   updateApplicationStage,
   addStageComment,
   uploadStageDocument,
+  uploadStageAttachment,
+  deleteStageAttachment,
   getRenewalDueApplications,
   getRenewalHistory,
   recalculateScore,
@@ -65,6 +67,10 @@ const updateApplicationValidation = [
     .optional()
     .isArray()
     .withMessage('Documents must be an array'),
+  body('formData')
+    .optional()
+    .isObject()
+    .withMessage('formData must be an object'),
   body('status')
     .optional()
     .isIn(['pending', 'under_review', 'approved', 'rejected', 'completed'])
@@ -263,6 +269,20 @@ router.post('/:id/stages/:stageId/documents/:docIndex',
   uploadStageDocument
 );
 
+// Optional supporting file on a stage (unit / field verification evidence etc.)
+router.post('/:id/stages/:stageId/attachments', 
+  authenticate, crossFranchiseResolver, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'), 
+  uploadSingle('document'),
+  uploadStageAttachment
+);
+
+router.delete('/:id/stages/:stageId/attachments/:attachmentId', 
+  authenticate, crossFranchiseResolver, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'), 
+  deleteStageAttachment
+);
+
 // Recalculate eligibility score for an application
 router.post('/:id/recalculate-score',
   authenticate, crossFranchiseResolver,
@@ -324,6 +344,7 @@ router.get('/committee/pending',
 
       const total = await Application.countDocuments(filter);
       const applications = await Application.find(filter)
+        .select('-formData')
         .populate('beneficiary', 'name phone email location')
         .populate('scheme', 'name category')
         .populate('project', 'name')

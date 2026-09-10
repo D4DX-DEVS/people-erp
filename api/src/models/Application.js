@@ -400,6 +400,35 @@ const applicationSchema = new mongoose.Schema({
         ref: 'User'
       },
       uploadedAt: Date
+    }],
+    // Optional supporting files attached by whoever works the stage (unit /
+    // area / district admin). Every superior reviewing the application sees
+    // them alongside the stage comments.
+    attachments: [{
+      name: {
+        type: String,
+        maxlength: 200
+      },
+      url: {
+        type: String,
+        required: true
+      },
+      key: String,
+      mimeType: String,
+      size: Number,
+      note: {
+        type: String,
+        maxlength: 500
+      },
+      uploadedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      uploadedByRole: String,
+      uploadedAt: {
+        type: Date,
+        default: Date.now
+      }
     }]
   }],
 

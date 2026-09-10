@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Scale, User, IndianRupee, Calendar, FileText, CheckCircle, XCircle, Loader2, AlertCircle, MapPin, Filter, Repeat } from "lucide-react";
+import { Scale, User, IndianRupee, Calendar, FileText, CheckCircle, XCircle, Loader2, AlertCircle, MapPin, Filter, Repeat, Eye, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { useRBAC } from "@/hooks/useRBAC";
 import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { applications } from "@/lib/api";
+import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
 
 interface Application {
   _id: string;
@@ -59,7 +60,16 @@ interface Application {
     completedAt?: string;
   };
   createdAt: string;
+  currentStage?: string;
+  applicationStages?: { name: string; status: string }[];
 }
+
+// Verification progress for the list: completed stages out of the total
+const stageProgress = (application: Application) => {
+  const stages = application.applicationStages || [];
+  const completed = stages.filter((s) => s.status === 'completed').length;
+  return { completed, total: stages.length };
+};
 
 export default function CommitteeApproval() {
   const { hasAnyPermission } = useRBAC();
@@ -81,6 +91,9 @@ export default function CommitteeApproval() {
   const [submitting, setSubmitting] = useState(false);
   const [approvedAmount, setApprovedAmount] = useState(0);
   const [showFullDetails, setShowFullDetails] = useState(false);
+
+  // Full application view with the verification stages (opens the shared detail modal)
+  const [detailApplicationId, setDetailApplicationId] = useState<string | null>(null);
   
   // Recurring payment state
   const [isRecurring, setIsRecurring] = useState(false);
@@ -423,6 +436,7 @@ export default function CommitteeApproval() {
                     <TableHead>Scheme</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Verification</TableHead>
                     <TableHead>Applied Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -463,10 +477,39 @@ export default function CommitteeApproval() {
                         </div>
                       </TableCell>
                       <TableCell>
+                        {(() => {
+                          const { completed, total } = stageProgress(application);
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setDetailApplicationId(application._id)}
+                              className="text-left text-xs hover:underline"
+                              title="Review verification stages"
+                            >
+                              <span className="font-medium flex items-center gap-1">
+                                <ClipboardCheck className="h-3 w-3 text-muted-foreground" />
+                                {total > 0 ? `${completed}/${total} stages done` : 'No stages'}
+                              </span>
+                              {application.currentStage && (
+                                <span className="text-muted-foreground block">{application.currentStage}</span>
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell>
                         {new Date(application.createdAt).toLocaleDateString('en-IN')}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDetailApplicationId(application._id)}
+                          >
+                            <Eye className="mr-1 h-3 w-3" />
+                            View
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -1090,6 +1133,14 @@ export default function CommitteeApproval() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Full application + verification stage review */}
+      <ApplicationDetailModal
+        isOpen={!!detailApplicationId}
+        applicationId={detailApplicationId}
+        onClose={() => setDetailApplicationId(null)}
+        onActionComplete={loadApplications}
+      />
     </div>
   );
 }

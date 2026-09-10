@@ -221,6 +221,7 @@ const getApplication = async (req, res) => {
       .populate('locationChangeHistory.newArea', 'name code')
       .populate('locationChangeHistory.newUnit', 'name code')
       .populate('locationChangeHistory.changedBy', 'name role')
+      .populate('applicationStages.attachments.uploadedBy', 'name role')
       .populate('createdBy', 'name')
       .populate('reviewedBy', 'name')
       .populate('approvedBy', 'name');
@@ -486,13 +487,24 @@ const updateApplication = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { requestedAmount, documents, status } = req.body;
+    const { requestedAmount, documents, status, formData } = req.body;
 
     // Only allow certain status transitions
     if (status && !isValidStatusTransition(application.status, status)) {
       return res.status(400).json({ 
         message: `Cannot change status from ${application.status} to ${status}` 
       });
+    }
+
+    // Editing the submitted form (answers + uploaded documents) is reserved for
+    // state / super admins — district admins may only touch the amount.
+    if (formData !== undefined) {
+      if (!['super_admin', 'state_admin'].includes(req.user.role)) {
+        return res.status(403).json({ message: 'Only state admins can edit submitted application data' });
+      }
+      if (!formData || typeof formData !== 'object' || Array.isArray(formData)) {
+        return res.status(400).json({ message: 'formData must be an object' });
+      }
     }
 
     // Update fields
@@ -509,10 +521,52 @@ const updateApplication = async (req, res) => {
     
     if (documents) application.documents = documents;
     if (status) application.status = status;
+
+    let changedFields = [];
+    if (formData !== undefined) {
+      const previous = application.formData || {};
+      const keys = new Set([...Object.keys(previous), ...Object.keys(formData)]);
+      changedFields = [...keys].filter(k => JSON.stringify(previous[k]) !== JSON.stringify(formData[k]));
+
+      application.formData = formData;
+      application.markModified('formData');
+
+      // Answers changed, so the eligibility score is stale. Recalculate without
+      // auto-rejecting — an admin edit is a deliberate correction, not a submission.
+      const scoringConfig = await FormConfiguration.findOne({
+        scheme: application.scheme,
+        enabled: true,
+        'scoringConfig.enabled': true
+      });
+      if (scoringConfig) {
+        application.eligibilityScore = calculateApplicationScore(formData, scoringConfig);
+      }
+    }
     
     application.updatedBy = req.user.id;
 
     await application.save();
+
+    if (changedFields.length > 0) {
+      try {
+        const ActivityLogService = require('../services/activityLogService');
+        await ActivityLogService.logActivity({
+          userId: req.user._id,
+          action: 'application_updated',
+          resource: 'application',
+          resourceId: application._id,
+          description: `${req.user.name || 'An admin'} edited application ${application.applicationNumber || application._id} (${changedFields.length} field(s))`,
+          details: {
+            applicationNumber: application.applicationNumber || null,
+            changedFields
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+      } catch (logError) {
+        console.error('Failed to log application edit:', logError);
+      }
+    }
 
     const updatedApplication = await Application.findOne({ _id: application._id, franchise: req.franchiseId })
       .populate('beneficiary', 'name phone')
@@ -2139,6 +2193,141 @@ const uploadStageDocument = async (req, res) => {
   }
 };
 
+// Multer writes the upload to disk before the controller runs; drop it when
+// the request is refused so rejected uploads do not pile up.
+const discardTempFile = (file) => {
+  if (file?.path) {
+    require('fs').unlink(file.path, () => {});
+  }
+};
+
+// Attach an optional supporting file to a stage. Any admin who may act on or
+// comment on the stage can attach; every superior sees the attachment.
+const uploadStageAttachment = async (req, res) => {
+  try {
+    const { id, stageId } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const application = await Application.findOne({ _id: id, franchise: req.franchiseId });
+    if (!application) {
+      discardTempFile(req.file);
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    if (!hasAccessToApplication(getEffectiveUserForFilter(req), application)) {
+      discardTempFile(req.file);
+      return res.status(403).json({ success: false, message: 'You do not have access to this application' });
+    }
+
+    const stage = application.applicationStages.id(stageId);
+    if (!stage) {
+      discardTempFile(req.file);
+      return res.status(404).json({ success: false, message: 'Stage not found' });
+    }
+
+    if (!canRoleActOnStage(req.user.role, stage) && !canRoleCommentOnStage(req.user.role, stage)) {
+      discardTempFile(req.file);
+      return res.status(403).json({
+        success: false,
+        message: `Your role (${req.user.role}) is not permitted to attach files on stage "${stage.name}"`
+      });
+    }
+
+    if (['rejected', 'cancelled'].includes(application.status)) {
+      discardTempFile(req.file);
+      return res.status(400).json({ success: false, message: `Cannot attach files to a ${application.status} application` });
+    }
+
+    const fileUploadService = require('../services/fileUploadService');
+    const uploaded = await fileUploadService.uploadFile(
+      req.file,
+      `applications/${application._id}/stages/${stage._id}`
+    );
+
+    stage.attachments.push({
+      name: (req.body.name || uploaded.originalName || '').slice(0, 200),
+      url: uploaded.url,
+      key: uploaded.key,
+      mimeType: uploaded.mimetype,
+      size: uploaded.size,
+      note: req.body.note ? String(req.body.note).slice(0, 500) : undefined,
+      uploadedBy: req.user._id,
+      uploadedByRole: req.user.role,
+      uploadedAt: new Date()
+    });
+
+    await application.save();
+    await application.populate('applicationStages.attachments.uploadedBy', 'name role');
+
+    res.json({
+      success: true,
+      message: 'Attachment uploaded successfully',
+      data: { attachments: stage.attachments }
+    });
+  } catch (error) {
+    console.error('Error uploading stage attachment:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to upload attachment' });
+  }
+};
+
+// Remove a stage attachment. The uploader or a state / super admin may remove it.
+const deleteStageAttachment = async (req, res) => {
+  try {
+    const { id, stageId, attachmentId } = req.params;
+
+    const application = await Application.findOne({ _id: id, franchise: req.franchiseId });
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    if (!hasAccessToApplication(getEffectiveUserForFilter(req), application)) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this application' });
+    }
+
+    const stage = application.applicationStages.id(stageId);
+    if (!stage) {
+      return res.status(404).json({ success: false, message: 'Stage not found' });
+    }
+
+    const attachment = stage.attachments.id(attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: 'Attachment not found' });
+    }
+
+    const isUploader = attachment.uploadedBy && attachment.uploadedBy.toString() === req.user._id.toString();
+    const isSeniorAdmin = ['super_admin', 'state_admin'].includes(req.user.role);
+    if (!isUploader && !isSeniorAdmin) {
+      return res.status(403).json({ success: false, message: 'Only the uploader or a state admin can remove this attachment' });
+    }
+
+    const storageKey = attachment.key;
+    attachment.deleteOne();
+    await application.save();
+
+    if (storageKey) {
+      // Best effort — the record is already gone; a stale object in storage is harmless
+      try {
+        const fileUploadService = require('../services/fileUploadService');
+        await fileUploadService.deleteFile(storageKey);
+      } catch (storageError) {
+        console.error('Failed to delete attachment from storage:', storageError.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Attachment removed',
+      data: { attachments: stage.attachments }
+    });
+  } catch (error) {
+    console.error('Error deleting stage attachment:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to remove attachment' });
+  }
+};
+
 // Get applications due for renewal (admin)
 const getRenewalDueApplications = async (req, res) => {
   try {
@@ -3136,6 +3325,8 @@ module.exports = {
   updateApplicationStage,
   addStageComment,
   uploadStageDocument,
+  uploadStageAttachment,
+  deleteStageAttachment,
   getRenewalDueApplications,
   getRenewalHistory,
   recalculateScore,
