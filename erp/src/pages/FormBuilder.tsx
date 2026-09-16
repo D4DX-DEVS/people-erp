@@ -306,10 +306,12 @@ export default function FormBuilder() {
         instructions: formInstructions
       };
 
+      let rescoredApplications: number | null = null;
       if (isRenewalForm) {
         await schemesApi.updateRenewalFormConfig(schemeId, formData);
       } else {
-        await api.updateFormConfiguration(schemeId, formData);
+        const response: any = await api.updateFormConfiguration(schemeId, formData);
+        rescoredApplications = response?.data?.rescoredApplications ?? null;
       }
       
       setLastSaved(new Date());
@@ -318,7 +320,9 @@ export default function FormBuilder() {
       
       toast({
         title: "Form saved successfully!",
-        description: "Form configuration has been saved for this scheme."
+        description: rescoredApplications
+          ? `Form configuration saved. Scoring rules changed, so ${rescoredApplications} existing application(s) were re-scored.`
+          : "Form configuration has been saved for this scheme."
       });
     } catch (error: any) {
       console.error('Failed to save form configuration:', error);
