@@ -638,6 +638,7 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                   {needsValue ? (
                                     <Input
                                       type={['number', 'date', 'datetime'].includes(field.type) && !['contains', 'equals'].includes(rule.condition) ? (field.type === 'number' ? 'number' : 'date') : 'text'}
+                                      step={field.type === 'number' ? 'any' : undefined}
                                       value={rule.value || ''}
                                       onChange={(e) => {
                                         const scoring = { ...field.scoring! };
@@ -654,6 +655,7 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                   {isBetween && (
                                     <Input
                                       type={field.type === 'number' ? 'number' : 'date'}
+                                      step={field.type === 'number' ? 'any' : undefined}
                                       value={rule.value2 || ''}
                                       onChange={(e) => {
                                         const scoring = { ...field.scoring! };
