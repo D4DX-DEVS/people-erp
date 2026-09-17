@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from "react";
-import { Save, Building2, Settings as SettingsIcon, Upload, Image as ImageIcon, MessageSquare, Mail, Eye, EyeOff } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Save, Building2, Settings as SettingsIcon, Image as ImageIcon, MessageSquare, Mail, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,20 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { useRBAC } from "@/hooks/useRBAC";
 import { ApplicationConfigTab } from "@/components/ApplicationConfigTab";
 import { useConfig } from "@/contexts/ConfigContext";
-import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import { config as configApi } from "@/lib/api";
+import { resolveOrgAssetUrl } from "@/hooks/useOrgLogoUrl";
+import { LogoSlotUploader, LOGO_SLOTS } from "@/components/branding/LogoSlotUploader";
+import { config as configApi, type LogoVariant } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import defaultLogo from "@/assets/logo.svg";
 
 export default function Settings() {
   const { hasPermission } = useRBAC();
   const { org, refreshConfig } = useConfig();
   const { user } = useAuth();
-  const orgLogoUrl = useOrgLogoUrl();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   // ── Integrations state ──────────────────────────────────────────────────
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
@@ -117,35 +113,33 @@ export default function Settings() {
     }
   };
 
-  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) { toast.error('Only PNG, JPG, SVG, and WebP images are allowed'); return; }
-    if (file.size > 2 * 1024 * 1024) { toast.error('Logo file must be under 2MB'); return; }
-    const reader = new FileReader();
-    reader.onloadend = () => setLogoPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleLogoUpload = async () => {
-    const file = fileInputRef.current?.files?.[0];
-    if (!file) { toast.error('Please select a logo file first'); return; }
-    setUploading(true);
+  // Logos are stored against this franchise's record, so each franchise on the
+  // platform brands itself — see franchiseLogoService on the API side.
+  const handleLogoUpload = async (file: File, variant: LogoVariant) => {
     try {
-      const response = await configApi.uploadLogo(file);
+      const response = await configApi.uploadLogo(file, variant);
       if (response.success) {
-        toast.success('Logo uploaded successfully');
-        setLogoPreview(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
+        toast.success(response.message || 'Logo updated');
         await refreshConfig();
       } else {
         toast.error(response.message || 'Failed to upload logo');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload logo');
-    } finally {
-      setUploading(false);
+    }
+  };
+
+  const handleLogoRemove = async (variant: LogoVariant) => {
+    try {
+      const response = await configApi.deleteLogo(variant);
+      if (response.success) {
+        toast.success(response.message || 'Logo removed');
+        await refreshConfig();
+      } else {
+        toast.error(response.message || 'Failed to remove logo');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to remove logo');
     }
   };
 
@@ -180,40 +174,43 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="organization" className="space-y-4">
-          {/* Logo Upload Card */}
+          {/* Branding / Logo Card — one slot per mark the UI renders */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ImageIcon className="h-5 w-5" />
-                Organization Logo
+                Logos &amp; Branding
               </CardTitle>
+              <CardDescription>
+                These marks belong to <span className="font-medium">{org.displayName || org.erpTitle}</span> only.
+                Other franchises on this platform keep their own. PNG, JPG, SVG or WebP, up to 2MB.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  <img
-                    src={logoPreview || orgLogoUrl}
-                    alt={org.erpTitle}
-                    className="h-24 w-24 rounded-xl border-2 border-dashed border-muted-foreground/25 object-contain p-2"
-                    onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }}
-                  />
-                </div>
-                <div className="flex-1 space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Upload your organization logo. Recommended size: 256x256px. Max file size: 2MB.
-                    Supported formats: PNG, JPG, SVG, WebP.
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <Input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" onChange={handleLogoSelect} className="max-w-xs" />
-                    {logoPreview && (
-                      <Button onClick={handleLogoUpload} disabled={uploading} size="sm">
-                        <Upload className="h-4 w-4 mr-2" />
-                        {uploading ? 'Uploading...' : 'Upload'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
+            <CardContent className="space-y-3">
+              {LOGO_SLOTS.map(slot => (
+                <LogoSlotUploader
+                  key={slot.variant}
+                  variant={slot.variant}
+                  title={slot.title}
+                  description={slot.description}
+                  darkPreview={slot.darkPreview}
+                  // The slot's own stored mark, not the fallback chain — the
+                  // card has to be able to say "nothing set here yet".
+                  currentUrl={resolveOrgAssetUrl(
+                    slot.variant === 'primary' ? org.logoUrl
+                      : slot.variant === 'footer' ? org.footerLogoUrl
+                      : org.faviconUrl
+                  )}
+                  disabled={!canUpdateSettings}
+                  onUpload={handleLogoUpload}
+                  onRemove={handleLogoRemove}
+                />
+              ))}
+              {!canUpdateSettings && (
+                <p className="text-xs text-muted-foreground">
+                  You need the settings.update permission to change these.
+                </p>
+              )}
             </CardContent>
           </Card>
 

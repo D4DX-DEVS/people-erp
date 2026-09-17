@@ -8,6 +8,9 @@ const orgConfig = require('../config/orgConfig');
 // of label/value boxes, full-width tables for row/column fields.
 const L = 50;                 // left content edge
 const R = 545;                // right content edge
+const LOGO_W = 110;           // header logo box width (wordmark-friendly)
+const LOGO_H = 56;            // header logo box height
+const HEAD_X = L + LOGO_W + 10; // header text column, clear of the logo
 const CW = R - L;             // 495pt content width
 const GUT = 14;               // grid gutter
 const PAD = 7;                // value box inner padding
@@ -285,15 +288,17 @@ class ApplicationPdfService {
   _addHeader(doc) {
     try {
       if (fs.existsSync(this.logoPath)) {
-        doc.image(this.logoPath, L, 46, { width: 62 });
+        // 'fit' scales the logo proportionally inside the box, so a wide
+        // wordmark and a square mark both render undistorted.
+        doc.image(this.logoPath, L, 46, { fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
       }
     } catch (e) { /* no logo */ }
 
-    doc.fontSize(17).font('Helvetica-Bold').fillColor(C.text).text(this.org.name, 124, 50);
+    doc.fontSize(17).font('Helvetica-Bold').fillColor(C.text).text(this.org.name, HEAD_X, 50);
     doc.fontSize(8.5).fillColor(C.muted);
-    this._t(doc, `Reg. No: ${this.org.regNumber}`, 124, 72);
-    this._t(doc, `${this.org.address}`, 124, 84);
-    this._t(doc, `Phone: ${this.org.phone} | Email: ${this.org.email}`, 124, 96);
+    this._t(doc, `Reg. No: ${this.org.regNumber}`, HEAD_X, 72);
+    this._t(doc, `${this.org.address}`, HEAD_X, 84);
+    this._t(doc, `Phone: ${this.org.phone} | Email: ${this.org.email}`, HEAD_X, 96);
 
     doc.moveTo(L, 118).lineTo(R, 118).lineWidth(0.8).strokeColor(C.rule).stroke();
     doc.lineWidth(1).strokeColor('#000000').fillColor(C.text);

@@ -21,6 +21,13 @@ const schemeSchema = new mongoose.Schema({
     maxlength: [2000, 'Description cannot exceed 2000 characters']
   },
   
+  // Artwork for the public scheme cards. Optional: the website falls back to a
+  // category-tinted panel when a scheme has no image of its own.
+  imageUrl: {
+    type: String,
+    trim: true
+  },
+
   // Classification
   category: {
     type: String,

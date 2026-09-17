@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { sitePages } from '@/lib/api';
 import { IconPicker } from '@/components/site/IconPicker';
 import { ColorPicker } from '@/components/site/ColorPicker';
+import { mapEmbedSrc, isUnframeableMapLink } from '@/lib/mapEmbed';
 import {
   type PageSection, type SectionItem, type SectionType, type SectionBackground, type SitePageHero,
   SECTION_TYPE_LABELS, CONTENT_SOURCE_LABELS, BACKGROUND_LABELS, emptySection, IMAGE_SPECS, IMAGE_FORMAT_NOTE,
@@ -102,6 +103,57 @@ export function ImageUploadField({
   );
 }
 
+// ── location map field (contact sections) ────────────────────────────────
+
+/**
+ * The map is the one field where a paste can silently produce a blank box —
+ * Google hands out three different links and only some of them can be framed.
+ * So this previews what the page will actually render, and names the problem
+ * when the value is a share link that has to be re-copied as an embed.
+ */
+function MapEmbedField({
+  value, onChange, disabled,
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const src = mapEmbedSrc(value);
+  const shortLink = isUnframeableMapLink(value);
+
+  return (
+    <div className="space-y-2">
+      <Textarea
+        rows={3}
+        disabled={disabled}
+        placeholder="Paste the Google Maps embed code, a maps link, or just the office address"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p className="text-xs text-muted-foreground">
+        In Google Maps: <strong>Share → Embed a map → Copy HTML</strong>, and paste it here. A normal
+        maps.google.com link or a plain address works too. Left empty, the page maps the address from
+        Website Settings → Contact Details — set this field only to correct where the pin lands.
+      </p>
+      {shortLink && (
+        <p className="text-xs text-destructive">
+          Short links (maps.app.goo.gl) can't be embedded. Open it in Google Maps and use Share → Embed a map instead.
+        </p>
+      )}
+      {!shortLink && !!(value || '').trim() && !src && (
+        <p className="text-xs text-destructive">
+          That doesn't look like a map link. Use the embed code from Google Maps, or type the address on its own.
+        </p>
+      )}
+      {src && (
+        <div className="overflow-hidden rounded-lg border border-border/60">
+          <iframe src={src} title="Map preview" className="h-48 w-full border-0" loading="lazy" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── generic items editor (cards / stats / timeline / team / faq) ─────────
 
 interface ItemFieldDef {
@@ -139,6 +191,13 @@ const ITEM_FIELDS: Partial<Record<SectionType, ItemFieldDef[]>> = {
   faq: [
     { key: 'title', label: 'Question', type: 'text' },
     { key: 'description', label: 'Answer', type: 'textarea' },
+  ],
+  contact: [
+    { key: 'title', label: 'Label (e.g. Office Hours)', type: 'text' },
+    { key: 'description', label: 'Value', type: 'textarea' },
+    { key: 'icon', label: 'Icon' },
+    { key: 'color', label: 'Icon colour' },
+    { key: 'link', label: 'Link (optional — tel:, mailto: or a URL)', type: 'text' },
   ],
 };
 
@@ -513,6 +572,34 @@ function SectionCard({
                   <Input disabled={disabled} value={section.ctaLink || ''} onChange={(e) => onUpdate({ ctaLink: e.target.value })} />
                 </div>
               </div>
+            </div>
+          )}
+
+          {section.type === 'contact' && (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                The address, phone, WhatsApp, email and social links in the left-hand card are read from
+                <strong> Website Settings → Contact Details</strong>, so they stay identical to the footer.
+                Edit them there; add rows below only for details settings has no field for.
+              </p>
+              <div>
+                <Label className="text-xs">Location map</Label>
+                <MapEmbedField value={section.mapEmbedUrl} disabled={disabled} onChange={(v) => onUpdate({ mapEmbedUrl: v })} />
+              </div>
+              <div>
+                <Label className="text-xs">Send button text</Label>
+                <Input disabled={disabled} placeholder="Send Message" value={section.ctaText || ''} onChange={(e) => onUpdate({ ctaText: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Extra detail rows</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Office hours, a branch office, a helpline — anything beyond the four fields above.
+                </p>
+                <ItemsEditor items={section.items || []} fields={ITEM_FIELDS.contact!} disabled={disabled} accentColor={section.accentColor} onChange={(items) => onUpdate({ items })} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Messages sent through the form land under <strong>Website → Contact Messages</strong>.
+              </p>
             </div>
           )}
 

@@ -21,6 +21,13 @@ router.get('/home', publicSiteController.getHome);
 router.get('/projects', publicSiteController.getProjects);
 
 /**
+ * @route   GET /api/website/schemes
+ * @desc    Public, paginated scheme archive (no auth)
+ * @access  Public
+ */
+router.get('/schemes', publicSiteController.getSchemes);
+
+/**
  * @route   GET /api/website/public-settings
  * @desc    Get public website settings (no auth)
  * @access  Public

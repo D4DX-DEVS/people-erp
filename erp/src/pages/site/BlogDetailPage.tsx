@@ -4,7 +4,11 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SiteHeader } from "@/components/site/SiteHeader";
+import { PageBody } from "@/components/site/SiteShell";
+import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { MobileBottomNav } from "@/components/site/MobileBottomNav";
+import { BackToTop } from "@/components/site/BackToTop";
 import { blogs, website } from "@/lib/api";
 
 export default function BlogDetailPage() {
@@ -35,7 +39,8 @@ export default function BlogDetailPage() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader donateLink={settings?.donation?.paymentLink} />
-      <article className="container mx-auto max-w-3xl px-4 py-10">
+      <SiteBreadcrumbs items={[{ label: "Blog", href: "/blogs" }, { label: blog?.title || "Article" }]} />
+      <PageBody className="mx-auto max-w-3xl">
         <Button variant="ghost" className="mb-4" onClick={() => navigate("/")}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -56,8 +61,10 @@ export default function BlogDetailPage() {
             </div>
           </>
         )}
-      </article>
+      </PageBody>
       <SiteFooter settings={settings} />
+      <MobileBottomNav />
+      <BackToTop />
     </div>
   );
 }

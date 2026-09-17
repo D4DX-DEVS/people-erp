@@ -440,7 +440,7 @@ export default function BeneficiaryDashboard() {
       <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-3 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <img src={orgLogoUrl} alt="Logo" className="h-10 w-10 rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+            <img src={orgLogoUrl} alt="Logo" className="h-10 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
             <div>
               <h1 className="text-lg font-bold">Beneficiary Portal</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">+91 {phoneNumber}</p>

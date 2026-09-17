@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { sitePages, projectPages } from "@/lib/api";
+import { sitePages, projectPages, schemePages } from "@/lib/api";
 import type { SitePage, SitePageSummary } from "@/types/sitePage";
 import type { PublicProjectDetail } from "@/types/projectPage";
+import type { PublicSchemeDetail } from "@/types/schemePage";
 
 /** Published dynamic pages (nav + home overview). Cached and shared across the public site. */
 export function usePublicPages() {
@@ -35,6 +36,21 @@ export function usePublicProjectPage(slug?: string) {
     queryFn: async () => {
       const res: any = await projectPages.getPublicBySlug(slug!);
       return (res?.data || null) as PublicProjectDetail | null;
+    },
+    enabled: !!slug,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/** One scheme detail page by slug. The API generates one from the scheme
+ *  record when no admin-built page exists, so this resolves for every
+ *  active scheme. */
+export function usePublicSchemePage(slug?: string) {
+  return useQuery({
+    queryKey: ["scheme-page", slug],
+    queryFn: async () => {
+      const res: any = await schemePages.getPublicBySlug(slug!);
+      return (res?.data || null) as PublicSchemeDetail | null;
     },
     enabled: !!slug,
     staleTime: 1000 * 60 * 5,

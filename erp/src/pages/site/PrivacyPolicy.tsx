@@ -2,7 +2,11 @@ import { useEffect } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useConfig } from "@/contexts/ConfigContext";
 import { SiteHeader } from "@/components/site/SiteHeader";
+import { PageBody } from "@/components/site/SiteShell";
+import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { MobileBottomNav } from "@/components/site/MobileBottomNav";
+import { BackToTop } from "@/components/site/BackToTop";
 import { useSiteData } from "@/hooks/useSiteData";
 
 export default function PrivacyPolicy() {
@@ -46,9 +50,11 @@ export default function PrivacyPolicy() {
         </div>
       </section>
 
+      <SiteBreadcrumbs items={[{ label: "Privacy Policy" }]} />
+
       {/* Content */}
-      <section className="py-14">
-        <div className="container mx-auto max-w-3xl space-y-8 px-4 leading-relaxed text-muted-foreground">
+      <PageBody className="mx-auto max-w-3xl">
+        <div className="space-y-8 leading-relaxed text-muted-foreground">
           <div className="space-y-3">
             <p>
               {orgName} (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;) is committed to
@@ -195,9 +201,12 @@ export default function PrivacyPolicy() {
             </ul>
           </PolicySection>
         </div>
-      </section>
+      </PageBody>
 
       <SiteFooter settings={s} />
+
+      <MobileBottomNav />
+      <BackToTop />
     </div>
   );
 }

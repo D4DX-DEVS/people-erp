@@ -51,6 +51,19 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
+    /* Brand accent family — the header pills, bottom bar and calculator chrome.
+       These are only the DEFAULT, sampled from the bundled logo (src/assets/logo.png):
+       #003830 deep green, #105030 green, #C8D840 lime, #E86020 orange.
+       A franchise that sets its own palette under Website Settings → Colours
+       overrides all of them at runtime (see themeVars in lib/siteColors.ts), so
+       each franchise's chrome follows its own logo rather than this one. */
+    --brand-green-dark: 171 90% 11%;
+    --brand-green: 150 67% 19%;
+    --brand-green-mid: 145 50% 27%;
+    --brand-lime: 66 66% 55%;
+    --brand-orange: 19 81% 52%;
+    --gradient-brand: linear-gradient(135deg, hsl(171 90% 10%) 0%, hsl(150 67% 19%) 42%, hsl(96 40% 32%) 100%);
+
     --gradient-primary: linear-gradient(135deg, hsl(199 89% 38%), hsl(199 89% 50%));
     --gradient-secondary: linear-gradient(135deg, hsl(199 60% 92%), hsl(199 70% 96%));
     --gradient-hero: linear-gradient(135deg, hsl(199 89% 42%), hsl(199 89% 48%), hsl(199 85% 55%));
@@ -210,5 +223,273 @@ All colors MUST be HSL.
   /* Prevent cards from breaking across pages */
   .card, [class*="Card"] {
     page-break-inside: avoid;
+  }
+}
+
+/* ── Scroll reveal ───────────────────────────────────────────────────────────
+   Sections start shifted down and transparent; <Reveal> adds .is-visible when
+   the element first intersects the viewport. Motion is dropped entirely for
+   users who ask for reduced motion — the content still renders, just static. */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translate3d(0, 28px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+.reveal {
+  opacity: 0;
+}
+
+.reveal.is-visible {
+  animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal.is-visible {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+}
+
+/* ── Title word reveal ───────────────────────────────────────────────────────
+   <AnimatedTitle> splits a heading into words; each one slides up from behind
+   its own mask on a stagger. Same reduced-motion escape hatch as .reveal — the
+   words render in place, just without the motion. */
+@keyframes title-word-up {
+  from { opacity: 0; transform: translate3d(0, 110%, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+.anim-title-word {
+  display: inline-block;
+  overflow: hidden;
+  /* Descenders (g, j, y) drop below the baseline, and the mask would clip them
+     once the word settles. Pad the box, then take the space straight back so
+     the heading's line box is unchanged. */
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
+}
+
+.anim-title-word > span {
+  display: inline-block;
+  opacity: 0;
+  transform: translate3d(0, 110%, 0);
+}
+
+.anim-title.is-visible .anim-title-word > span {
+  animation: title-word-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--word-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-title-word > span,
+  .anim-title.is-visible .anim-title-word > span {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+}
+
+/* ── Sticky hero covered on scroll ─────────────────────────────────────────
+   Pure-CSS "sheet pulled over a pinned background" effect for the public
+   home page (see SiteHome). DOM order must be:
+     <section class="site-hero">…</section>
+     <div class="site-page-body">…everything else…</div>
+   `sticky` pins the hero at the viewport top while the next sibling —
+   higher in stacking order with an opaque background — slides up over it.
+   Zero JavaScript involved. */
+.site-hero {
+  position: sticky;
+  top: 0;
+  z-index: 0;
+  height: 100vh; /* fallback for browsers without svh */
+  height: 100svh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The hero band itself (IllustratedHero / HeroBannerSlider root section)
+   stretches to fill the pinned frame and centers its copy vertically, so
+   a short hero never leaves a blank strip at the bottom of the frame. */
+.site-hero > section {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* This is what does the "covering": it must sit above .site-hero in
+   stacking order AND be opaque, otherwise the pinned hero shows through. */
+.site-page-body {
+  position: relative;
+  z-index: 1;
+  background: hsl(var(--background));
+  /* Soft lifted edge so the body reads as a sheet sliding over the hero. */
+  box-shadow: 0 -16px 48px -16px rgb(0 0 0 / 0.28);
+}
+
+/* Small/mobile screens: drop the full-screen pin — a pinned 100svh hero
+   feels cramped on short viewports — and let the hero size to its content. */
+@media (max-width: 767px) {
+  .site-hero {
+    position: relative;
+    height: auto;
+    overflow: visible;
+    display: block;
+  }
+  .site-hero > section {
+    height: auto;
+    display: block;
+  }
+  .site-page-body {
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sticky positioning is not motion, so the effect itself stays; this only
+     documents the intent — no animation to disable here. */
+}
+
+/* ── Filterable project grid ("Our Projects") ──────────────────────────────
+   Card image sits in a fixed-aspect box washed with the active category's
+   soft tint, so the frame never looks broken while the photo loads (the
+   photo fades in via .loaded) or when the item has no photo at all (a
+   centred fallback icon is shown instead — a genuine "no photo" state, not
+   a loading state). Category switches show .proj-skeleton blocks, then the
+   whole grid mounts at once with .proj-card-grid. Class names are prefixed
+   (proj-) so they cannot collide with the generic ui/skeleton. */
+.proj-card-image {
+  aspect-ratio: 16 / 10;
+  background: var(--category-tint, hsl(var(--muted)));
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+.proj-card-image img {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.proj-card-image img.loaded {
+  opacity: 1;
+}
+.proj-card-image .fallback-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0.5;
+  color: var(--category-accent, currentColor);
+}
+/* Side-by-side card variant (photo left, text right): a squarer frame suits
+   the narrower image column. Declared after the base so it wins. */
+.proj-card-image-side {
+  aspect-ratio: 4 / 3;
+}
+.proj-skeleton {
+  background: hsl(var(--muted));
+  border-radius: 1rem;
+  min-height: 320px; /* match card height so the switch does not jump */
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+/* Applied once, to the grid container — the whole set appears together. */
+.proj-card-grid {
+  animation: grid-in 0.5s both;
+}
+@keyframes grid-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Static muted block, and an opacity-only entrance — no pulse, no lift. */
+  .proj-skeleton {
+    animation: none;
+  }
+  .proj-card-grid {
+    animation-name: proj-grid-fade;
+  }
+  @keyframes proj-grid-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+/* ── Ambient mark drift ────────────────────────────────────────────────────
+   Slow float for decorative marks (hero dots, silhouettes). Uses the
+   independent `translate`/`rotate` properties — never `transform` — so it
+   composes with Tailwind translate utilities instead of overriding them. */
+@keyframes mark-drift {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50%      { translate: 8px -12px; rotate: 2deg; }
+}
+
+.drift-mark {
+  animation: mark-drift 5.2s ease-in-out infinite;
+  animation-delay: var(--drift-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift-mark {
+    animation: none;
+  }
+}
+
+/* ── Parallax cards ──────────────────────────────────────────────────────────
+   useParallax() writes --parallax-y onto the media node as the card travels
+   through the viewport; useTilt() writes --tilt-x/--tilt-y as the pointer moves
+   over the card. Both are plain custom properties set straight on the element,
+   so the browser only ever recomputes a transform — no React re-render, no
+   layout. Reduced motion leaves every card flat and still. */
+.parallax-media {
+  transform: translate3d(0, var(--parallax-y, 0px), 0);
+  will-change: transform;
+}
+
+/* The media is oversized so the vertical drift never uncovers the frame edge:
+   the 0.5rem of bleed on each side is the headroom useParallax() moves into. */
+.parallax-frame > .parallax-media {
+  position: absolute;
+  inset: -3.5rem 0;
+}
+
+.tilt-card {
+  transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transform-style: preserve-3d;
+  /* Long enough to smooth the pointer, short enough not to lag behind it.
+     box-shadow rides along because this rule replaces the Tailwind
+     `transition-shadow` the cards carry. */
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms ease;
+}
+
+/* Floats a child above the card face so the tilt separates it from the image. */
+.tilt-layer {
+  transform: translate3d(0, 0, 38px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .parallax-media,
+  .tilt-card,
+  .tilt-layer {
+    transform: none;
+    transition: none;
+    will-change: auto;
+  }
+
+  .parallax-frame > .parallax-media {
+    inset: 0;
   }
 }

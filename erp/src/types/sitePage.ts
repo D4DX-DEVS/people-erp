@@ -11,7 +11,8 @@ export type SectionType =
   | "cta"
   | "video"
   | "gallery"
-  | "content";
+  | "content"
+  | "contact";
 
 export type ContentSource =
   | ""
@@ -69,6 +70,11 @@ export interface PageSection {
   /** Live records resolved server-side for `content` sections (public endpoint only). */
   contentItems?: any[];
   videoUrl?: string;
+  /**
+   * "contact" sections: the location map. A Google Maps embed URL, the whole
+   * <iframe> snippet, or a plain address — see `mapEmbedSrc` in lib/mapEmbed.
+   */
+  mapEmbedUrl?: string;
   ctaText?: string;
   ctaLink?: string;
   columns?: number;
@@ -129,6 +135,7 @@ export const SECTION_TYPE_LABELS: Record<SectionType, string> = {
   video: "Video Embed",
   gallery: "Image Gallery",
   content: "Live Content Feed",
+  contact: "Contact Block",
 };
 
 export const BACKGROUND_LABELS: Record<SectionBackground, string> = {
@@ -185,6 +192,7 @@ export function emptySection(type: SectionType, order: number): PageSection {
     contentSource: type === "content" ? "news" : "",
     contentLimit: 6,
     videoUrl: "",
+    mapEmbedUrl: "",
     ctaText: "",
     ctaLink: "",
     columns: 3,

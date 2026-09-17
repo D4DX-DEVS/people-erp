@@ -19,7 +19,13 @@ const authenticate = async (req, res, next) => {
     // - any path with a /public/ segment (e.g. /gallery/public/:id, /blogs/public/:slug)
     // - explicit public endpoints that don't follow the /public convention
     const publicSuffixes = ['/public', '/test'];
-    const publicExact = ['/website/home'];
+    // These are reached through formConfigurationRoutes, which is mounted at
+    // bare '/api' (app.js) with a blanket router.use(authenticate) and so
+    // authenticates every /api/* route registered after it — /api/website
+    // included. Listing the public website endpoints here is how /website/home
+    // already escapes that; /website/projects needs it too, or the projects hub
+    // renders empty for anyone not signed in.
+    const publicExact = ['/website/home', '/website/projects', '/website/schemes'];
     const isPublic =
       publicSuffixes.some(p => req.path.endsWith(p)) ||
       req.path.includes('/public/') ||

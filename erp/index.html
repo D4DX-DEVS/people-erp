@@ -2,16 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover makes env(safe-area-inset-*) resolve on notched
+         phones, which the site's fixed bottom tab bar pads itself with. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ERP System</title>
     <meta name="description" content="Comprehensive ERP solution for managing NGO projects, schemes, donors, and applications with transparency and efficiency" />
     <meta name="author" content="ERP System" />
     <meta name="keywords" content="ERP, NGO, charity, donations, project management, scheme management" />
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <link rel="shortcut icon" href="/logo.png" />
-    <link rel="apple-touch-icon" href="/logo.png" />
+    <!-- Favicon. The square emblem, not the wordmark: this is what shows in the
+         browser tab until ConfigContext swaps in the franchise's own faviconUrl,
+         and a 300x75 wordmark is unreadable at 16px. -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
 
     <meta property="og:title" content="ERP System" />
     <meta property="og:description" content="Comprehensive ERP solution for managing NGO projects, schemes, donors, and applications with transparency and efficiency" />

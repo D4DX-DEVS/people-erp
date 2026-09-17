@@ -21,11 +21,18 @@ const slugify = (text) =>
 
 /** Project statuses the public site is allowed to show. */
 const PUBLIC_PROJECT_STATUSES = ['active', 'approved', 'completed'];
+/** Scheme statuses the public site is allowed to show. */
+const PUBLIC_SCHEME_STATUSES = ['active'];
 
 /**
- * Decorate public project records with their published detail page
- * (`pageSlug`, and `coverImageUrl` / `summary` overrides) so cards can link
- * to /projects-hub/:slug. Projects without a published page are returned as-is.
+ * Decorate public project records with their detail page so cards can link to
+ * /projects-hub/:slug.
+ *
+ * Every project gets a `pageSlug`, not only those an admin has built a page
+ * for: the public route falls back to rendering the project record itself
+ * (see projectPageController.getPublicBySlug), so "Learn More" always has
+ * somewhere to go. A published page additionally overrides the card's cover
+ * image and summary.
  */
 async function attachProjectPages(projects, scope) {
   if (!projects || !projects.length) return projects || [];
@@ -37,12 +44,35 @@ async function attachProjectPages(projects, scope) {
   const byProject = new Map(pages.map(pg => [String(pg.project), pg]));
   return projects.map(p => {
     const pg = byProject.get(String(p._id));
-    if (!pg) return p;
+    if (!pg) return { ...p, pageSlug: slugify(p.name) };
     return {
       ...p,
       pageSlug: pg.slug,
       coverImageUrl: pg.coverImageUrl || '',
       description: pg.summary || p.description
+    };
+  });
+}
+
+/** The scheme equivalent of attachProjectPages; links cards to /schemes/:slug. */
+async function attachSchemePages(schemes, scope) {
+  if (!schemes || !schemes.length) return schemes || [];
+  const SchemePage = require('../models/SchemePage');
+  const pages = await SchemePage.find({
+    scheme: { $in: schemes.map(s => s._id) },
+    status: 'published',
+    ...scope
+  }).select('scheme slug coverImageUrl summary').lean();
+  const byScheme = new Map(pages.map(pg => [String(pg.scheme), pg]));
+  return schemes.map(s => {
+    const pg = byScheme.get(String(s._id));
+    // A scheme's public label lives in `name`, with `title` as a legacy alias.
+    if (!pg) return { ...s, pageSlug: slugify(s.name || s.title) };
+    return {
+      ...s,
+      pageSlug: pg.slug,
+      imageUrl: pg.coverImageUrl || s.imageUrl,
+      description: pg.summary || s.description
     };
   });
 }
@@ -119,7 +149,9 @@ function collectImageKeys(page) {
 module.exports = {
   slugify,
   PUBLIC_PROJECT_STATUSES,
+  PUBLIC_SCHEME_STATUSES,
   attachProjectPages,
+  attachSchemePages,
   resolveContentSource,
   hydrateSections,
   collectImageKeys

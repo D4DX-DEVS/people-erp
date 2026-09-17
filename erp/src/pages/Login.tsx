@@ -331,7 +331,7 @@ export default function Login() {
             <img 
               src={orgLogoUrl} 
               alt={org.erpTitle} 
-              className="h-16 w-16 rounded-2xl shadow-sm mb-2" 
+              className="h-14 w-auto object-contain mb-2" 
               onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} 
             />
             <p className="text-sm font-semibold text-muted-foreground">{org.erpTitle}</p>

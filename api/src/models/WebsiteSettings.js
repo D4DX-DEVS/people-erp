@@ -26,9 +26,12 @@ const navButtonSchema = new mongoose.Schema({
 }, { _id: true });
 
 // Home page sections that can be reordered / hidden from Website Settings.
+// Keep in sync with HOME_SECTIONS in erp/src/types/siteHome.ts: a key missing here
+// is dropped when the layout is saved, so that section snaps back to the end of
+// the list on every reload and the admin's order never sticks.
 const HOME_SECTION_KEYS = [
-  'counters', 'about', 'pages', 'projects', 'schemes', 'news', 'gallery', 'videos',
-  'blogs', 'brochures', 'media', 'donation', 'partners', 'faq', 'contact'
+  'counters', 'about', 'projects', 'schemes', 'calculator', 'news', 'gallery',
+  'videos', 'blogs', 'media', 'donation', 'faq', 'associates'
 ];
 const homeLayoutItemSchema = new mongoose.Schema({
   key: { type: String, enum: HOME_SECTION_KEYS, required: true },
@@ -63,6 +66,12 @@ const websiteSettingsSchema = new mongoose.Schema({
 
   // Hero Section (overlay text on top of banner slider)
   hero: {
+    // How the home page opens. 'illustrated' is the built-in artwork hero;
+    // 'slider' turns the band into a photo slider driven by this franchise's
+    // Banners (image + title + text + link, managed under Website → Banners).
+    // Stored per franchise, so one franchise can run photos while another keeps
+    // the illustration.
+    style: { type: String, enum: ['illustrated', 'slider'], default: 'illustrated' },
     title: { type: String, default: '' },
     subtitle: { type: String, default: '' },
     ctaText: { type: String, default: '' },
@@ -209,6 +218,17 @@ const websiteSettingsSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+// Documents saved before the section list was corrected still hold retired keys
+// ('pages', 'brochures', 'partners', 'contact'). Drop them here so any save —
+// including ones that never touch the layout — doesn't fail enum validation.
+websiteSettingsSchema.pre('validate', function stripRetiredHomeSections(next) {
+  if (Array.isArray(this.homeLayout)) {
+    const kept = this.homeLayout.filter((item) => HOME_SECTION_KEYS.includes(item && item.key));
+    if (kept.length !== this.homeLayout.length) this.homeLayout = kept;
+  }
+  next();
 });
 
 websiteSettingsSchema.plugin(franchisePlugin);

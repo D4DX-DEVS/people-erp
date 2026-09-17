@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Building2, Users, Plus, Trash2, UserPlus, UserX, Pencil,
   RefreshCw, ShieldAlert, BarChart3, Globe, Phone, Mail, Link2, X as XIcon, LogOut, Search,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -22,7 +23,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { globalAdmin, locations as locationsApi, projects as projectsApi } from '@/lib/api';
+import { globalAdmin, locations as locationsApi, projects as projectsApi, type LogoVariant } from '@/lib/api';
+import { LogoSlotUploader, LOGO_SLOTS } from '@/components/branding/LogoSlotUploader';
+import { resolveOrgAssetUrl } from '@/hooks/useOrgLogoUrl';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompactUI } from "@/hooks/useCompactUI";
 
@@ -49,6 +52,10 @@ interface Franchise {
   domains: string[];
   settings?: any;
   createdAt?: string;
+  // Branding marks, uploaded per franchise. Empty when still on the default.
+  logoUrl?: string;
+  footerLogoUrl?: string;
+  faviconUrl?: string;
 }
 
 interface FranchiseAdmin {
@@ -120,6 +127,9 @@ export default function GlobalAdmin() {
   const [domainsDialogFranchise, setDomainsDialogFranchise] = useState<Franchise | null>(null);
   const [domainInput, setDomainInput] = useState('');
   const [domainLoading, setDomainLoading] = useState(false);
+
+  // Branding (per-franchise logos)
+  const [brandingFranchise, setBrandingFranchise] = useState<Franchise | null>(null);
 
   // Deactivate franchise confirmation
   const [deactivateTarget, setDeactivateTarget] = useState<Franchise | null>(null);
@@ -233,6 +243,50 @@ export default function GlobalAdmin() {
     } finally {
       setCreatingFranchise(false);
     }
+  };
+
+  // ── Branding ───────────────────────────────────────────────────────────────
+  // Each franchise stores its own logos, so one deployment can serve several
+  // brands. Uploading here writes straight to that franchise's record.
+  const handleLogoUpload = async (file: File, variant: LogoVariant) => {
+    if (!brandingFranchise) return;
+    try {
+      const res = await globalAdmin.uploadFranchiseLogo(brandingFranchise.id, file, variant);
+      if (res.success) {
+        toast.success(res.message || 'Logo updated');
+        const updated = await refreshBrandingFranchise(brandingFranchise.id);
+        if (updated) setBrandingFranchise(updated);
+      } else {
+        toast.error(res.message || 'Failed to upload logo');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload logo');
+    }
+  };
+
+  const handleLogoRemove = async (variant: LogoVariant) => {
+    if (!brandingFranchise) return;
+    try {
+      const res = await globalAdmin.deleteFranchiseLogo(brandingFranchise.id, variant);
+      if (res.success) {
+        toast.success(res.message || 'Logo removed');
+        const updated = await refreshBrandingFranchise(brandingFranchise.id);
+        if (updated) setBrandingFranchise(updated);
+      } else {
+        toast.error(res.message || 'Failed to remove logo');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove logo');
+    }
+  };
+
+  /** Re-read the list so both the card previews and the open dialog show the new mark. */
+  const refreshBrandingFranchise = async (franchiseId: string): Promise<Franchise | null> => {
+    const res = await globalAdmin.listFranchises();
+    if (!res.success) return null;
+    const list: Franchise[] = ((res.data as any)?.franchises || res.data || []) as Franchise[];
+    setFranchises(list);
+    return list.find(f => f.id === franchiseId) || null;
   };
 
   // ── Domain management ──────────────────────────────────────────────────────
@@ -524,13 +578,22 @@ export default function GlobalAdmin() {
                 <Card key={f.id} className={`transition-shadow hover:shadow-md ${!f.isActive ? 'opacity-60' : ''}`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          {f.displayName || f.name}
-                          {!f.isActive && <Badge variant="destructive" className="text-xs">Inactive</Badge>}
-                          {f.isActive && <Badge variant="outline" className="text-xs text-green-600 border-green-300">Active</Badge>}
-                        </CardTitle>
-                        <CardDescription className="font-mono text-xs mt-0.5">slug: {f.slug}</CardDescription>
+                      <div className="flex min-w-0 items-start gap-3">
+                        {f.logoUrl && (
+                          <img
+                            src={resolveOrgAssetUrl(f.logoUrl)}
+                            alt=""
+                            className="h-9 w-9 flex-shrink-0 rounded-md border object-contain p-0.5"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            {f.displayName || f.name}
+                            {!f.isActive && <Badge variant="destructive" className="text-xs">Inactive</Badge>}
+                            {f.isActive && <Badge variant="outline" className="text-xs text-green-600 border-green-300">Active</Badge>}
+                          </CardTitle>
+                          <CardDescription className="font-mono text-xs mt-0.5">slug: {f.slug}</CardDescription>
+                        </div>
                       </div>
                     </div>
                   </CardHeader>
@@ -559,6 +622,14 @@ export default function GlobalAdmin() {
                         <Link2 className="h-3.5 w-3.5 mr-1" />
                         Domains {f.domains?.length > 0 && <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">{f.domains.length}</Badge>}
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setBrandingFranchise(f)}
+                      >
+                        <ImageIcon className="h-3.5 w-3.5 mr-1" />
+                        Logos
+                      </Button>
                       {f.isActive && (
                         <Button
                           size="sm"
@@ -578,6 +649,44 @@ export default function GlobalAdmin() {
           )}
         </div>
       </div>
+
+      {/* ── Branding / Logos Dialog ── */}
+      <Dialog open={!!brandingFranchise} onOpenChange={open => !open && setBrandingFranchise(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5" />
+              {brandingFranchise?.displayName} — Logos
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              These marks are stored on this franchise's record and served to every visitor
+              routed to it — its public site, ERP shell and login screen. Other franchises are
+              unaffected. PNG, JPG, SVG or WebP, up to 2MB.
+            </p>
+            {LOGO_SLOTS.map(slot => (
+              <LogoSlotUploader
+                key={slot.variant}
+                variant={slot.variant}
+                title={slot.title}
+                description={slot.description}
+                darkPreview={slot.darkPreview}
+                currentUrl={resolveOrgAssetUrl(
+                  slot.variant === 'primary' ? brandingFranchise?.logoUrl
+                    : slot.variant === 'footer' ? brandingFranchise?.footerLogoUrl
+                    : brandingFranchise?.faviconUrl
+                )}
+                onUpload={handleLogoUpload}
+                onRemove={handleLogoRemove}
+              />
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBrandingFranchise(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Manage Domains Dialog ── */}
       <Dialog open={!!domainsDialogFranchise} onOpenChange={open => !open && setDomainsDialogFranchise(null)}>

@@ -10,6 +10,8 @@ const CONTENT_W = PAGE_W - MARGIN * 2; // 515
 const BOX_X = MARGIN;
 const BOX_W = CONTENT_W;
 const INNER_X = MARGIN + 10;        // left inner padding
+const LOGO_W  = 110;                 // header logo box width (wordmark-friendly)
+const LOGO_H  = 52;                  // header logo box height
 const ROW_H = 18;                    // row height within tables
 const SEC_GAP = 8;                   // gap between sections
 const LABEL_W = 100;                 // label column width
@@ -112,11 +114,13 @@ class PDFReceiptService {
     })();
 
     if (hasLogo) {
-      doc.image(this.logoPath, MARGIN, 40, { width: 55, height: 55 });
+      // 'fit' scales the logo proportionally inside the box, so a wide wordmark
+      // and a square mark both render undistorted.
+      doc.image(this.logoPath, MARGIN, 42, { fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
     }
 
-    const textX = hasLogo ? MARGIN + 65 : MARGIN;
-    const textW  = hasLogo ? CONTENT_W - 65 : CONTENT_W;
+    const textX = hasLogo ? MARGIN + LOGO_W + 10 : MARGIN;
+    const textW  = hasLogo ? CONTENT_W - LOGO_W - 10 : CONTENT_W;
 
     doc.fontSize(15).font('Helvetica-Bold')
        .text(this.org.name, textX, 42, { width: textW, lineBreak: false });

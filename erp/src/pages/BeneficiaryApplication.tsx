@@ -1390,7 +1390,7 @@ export default function BeneficiaryApplication() {
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back
             </Button>
-            <img src={orgLogoUrl} alt="Logo" className="h-8 w-8 rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+            <img src={orgLogoUrl} alt="Logo" className="h-8 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
             <div>
               <h1 className="text-lg font-bold">Before You Begin</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">{scheme.name}</p>
@@ -1524,7 +1524,7 @@ export default function BeneficiaryApplication() {
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back
             </Button>
-            <img src={orgLogoUrl} alt="Logo" className="h-8 w-8 rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+            <img src={orgLogoUrl} alt="Logo" className="h-8 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
             <div>
               <h1 className="text-lg font-bold">
                 {isRenewalMode ? 'Renew Application' : 'Apply for Scheme'}

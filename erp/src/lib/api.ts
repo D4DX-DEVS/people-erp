@@ -2123,6 +2123,10 @@ export const website = {
     return apiClient.request(`/news-events/public${query}`);
   },
   getNewsById: (id: string) => apiClient.request(`/news-events/${id}`),
+  // Public detail view. The admin `/news-events/:id` route sits behind the
+  // blanket authenticate that app.js mounts at bare '/api', so an anonymous
+  // visitor reading a story has to come through the '/public/' path.
+  getPublicNewsById: (id: string) => apiClient.request(`/news-events/public/${id}`),
   createNews: (formData: FormData) => apiClient.request('/news-events', {
     method: 'POST',
     body: formData,
@@ -2194,6 +2198,8 @@ export const website = {
     const query = params ? `?${new URLSearchParams(params).toString()}` : '';
     return apiClient.request(`/website/projects${query}`);
   },
+  getPublicSchemes: (params?: any) =>
+    apiClient.request(`/website/schemes${params ? `?${new URLSearchParams(params)}` : ''}`),
 };
 
 // Dynamic Website Pages API (admin page builder + public rendering)
@@ -2237,6 +2243,22 @@ export const projectPages = {
     body: JSON.stringify(data)
   }),
   delete: (projectId: string) => apiClient.request(`/project-pages/${projectId}`, {
+    method: 'DELETE'
+  })
+};
+
+// Scheme detail pages (mirrors projectPages; see api/src/routes/schemePageRoutes.js)
+export const schemePages = {
+  // Public
+  getPublicBySlug: (slug: string) => apiClient.request(`/scheme-pages/public/${slug}`),
+  // Admin
+  getAll: () => apiClient.request('/scheme-pages'),
+  getByScheme: (schemeId: string) => apiClient.request(`/scheme-pages/${schemeId}`),
+  save: (schemeId: string, data: any) => apiClient.request(`/scheme-pages/${schemeId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  delete: (schemeId: string) => apiClient.request(`/scheme-pages/${schemeId}`, {
     method: 'DELETE'
   })
 };
@@ -2357,6 +2379,9 @@ export const volunteers = {
 };
 
 // Application Configuration API
+/** The branding slots a franchise can fill: header mark, footer lockup, tab icon. */
+export type LogoVariant = 'primary' | 'footer' | 'favicon';
+
 export const config = {
   getPublic: () => apiClient.request('/config/public'),
   getAll: (category?: string) => apiClient.request(`/config${category ? `?category=${category}` : ''}`),
@@ -2376,15 +2401,22 @@ export const config = {
   delete: (id: string) => apiClient.request(`/config/${id}`, {
     method: 'DELETE'
   }),
-  uploadLogo: (file: File) => {
+  /**
+   * Upload one of the franchise's branding marks. The file is stored against
+   * the caller's own franchise record, so franchises never share a logo.
+   */
+  uploadLogo: (file: File, variant: LogoVariant = 'primary') => {
     const formData = new FormData();
     formData.append('logo', file);
-    return apiClient.request('/config/logo', {
+    return apiClient.request(`/config/logo?variant=${variant}`, {
       method: 'POST',
       body: formData,
       headers: {} // Let browser set Content-Type for FormData
     });
   },
+  /** Clear a branding mark so the franchise falls back to the default. */
+  deleteLogo: (variant: LogoVariant = 'primary') =>
+    apiClient.request(`/config/logo?variant=${variant}`, { method: 'DELETE' }),
   // Per-franchise integrations: DXing SMS + SMTP email
   getIntegrations: () => apiClient.request('/config/integrations'),
   updateIntegrations: (data: {
@@ -2424,6 +2456,19 @@ export const globalAdmin = {
     apiClient.request(`/global/franchises/${franchiseId}/admins/${membershipId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deactivateFranchiseAdmin: (franchiseId: string, userId: string) =>
     apiClient.request(`/global/franchises/${franchiseId}/admins/${userId}`, { method: 'DELETE' }),
+
+  // Branding — set any franchise's logos from the platform admin panel
+  uploadFranchiseLogo: (franchiseId: string, file: File, variant: LogoVariant = 'primary') => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    return apiClient.request(`/global/franchises/${franchiseId}/logo?variant=${variant}`, {
+      method: 'POST',
+      body: formData,
+      headers: {} // Let browser set Content-Type for FormData
+    });
+  },
+  deleteFranchiseLogo: (franchiseId: string, variant: LogoVariant = 'primary') =>
+    apiClient.request(`/global/franchises/${franchiseId}/logo?variant=${variant}`, { method: 'DELETE' }),
 
   // Domain management
   addDomain: (franchiseId: string, domain: string) =>

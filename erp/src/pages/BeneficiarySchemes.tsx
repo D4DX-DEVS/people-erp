@@ -172,7 +172,7 @@ export default function BeneficiarySchemes() {
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back
             </Button>
-            <img src={orgLogoUrl} alt="Logo" className="h-8 w-8 rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+            <img src={orgLogoUrl} alt="Logo" className="h-8 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
             <div>
               <h1 className="text-lg font-bold">Available Schemes</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">+91 {phoneNumber}</p>

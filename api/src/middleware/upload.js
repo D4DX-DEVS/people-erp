@@ -186,6 +186,50 @@ const uploadSingleMemory = (fieldName = 'file') => {
   };
 };
 
+// ── Branding images ──────────────────────────────────────────────────────────
+// Logos and favicons need SVG and WebP, which ALLOWED_FILE_TYPES deliberately
+// omits — that list is document-oriented and shared by every other upload
+// route, so widening it there would loosen validation everywhere. This
+// middleware carries its own mime allowlist and its own (much smaller) size
+// cap instead, and keeps the file in memory for the Spaces upload.
+const BRANDING_IMAGE_MIMES = [
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/svg+xml',
+  'image/webp',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+];
+
+const uploadBrandingImage = (fieldName = 'logo', maxBytes = 2 * 1024 * 1024) => {
+  const brandingUpload = multer({
+    storage: memoryStorage,
+    limits: { fileSize: maxBytes },
+    fileFilter: (req, file, cb) => {
+      if (BRANDING_IMAGE_MIMES.includes(file.mimetype)) return cb(null, true);
+      cb(new Error('Only PNG, JPG, SVG, WebP and ICO images are allowed'), false);
+    },
+  });
+
+  return (req, res, next) => {
+    brandingUpload.single(fieldName)(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: `Image must be under ${Math.round(maxBytes / 1024 / 1024)}MB`
+          });
+        }
+        return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
+      } else if (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      next();
+    });
+  };
+};
+
 module.exports = {
   upload,
   uploadSingle,
@@ -193,6 +237,8 @@ module.exports = {
   uploadFields,
   uploadMemory,
   uploadSingleMemory,
+  uploadBrandingImage,
+  BRANDING_IMAGE_MIMES,
   uploadMultipleMemory: (fieldName = 'files', maxCount = 50) => {
     return (req, res, next) => {
       const uploadMiddleware = uploadMemory.array(fieldName, maxCount);

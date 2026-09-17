@@ -4,19 +4,17 @@
 export type HomeSectionKey =
   | "counters"
   | "about"
-  | "pages"
   | "projects"
   | "schemes"
+  | "calculator"
   | "news"
   | "gallery"
   | "videos"
   | "blogs"
-  | "brochures"
   | "media"
   | "donation"
-  | "partners"
   | "faq"
-  | "contact";
+  | "associates";
 
 export interface HomeSectionDef {
   key: HomeSectionKey;
@@ -34,19 +32,17 @@ export interface HomeLayoutItem {
 export const HOME_SECTIONS: HomeSectionDef[] = [
   { key: "counters", label: "Impact counters", description: "The statistics counters set up in Website Settings." },
   { key: "about", label: "About us", description: "About text and image, vision, mission and core values." },
-  { key: "pages", label: "Discover more", description: "Cards for custom pages marked “Show on home page”." },
   { key: "projects", label: "Projects", description: "The latest six projects." },
   { key: "schemes", label: "Schemes & programs", description: "Active schemes people can apply for." },
+  { key: "calculator", label: "Zakat calculator", description: "An interactive Zakat calculator, always available." },
   { key: "news", label: "News & events", description: "The latest three published news items." },
   { key: "gallery", label: "Gallery", description: "Photo album covers." },
-  { key: "videos", label: "Videos", description: "Featured videos." },
+  { key: "videos", label: "Videos", description: "Now shown alongside the Gallery section, not on its own — this toggle no longer has an independent effect." },
   { key: "blogs", label: "Blog", description: "The latest three blog posts." },
-  { key: "brochures", label: "Reports & publications", description: "Downloadable brochures and reports." },
   { key: "media", label: "Media coverage", description: "Press mentions." },
-  { key: "donation", label: "Donation", description: "Bank and UPI details — only when enabled in the Donation section." },
-  { key: "partners", label: "Partners", description: "Partner logos." },
+  { key: "donation", label: "Volunteer & donation CTA", description: "Become a Volunteer + Support Our Mission banner. Bank/UPI details show only when enabled in the Donation section." },
   { key: "faq", label: "FAQ", description: "Frequently asked questions." },
-  { key: "contact", label: "Contact & volunteer", description: "Contact form and volunteer sign-up." },
+  { key: "associates", label: "Associates & partners", description: "Sliding strip of the logos entered under Partners, shown just above the footer." },
 ];
 
 const KNOWN = new Set<string>(HOME_SECTIONS.map((s) => s.key));
@@ -68,4 +64,23 @@ export function resolveHomeLayout(stored?: Array<Partial<HomeLayoutItem>> | null
     if (!seen.has(def.key)) out.push({ key: def.key, visible: true });
   }
   return out;
+}
+
+/**
+ * Whether one home section is on for this site.
+ *
+ * Sections are per-franchise (WebsiteSettings.homeLayout), and anything the
+ * stored layout does not mention counts as visible — same rule as
+ * resolveHomeLayout, so a section added to the code later does not vanish from
+ * sites saved before it existed.
+ *
+ * Used outside the home page too: the header and the mobile tab bar link to the
+ * calculator, and a link to a section this franchise has switched off just
+ * scrolls nowhere.
+ */
+export function isHomeSectionVisible(
+  stored: Array<Partial<HomeLayoutItem>> | null | undefined,
+  key: HomeSectionKey,
+): boolean {
+  return resolveHomeLayout(stored).find((item) => item.key === key)?.visible !== false;
 }

@@ -7,7 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import VoiceTextarea from "@/components/ui/VoiceTextarea";
 import { useToast } from "@/hooks/use-toast";
 import { website } from "@/lib/api";
-import { Loader2, Plus, Trash2, Save, Globe, Users, Phone, Mail, MapPin, Facebook, Instagram, Youtube, Twitter, Upload, X, ImageIcon, Menu, Palette, ArrowUp, ArrowDown, Heart, LayoutList } from "lucide-react";
+import { Loader2, Plus, Trash2, Save, Globe, Users, Phone, Mail, MapPin, Facebook, Instagram, Youtube, Twitter, Upload, X, ImageIcon, Menu, Palette, ArrowUp, ArrowDown, Heart, LayoutList, Images, Brush } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { useRBAC } from "@/hooks/useRBAC";
 import { useConfig } from "@/contexts/ConfigContext";
 import { NavigationBuilder } from "@/components/site/NavigationBuilder";
@@ -18,6 +21,22 @@ import { resolveHomeLayout, type HomeLayoutItem } from "@/types/siteHome";
 import { ColorPicker } from "@/components/site/ColorPicker";
 import { THEME_PRESETS, themeStyle, colorValue, isHex } from "@/lib/siteColors";
 import type { SiteValue } from "@/hooks/useSiteData";
+
+/** The two shapes the homepage's opening band can take, chosen per franchise. */
+const HERO_STYLES = [
+  {
+    value: "illustrated" as const,
+    label: "Illustrated",
+    icon: Brush,
+    description: "The built-in artwork hero with the heading and buttons set below.",
+  },
+  {
+    value: "slider" as const,
+    label: "Image slider",
+    icon: Images,
+    description: "A photo slider built from this site's banners — one slide per banner.",
+  },
+];
 
 /** Pickers hand back swatch names; the site-wide palette is stored as hex ("" = app default). */
 const toHex = (v: string) => (isHex(v) ? v : v && v !== "primary" ? colorValue(v) : "");
@@ -64,7 +83,11 @@ export default function WebsiteSettings() {
   const [twitter, setTwitter] = useState("");
 
   // Hero
-  const [hero, setHero] = useState({ title: "", subtitle: "", ctaText: "", ctaLink: "", secondaryCtaText: "", secondaryCtaLink: "" });
+  const [hero, setHero] = useState<{
+    style: "illustrated" | "slider";
+    title: string; subtitle: string; ctaText: string; ctaLink: string;
+    secondaryCtaText: string; secondaryCtaLink: string;
+  }>({ style: "illustrated", title: "", subtitle: "", ctaText: "", ctaLink: "", secondaryCtaText: "", secondaryCtaLink: "" });
   // Vision & Mission
   const [vision, setVision] = useState({ title: "", description: "", icon: "", color: "" });
   const [mission, setMission] = useState({ title: "", description: "", icon: "", color: "" });
@@ -108,6 +131,7 @@ export default function WebsiteSettings() {
         setYoutube(settings.socialMedia?.youtube || "");
         setTwitter(settings.socialMedia?.twitter || "");
         setHero({
+          style: settings.hero?.style === "slider" ? "slider" : "illustrated",
           title: settings.hero?.title || "",
           subtitle: settings.hero?.subtitle || "",
           ctaText: settings.hero?.ctaText || "",
@@ -716,13 +740,50 @@ export default function WebsiteSettings() {
       <Card>
         <CardHeader>
           <CardTitle>Hero Section</CardTitle>
-          <CardDescription>The main banner heading and call-to-action shown on the homepage</CardDescription>
+          <CardDescription>The opening band of the homepage — its style, heading and call-to-action</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Hero style. Stored on this franchise's website settings, so each
+              franchise chooses independently. */}
+          <div className="space-y-2">
+            <Label>Hero style</Label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {HERO_STYLES.map(option => {
+                const active = hero.style === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => setHero({ ...hero, style: option.value })}
+                    className={cn(
+                      "rounded-xl border p-3 text-left transition disabled:opacity-60",
+                      active ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/40",
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <option.icon className="h-4 w-4" />
+                      {option.label}
+                      {active && <Badge variant="secondary" className="ml-auto text-[10px]">Active</Badge>}
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{option.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {hero.style === "slider" && (
+              <p className="text-xs text-muted-foreground">
+                Slides come from <Link to="/banners" className="font-medium underline underline-offset-4">Website → Banners</Link> —
+                each banner's image, title, text and link becomes one slide, ordered by its Order field.
+                With no active banners the homepage falls back to the illustrated hero.
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label>Title</Label>
+            <div className="space-y-2"><Label>{hero.style === "slider" ? "Fallback title" : "Title"}</Label>
               <Input value={hero.title} onChange={(e) => setHero({ ...hero, title: e.target.value })} disabled={!canEdit} placeholder="Empowering communities" /></div>
-            <div className="space-y-2"><Label>Subtitle</Label>
+            <div className="space-y-2"><Label>{hero.style === "slider" ? "Fallback subtitle" : "Subtitle"}</Label>
               <Input value={hero.subtitle} onChange={(e) => setHero({ ...hero, subtitle: e.target.value })} disabled={!canEdit} /></div>
             <div className="space-y-2"><Label>Primary Button Text</Label>
               <Input value={hero.ctaText} onChange={(e) => setHero({ ...hero, ctaText: e.target.value })} disabled={!canEdit} placeholder="Donate Now" /></div>

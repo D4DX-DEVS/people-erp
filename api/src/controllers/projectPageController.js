@@ -54,25 +54,64 @@ function publicProjectSelect(overview) {
   return fields.join(' ');
 }
 
+/** Overview defaults used when a project has no ProjectPage record of its own. */
+const DEFAULT_OVERVIEW = {
+  visible: true,
+  showDates: true,
+  showProgress: true,
+  showBeneficiaries: true,
+  showBudget: false,
+  showMilestones: false,
+  accentColor: '',
+  background: 'muted',
+  backgroundColor: ''
+};
+
 /**
  * Published project page + the public slice of its project.
+ *
+ * Every public project resolves here, whether or not an admin has built a page:
+ * when no published ProjectPage matches the slug we fall back to the project
+ * whose name slugifies to it and return a default page shell, so the
+ * "Learn More" links on the home page always land on a real detail page.
+ *
  * GET /api/project-pages/public/:slug
  */
 exports.getPublicBySlug = async (req, res) => {
   try {
     const scope = buildFranchiseReadFilter(req);
-    const page = await ProjectPage.findOne({ slug: req.params.slug, status: 'published', ...scope })
+    const slug = String(req.params.slug || '');
+
+    const page = await ProjectPage.findOne({ slug, status: 'published', ...scope })
       .select('-createdBy -updatedBy -__v')
       .lean();
-    if (!page) return res.status(404).json({ success: false, message: 'Project page not found' });
 
-    const project = await Project.findOne({ _id: page.project, status: { $in: PUBLIC_PROJECT_STATUSES }, ...scope })
-      .select(publicProjectSelect(page.overview))
+    if (page) {
+      const project = await Project.findOne({ _id: page.project, status: { $in: PUBLIC_PROJECT_STATUSES }, ...scope })
+        .select(publicProjectSelect(page.overview))
+        .lean();
+      if (!project) return res.status(404).json({ success: false, message: 'Project page not found' });
+
+      page.sections = await hydrateSections(page.sections, scope);
+      return res.json({ success: true, data: { page, project } });
+    }
+
+    // No built page — render the project record itself. Matching on a slugified
+    // name in JS rather than in the query because Project has no slug field;
+    // the public set per franchise is small enough for this to be cheap.
+    const candidates = await Project.find({ status: { $in: PUBLIC_PROJECT_STATUSES }, ...scope })
+      .select(publicProjectSelect(DEFAULT_OVERVIEW))
       .lean();
+    const project = candidates.find(p => slugify(p.name) === slug);
     if (!project) return res.status(404).json({ success: false, message: 'Project page not found' });
 
-    page.sections = await hydrateSections(page.sections, scope);
-    res.json({ success: true, data: { page, project } });
+    return res.json({
+      success: true,
+      data: {
+        page: { slug, status: 'published', overview: DEFAULT_OVERVIEW, sections: [], generated: true },
+        project
+      }
+    });
   } catch (error) {
     console.error('Get public project page error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch project page', error: error.message });

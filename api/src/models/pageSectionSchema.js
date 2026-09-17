@@ -20,7 +20,7 @@ const sectionItemSchema = new mongoose.Schema({
 const sectionSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['richtext', 'image-text', 'cards', 'stats', 'timeline', 'team', 'faq', 'cta', 'video', 'gallery', 'content'],
+    enum: ['richtext', 'image-text', 'cards', 'stats', 'timeline', 'team', 'faq', 'cta', 'video', 'gallery', 'content', 'contact'],
     required: true
   },
   title: { type: String, default: '' },
@@ -46,6 +46,10 @@ const sectionSchema = new mongoose.Schema({
   },
   contentLimit: { type: Number, default: 6 },
   videoUrl: { type: String, default: '' },
+  // 'contact' sections: the location map shown under the details + form.
+  // Accepts a Google Maps embed URL, the whole <iframe> snippet, or a plain
+  // address — the renderer normalises it (see erp/src/lib/mapEmbed.ts).
+  mapEmbedUrl: { type: String, default: '', maxlength: 2000 },
   ctaText: { type: String, default: '' },
   ctaLink: { type: String, default: '' },
   columns: { type: Number, default: 3 },

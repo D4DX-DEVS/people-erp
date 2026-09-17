@@ -3,7 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/site/SiteHeader";
+import { PageBody } from "@/components/site/SiteShell";
+import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { MobileBottomNav } from "@/components/site/MobileBottomNav";
+import { BackToTop } from "@/components/site/BackToTop";
 import { gallery, website } from "@/lib/api";
 
 export default function GalleryAlbumPage() {
@@ -35,7 +39,8 @@ export default function GalleryAlbumPage() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader donateLink={settings?.donation?.paymentLink} />
-      <div className="container mx-auto px-4 py-10">
+      <SiteBreadcrumbs items={[{ label: "Gallery", href: "/gallery" }, { label: album?.title || "Album" }]} />
+      <PageBody>
         <Button variant="ghost" className="mb-4" onClick={() => navigate("/#gallery")}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Gallery
         </Button>
@@ -57,8 +62,10 @@ export default function GalleryAlbumPage() {
             </div>
           </>
         )}
-      </div>
+      </PageBody>
       <SiteFooter settings={settings} />
+      <MobileBottomNav />
+      <BackToTop />
 
       {lightbox && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" onClick={() => setLightbox(null)}>

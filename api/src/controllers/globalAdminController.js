@@ -1,6 +1,7 @@
 const Franchise = require('../models/Franchise');
 const rbacService = require('../services/rbacService');
 const franchiseCache = require('../utils/franchiseCache');
+const franchiseLogoService = require('../services/franchiseLogoService');
 
 const ADMIN_ROLE_VALUES = [
   'super_admin', 'state_admin', 'district_admin',
@@ -155,7 +156,8 @@ class GlobalAdminController {
     try {
       // Build a safe dot-notation update — never allow overwriting secrets via this endpoint
       const SAFE_FIELDS = ['displayName', 'name', 'tagline', 'phone', 'email', 'website',
-        'websiteUrl', 'logoUrl', 'supportEmail', 'paymentsEmail', 'isActive'];
+        'websiteUrl', 'logoUrl', 'footerLogoUrl', 'faviconUrl', 'supportEmail',
+        'paymentsEmail', 'isActive'];
 
       const update = {};
       for (const field of SAFE_FIELDS) {
@@ -245,6 +247,60 @@ class GlobalAdminController {
       franchiseCache.invalidateFranchise(franchise);
       res.json({ success: true, message: `Domain "${domain.toLowerCase()}" removed`, data: { domains: franchise.domains } });
     } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * POST /api/global/franchises/:id/logo?variant=primary|footer|favicon
+   * Upload a branding image for ANY franchise. This is the platform-level
+   * counterpart to /api/config/logo, which only ever touches the caller's own
+   * franchise — a global admin is not a member of every franchise, so it
+   * cannot serve this case.
+   */
+  async uploadFranchiseLogo(req, res) {
+    try {
+      const { variant, url } = await franchiseLogoService.setFranchiseLogo({
+        franchiseId: req.params.id,
+        variant: req.query.variant || req.body?.variant,
+        file: req.file,
+      });
+
+      res.json({
+        success: true,
+        message: `${franchiseLogoService.LOGO_VARIANTS[variant].label} updated`,
+        data: { variant, logoUrl: url },
+      });
+    } catch (error) {
+      if (error instanceof franchiseLogoService.LogoError) {
+        return res.status(error.status).json({ success: false, message: error.message });
+      }
+      console.error('[GlobalAdmin] uploadFranchiseLogo error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * DELETE /api/global/franchises/:id/logo?variant=primary|footer|favicon
+   * Clear one branding slot so the franchise falls back to the default mark.
+   */
+  async deleteFranchiseLogo(req, res) {
+    try {
+      const { variant } = await franchiseLogoService.clearFranchiseLogo({
+        franchiseId: req.params.id,
+        variant: req.query.variant || req.body?.variant,
+      });
+
+      res.json({
+        success: true,
+        message: `${franchiseLogoService.LOGO_VARIANTS[variant].label} removed`,
+        data: { variant },
+      });
+    } catch (error) {
+      if (error instanceof franchiseLogoService.LogoError) {
+        return res.status(error.status).json({ success: false, message: error.message });
+      }
+      console.error('[GlobalAdmin] deleteFranchiseLogo error:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   }

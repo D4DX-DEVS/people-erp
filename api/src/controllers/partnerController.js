@@ -100,7 +100,7 @@ exports.createPartner = async (req, res) => {
     
     const partner = new Partner({
       name,
-      logoUrl: uploadResult.url,
+      logoUrl: uploadResult.fileUrl,
       logoKey: uploadResult.key,
       link,
       order: order || 0,
@@ -152,7 +152,7 @@ exports.updatePartner = async (req, res) => {
         allowedTypes: ['image/jpeg', 'image/png', 'image/jpg']
       });
       
-      partner.logoUrl = uploadResult.url;
+      partner.logoUrl = uploadResult.fileUrl;
       partner.logoKey = uploadResult.key;
     }
     

@@ -33,5 +33,24 @@ export interface PublicProject {
 }
 
 export const projectImage = (p: PublicProject) => p.coverImageUrl || categoryImage(p.category);
-/** Public route of the project's detail page, or null when it has none. */
-export const projectPath = (p: PublicProject) => (p.pageSlug ? `/projects-hub/${p.pageSlug}` : null);
+
+/** Same rules as slugify() in api/src/utils/siteContent.js — keep the two in step. */
+export function slugifyProject(text?: string): string {
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
+ * Public route of the project's detail page.
+ *
+ * Every public project has one: the API serves a page generated from the
+ * project record when no admin-built page exists, so this no longer returns
+ * null and "Learn More" is never a dead end. `pageSlug` comes from the API;
+ * the local slugify is only a fallback for payloads that predate it.
+ */
+export const projectPath = (p: PublicProject) => `/projects-hub/${p.pageSlug || slugifyProject(p.name)}`;

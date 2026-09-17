@@ -41,9 +41,18 @@ const franchiseSchema = new mongoose.Schema({
   website: { type: String, default: '' },
   websiteUrl: { type: String, default: '' },
 
-  // Logo
+  // Logo — three independent slots, each uploaded per franchise from the admin
+  // UI. logoUrl is the header/ERP mark; footerLogoUrl is the light-on-dark
+  // lockup the site footer's dark band needs (falls back to logoUrl when
+  // unset); faviconUrl is the browser tab icon. The *Key fields hold the
+  // object-storage key so replacing a logo can delete the file it supersedes.
   logoUrl: { type: String, default: '' },
+  logoKey: { type: String, default: '' },
   logoFilename: { type: String, default: 'logo-placeholder.png' },
+  footerLogoUrl: { type: String, default: '' },
+  footerLogoKey: { type: String, default: '' },
+  faviconUrl: { type: String, default: '' },
+  faviconKey: { type: String, default: '' },
 
   // Theme
   defaultTheme: {
@@ -215,6 +224,8 @@ franchiseSchema.methods.toBrandingObject = function () {
     websiteUrl: this.websiteUrl,
     logoUrl: this.logoUrl,
     logoFilename: this.logoFilename,
+    footerLogoUrl: this.footerLogoUrl,
+    faviconUrl: this.faviconUrl,
     defaultTheme: this.defaultTheme,
     customTheme: this.customTheme,
     erpTitle: this.erpTitle,
