@@ -4,45 +4,40 @@ const path = require('path');
 const orgConfig = require('../config/orgConfig');
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
-// Mirrors the on-screen ApplicationFormDataView: section header + 2-column grid
-// of label/value boxes, full-width tables for row/column fields.
-const L = 50;                 // left content edge
-const R = 545;                // right content edge
-const CW = R - L;             // 495pt content width
-const GUT = 14;               // grid gutter
-const PAD = 7;                // value box inner padding
-const MIN_BOX_H = 22;         // matches min-h-[2rem] on screen
-const BLANK_BOX_H = 26;       // taller empty box on blank forms
-const CONT_TOP = 64;          // content top on continuation pages
-const FOOTER_RESERVE = 58;    // space kept free at the bottom of every page
-const MAX_EMBED_BYTES = 4 * 1024 * 1024; // largest inline image embedded in the PDF
-const PHOTO_W = 99;           // passport photo box, 35mm x 45mm
+// A4 portrait, bordered-table layout: centred letterhead with the logo at the
+// left, a passport photo box beside the form title, an unnumbered summary
+// table, then one numbered section per configured form page (label / value
+// tables, matrix tables), a documents table and an office-use signature block.
+const L = 50;                  // left content edge
+const R = 545;                 // right content edge
+const CW = R - L;              // 495pt content width
+const TAB_L = L + 12;          // tables sit slightly inside the section headings
+const TW = R - TAB_L;          // 483pt table width
+const PAD_X = 6;               // cell inner padding
+const PAD_Y = 6;
+const MIN_ROW_H = 24;
+const BLANK_ROW_H = 28;        // taller rows on printable blank forms
+const BLANK_TEXTAREA_H = 64;
+const TOP_MARGIN = 50;
+const FOOTER_RESERVE = 56;     // keep clear of the page-number footer
+const PHOTO_W = 99;            // passport photo box, 35mm x 45mm
 const PHOTO_H = 127;
-const PHOTO_FETCH_MS = 8000;  // give up on a slow CDN rather than stall the download
+const MAX_EMBED_BYTES = 4 * 1024 * 1024; // largest photo embedded in the PDF
+const PHOTO_FETCH_MS = 8000;   // give up on a slow CDN rather than stall the download
+const GRID = [0.22, 0.28, 0.22, 0.28]; // label | value | label | value
 
-const C = {
-  text: '#111827',
-  value: '#1f2937',
-  muted: '#6b7280',
-  placeholder: '#9ca3af',
-  boxBg: '#f8fafc',
-  boxBorder: '#e2e8f0',
-  rule: '#e5e7eb',
-  headBg: '#f1f5f9',
-  zebra: '#fafafa',
-  link: '#2563eb',
-  blankLine: '#cbd5e1'
+const FS = {
+  org: 16, orgLine: 8.5, title: 16, section: 11, subLabel: 9.5,
+  label: 8.5, value: 9, small: 8, footer: 7.5
 };
 
-const STATUS_COLORS = {
-  pending: { bg: '#fef3c7', fg: '#92400e' },
-  under_review: { bg: '#dbeafe', fg: '#1e40af' },
-  interview_scheduled: { bg: '#e0e7ff', fg: '#3730a3' },
-  approved: { bg: '#dcfce7', fg: '#166534' },
-  disbursed: { bg: '#d1fae5', fg: '#065f46' },
-  completed: { bg: '#d1fae5', fg: '#065f46' },
-  rejected: { bg: '#fee2e2', fg: '#991b1b' },
-  cancelled: { bg: '#f1f5f9', fg: '#475569' }
+const C = {
+  text: '#000000',
+  muted: '#555555',
+  border: '#8c8c8c',
+  labelBg: '#f2f2f2',
+  headBg: '#d9d9d9',
+  link: '#1a4fb4'
 };
 
 class ApplicationPdfService {
@@ -143,7 +138,7 @@ class ApplicationPdfService {
     if (!str) return 0;
     const mal = this._hasMalayalam(str);
     doc.font(mal ? (bold ? 'Bold' : 'Regular') : (bold ? 'Helvetica-Bold' : 'Helvetica')).fontSize(size);
-    return doc.heightOfString(str, { width });
+    return doc.heightOfString(str, { width, lineGap: 0 });
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -170,18 +165,14 @@ class ApplicationPdfService {
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
     this._registerFonts(doc);
-    this._attachRunningHeader(doc, [
-      application.scheme?.name || 'Application',
-      application.applicationNumber ? `No: ${application.applicationNumber}` : ''
-    ].filter(Boolean).join('  ·  '));
 
-    this._addHeader(doc);
-    if (photoField) this._drawPhotoBox(doc, photo, false);
-    this._addApplicationTitle(doc, application);
-    this._addBeneficiaryInfo(doc, application);
-    this._addFormData(doc, formConfig, formData, false);
-    this._addDocumentsList(doc, application.documents || []);
-    this._addFooters(doc);
+    this._addLetterhead(doc);
+    this._addTitleBlock(doc, this._formTitle(application.scheme?.name), photo, false);
+    this._renderTable(doc, GRID.map(f => TW * f), this._filledSummaryRows(application));
+    const fileEntries = this._addFormData(doc, formConfig, formData, false);
+    this._addDocumentsTable(doc, fileEntries, application.documents || [], false);
+    this._addOfficeUse(doc);
+    this._addFooters(doc, application.applicationNumber ? `Application No. ${application.applicationNumber}` : '');
     doc.end();
 
     return new Promise((resolve, reject) => {
@@ -209,13 +200,18 @@ class ApplicationPdfService {
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
     this._registerFonts(doc);
-    this._attachRunningHeader(doc, schemeName || formConfig?.title || 'Application Form');
 
-    this._addHeader(doc);
-    if (this._profilePhotoField(formConfig)) this._drawPhotoBox(doc, null, true);
-    this._addBlankFormTitle(doc, schemeName, formConfig);
-    this._addFormData(doc, formConfig, {}, true);
-    this._addFooters(doc);
+    const title = schemeName || formConfig?.title || 'Application';
+    this._addLetterhead(doc);
+    this._addTitleBlock(doc, this._formTitle(title), null, true);
+    this._renderTable(doc, GRID.map(f => TW * f), [
+      this._pairRow('Application No.', '', 'Date', '', BLANK_ROW_H),
+      this._pairRow('Scheme', title, 'Requested Amount', '', BLANK_ROW_H)
+    ]);
+    const fileEntries = this._addFormData(doc, formConfig, {}, true);
+    this._addDocumentsTable(doc, fileEntries, [], true);
+    this._addOfficeUse(doc);
+    this._addFooters(doc, title);
     doc.end();
 
     return new Promise((resolve, reject) => {
@@ -227,28 +223,22 @@ class ApplicationPdfService {
   // ─── Document / page scaffolding ────────────────────────────────────────────
 
   _createDoc(info) {
-    return new PDFDocument({
+    const doc = new PDFDocument({
       size: 'A4',
-      margin: L,
+      margin: TOP_MARGIN,
       bufferPages: true, // needed for "Page X of Y" footers
       info: { Author: orgConfig.erpTitle, ...info }
     });
-  }
-
-  /** Slim repeated header on every continuation page (page 1 gets the full letterhead) */
-  _attachRunningHeader(doc, title) {
-    doc.on('pageAdded', () => {
-      doc.fontSize(8).fillColor(C.muted);
-      this._t(doc, title, L, 34, { width: CW, lineBreak: false });
-      doc.moveTo(L, 50).lineTo(R, 50).lineWidth(0.5).strokeColor(C.rule).stroke();
-      doc.lineWidth(1).strokeColor('#000000').fillColor(C.text);
-      doc.x = L;
-      doc.y = CONT_TOP;
-    });
+    doc.on('pageAdded', () => { doc.x = L; });
+    return doc;
   }
 
   _contentBottom(doc) {
     return doc.page.height - FOOTER_RESERVE;
+  }
+
+  _usableHeight(doc) {
+    return this._contentBottom(doc) - TOP_MARGIN;
   }
 
   /** Add a page if `needed` points don't fit below the cursor */
@@ -260,19 +250,16 @@ class ApplicationPdfService {
     return false;
   }
 
-  _addFooters(doc) {
+  _addFooters(doc, leftText) {
     const range = doc.bufferedPageRange();
-    const stamp = `Generated by ${orgConfig.erpTitle} on ${new Date().toLocaleString('en-IN')}`;
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
       // Allow drawing inside the bottom margin without triggering a page break
       doc.page.margins.bottom = 0;
-      const y = doc.page.height - 40;
-      doc.moveTo(L, y - 10).lineTo(R, y - 10).lineWidth(0.5).strokeColor(C.rule).stroke();
-      doc.lineWidth(1).strokeColor('#000000');
-      doc.fontSize(7.5).fillColor(C.muted);
-      this._t(doc, stamp, L, y, { width: CW * 0.7, lineBreak: false });
-      doc.font('Helvetica').fontSize(7.5).fillColor(C.muted)
+      const y = doc.page.height - 30;
+      doc.fontSize(FS.footer).fillColor(C.muted);
+      if (leftText) this._t(doc, leftText, L, y, { width: CW * 0.7, lineBreak: false });
+      doc.font('Helvetica').fontSize(FS.footer).fillColor(C.muted)
         .text(`Page ${i - range.start + 1} of ${range.count}`, R - CW * 0.3, y, {
           width: CW * 0.3, align: 'right', lineBreak: false
         });
@@ -280,67 +267,199 @@ class ApplicationPdfService {
     }
   }
 
-  // ─── Header / title blocks ──────────────────────────────────────────────────
+  // ─── Letterhead / title block ───────────────────────────────────────────────
 
-  _addHeader(doc) {
+  /** Logo at the left, organisation name and contact lines centred on the page */
+  _addLetterhead(doc) {
+    const top = 42;
+    let logoH = 0;
     try {
       if (fs.existsSync(this.logoPath)) {
-        doc.image(this.logoPath, L, 46, { width: 62 });
+        doc.image(this.logoPath, L, top, { fit: [64, 64] });
+        logoH = 64;
       }
     } catch (e) { /* no logo */ }
 
-    doc.fontSize(17).font('Helvetica-Bold').fillColor(C.text).text(this.org.name, 124, 50);
-    doc.fontSize(8.5).fillColor(C.muted);
-    this._t(doc, `Reg. No: ${this.org.regNumber}`, 124, 72);
-    this._t(doc, `${this.org.address}`, 124, 84);
-    this._t(doc, `Phone: ${this.org.phone} | Email: ${this.org.email}`, 124, 96);
+    // Symmetric side gutters keep the text centred on the page, clear of the logo
+    const x = L + 72;
+    const w = CW - 144;
+    doc.fontSize(FS.org).fillColor(C.text);
+    this._t(doc, this.org.name, x, top + 4, { width: w, align: 'center' }, true);
+    doc.y += 3;
+    doc.fontSize(FS.orgLine).fillColor(C.text);
+    this._t(doc, `Reg. No: ${this.org.regNumber} | ${this.org.address}`, x, doc.y, { width: w, align: 'center' });
+    this._t(doc, `Phone: ${this.org.phone} | Email: ${this.org.email}`, x, doc.y, { width: w, align: 'center' });
 
-    doc.moveTo(L, 118).lineTo(R, 118).lineWidth(0.8).strokeColor(C.rule).stroke();
-    doc.lineWidth(1).strokeColor('#000000').fillColor(C.text);
-    doc.y = 132;
+    doc.y = Math.max(doc.y, top + logoH) + 16;
   }
 
-  _addApplicationTitle(doc, application) {
-    const w = this._availWidth(doc);
-    doc.fontSize(16).fillColor(C.text);
-    this._t(doc, application.scheme?.name || 'Application Form', L, doc.y, { align: 'center', width: w }, true);
-    doc.y += 4;
-
-    doc.fontSize(10).fillColor(C.muted);
-    this._t(doc, `Application No: ${application.applicationNumber || '—'}`, L, doc.y, { align: 'center', width: w });
-    doc.y += 6;
-
-    this._statusPill(doc, this._formatStatus(application.status), application.status, L + w / 2, doc.y);
-
-    doc.fontSize(9).fillColor(C.muted);
-    this._t(doc, `Applied: ${this._formatDate(application.createdAt)}`, L, doc.y, { align: 'center', width: w });
-    doc.fillColor(C.text);
-    doc.y += 12;
+  /** "<SCHEME> APPLICATION" — no double suffix when the scheme is already named that way */
+  _formTitle(name) {
+    const upper = String(name || 'Application').trim().toUpperCase();
+    return /\b(APPLICATION|FORM)\b/.test(upper) ? upper : `${upper} APPLICATION`;
   }
 
-  _addBlankFormTitle(doc, schemeName, formConfig) {
-    const w = this._availWidth(doc);
-    doc.fontSize(16).fillColor(C.text);
-    this._t(doc, schemeName || formConfig?.title || 'Application Form', L, doc.y, { align: 'center', width: w }, true);
-    doc.y += 4;
-    doc.fontSize(9.5).fillColor(C.muted);
-    this._t(doc, 'Application Form — Please Fill All Required Fields (*)', L, doc.y, { align: 'center', width: w });
-    doc.fillColor(C.text);
-    doc.y += 14;
+  /**
+   * Passport photo box at the right edge with the form title centred in the
+   * space beside it. The photo prints when one was uploaded; otherwise the box
+   * carries the "affix photograph" instruction.
+   */
+  _addTitleBlock(doc, title, photo, isBlank) {
+    const top = doc.y;
+    const bx = R - PHOTO_W;
+    doc.rect(bx, top, PHOTO_W, PHOTO_H).lineWidth(1).fillAndStroke('#ffffff', C.text);
+
+    let drawn = false;
+    if (photo) {
+      try {
+        doc.save();
+        doc.rect(bx + 1, top + 1, PHOTO_W - 2, PHOTO_H - 2).clip();
+        doc.image(photo, bx + 1, top + 1, { cover: [PHOTO_W - 2, PHOTO_H - 2], align: 'center', valign: 'center' });
+        doc.restore();
+        drawn = true;
+      } catch (e) {
+        doc.restore();
+      }
+    }
+    if (!drawn) {
+      doc.fontSize(FS.small).fillColor(C.text);
+      ['AFFIX PASSPORT', 'SIZE PHOTOGRAPH'].forEach((line, i) => this._t(doc, line, bx + 4,
+        top + PHOTO_H / 2 - 10 + i * 11, { width: PHOTO_W - 8, align: 'center', lineBreak: false }));
+    }
+
+    const tw = bx - 20 - L;
+    const titleH = this._measure(doc, title, FS.title, tw, true);
+    const note = isBlank ? 'Please fill in BLOCK LETTERS. Fields marked * are mandatory.' : '';
+    const noteH = note ? this._measure(doc, note, FS.label, tw) + 6 : 0;
+    const ty = top + Math.max(0, (PHOTO_H - titleH - noteH) / 2);
+    doc.fontSize(FS.title).fillColor(C.text);
+    this._t(doc, title, L, ty, { width: tw, align: 'center' }, true);
+    if (note) {
+      doc.fontSize(FS.label).fillColor(C.muted);
+      this._t(doc, note, L, ty + titleH + 6, { width: tw, align: 'center' });
+    }
+
+    doc.lineWidth(1).strokeColor(C.text).fillColor(C.text);
+    doc.y = top + PHOTO_H + 14;
   }
 
-  _statusPill(doc, label, status, centerX, y) {
-    const palette = STATUS_COLORS[status] || { bg: C.headBg, fg: C.muted };
-    doc.font('Helvetica-Bold').fontSize(8.5);
-    const w = doc.widthOfString(label) + 20;
-    const h = 16;
-    doc.roundedRect(centerX - w / 2, y, w, h, 8).fill(palette.bg);
-    doc.fillColor(palette.fg).text(label, centerX - w / 2, y + 4.6, { width: w, align: 'center', lineBreak: false });
-    doc.fillColor(C.text);
-    doc.y = y + h + 8;
+  // ─── Application summary (unnumbered table under the title) ─────────────────
+
+  _filledSummaryRows(application) {
+    const b = application.beneficiary || {};
+    const amount = application.requestedAmount
+      ? `Rs. ${Number(application.requestedAmount).toLocaleString('en-IN')}` : '—';
+    const rows = [
+      this._pairRow('Application No.', application.applicationNumber || '—', 'Applied Date', this._formatDate(application.createdAt)),
+      this._pairRow('Scheme', application.scheme?.name || '—', 'Project', application.project?.name || '—'),
+      this._pairRow('Status', this._formatStatus(application.status), 'Requested Amount', amount)
+    ];
+    if (b.name || b.phone) rows.push(this._pairRow('Applicant', b.name || '—', 'Phone', b.phone || '—'));
+    const location = [application.unit?.name, application.area?.name, application.district?.name]
+      .filter(Boolean).join(', ');
+    if (location) rows.push(this._spanRow('Location', location));
+    return rows;
   }
 
-  // ─── Profile photo (passport box at the top right) ─────────────────────────
+  // ─── Table primitives ───────────────────────────────────────────────────────
+  // A row is { cells: [{ text, span, bg, bold, size, color, link, align }], minH }.
+  // Every cell in a row shares the row height so the borders line up.
+
+  _labelCell(text) {
+    return { text, bg: C.labelBg, size: FS.label };
+  }
+
+  _valueCell(text, extra = {}) {
+    return { text, size: FS.value, ...extra };
+  }
+
+  _headCell(text) {
+    return { text, bg: C.headBg, size: FS.label };
+  }
+
+  _pairRow(l1, v1, l2, v2, minH = 0) {
+    return { cells: [this._labelCell(l1), this._valueCell(v1), this._labelCell(l2), this._valueCell(v2)], minH };
+  }
+
+  _spanRow(label, value, minH = 0, extra = {}) {
+    return { cells: [this._labelCell(label), { ...this._valueCell(value, extra), span: 3 }], minH };
+  }
+
+  _spanWidth(widths, col, span) {
+    return widths.slice(col, col + span).reduce((a, b) => a + b, 0);
+  }
+
+  _rowHeight(doc, widths, row) {
+    let h = Math.max(MIN_ROW_H, row.minH || 0);
+    let col = 0;
+    for (const cell of row.cells) {
+      const span = cell.span || 1;
+      const w = this._spanWidth(widths, col, span);
+      col += span;
+      const th = this._measure(doc, cell.text, cell.size || FS.value, w - PAD_X * 2, !!cell.bold);
+      h = Math.max(h, th + PAD_Y * 2);
+    }
+    // A value taller than a page is truncated with an ellipsis rather than split
+    return Math.min(h, this._usableHeight(doc));
+  }
+
+  _drawRow(doc, widths, row, y, h) {
+    let x = TAB_L;
+    let col = 0;
+    for (const cell of row.cells) {
+      const span = cell.span || 1;
+      const w = this._spanWidth(widths, col, span);
+      col += span;
+      if (cell.bg) doc.rect(x, y, w, h).fill(cell.bg);
+      doc.rect(x, y, w, h).lineWidth(0.5).stroke(C.border);
+
+      const text = cell.text === null || cell.text === undefined ? '' : String(cell.text);
+      if (text) {
+        const size = cell.size || FS.value;
+        const innerW = w - PAD_X * 2;
+        const th = this._measure(doc, text, size, innerW, !!cell.bold);
+        const ty = th + PAD_Y * 2 <= h ? y + (h - th) / 2 : y + PAD_Y;
+        const opts = { width: innerW, height: h - PAD_Y * 2 + 2, ellipsis: true, lineGap: 0 };
+        if (cell.align) opts.align = cell.align;
+        if (cell.link) { opts.link = cell.link; opts.underline = true; }
+        doc.fontSize(size).fillColor(cell.color || C.text);
+        this._t(doc, text, x + PAD_X, ty, opts, !!cell.bold);
+      }
+      x += w;
+    }
+    doc.lineWidth(1).strokeColor(C.text).fillColor(C.text);
+  }
+
+  /** Draw rows top-down, breaking between rows; `repeatHeader` re-draws row 0 on new pages */
+  _renderTable(doc, widths, rows, opts = {}) {
+    const header = opts.repeatHeader ? rows[0] : null;
+    let y = doc.y;
+    rows.forEach((row, i) => {
+      const h = this._rowHeight(doc, widths, row);
+      if (y + h > this._contentBottom(doc)) {
+        doc.addPage();
+        y = doc.y;
+        if (header && i > 0) {
+          const hh = this._rowHeight(doc, widths, header);
+          this._drawRow(doc, widths, header, y, hh);
+          y += hh;
+        }
+      }
+      this._drawRow(doc, widths, row, y, h);
+      y += h;
+    });
+    doc.y = y + (opts.gap === undefined ? 14 : opts.gap);
+  }
+
+  _sectionHeading(doc, title) {
+    this._ensureSpace(doc, 70); // heading + first table rows stay together
+    doc._sectionNo = (doc._sectionNo || 0) + 1;
+    doc.fontSize(FS.section).fillColor(C.text);
+    this._t(doc, `${doc._sectionNo}. ${String(title).toUpperCase()}`, L, doc.y, { width: CW }, true);
+    doc.y += 5;
+  }
+
+  // ─── Profile photo ──────────────────────────────────────────────────────────
 
   /** First enabled profile-photo field in the form, if the admin added one */
   _profilePhotoField(formConfig) {
@@ -367,120 +486,56 @@ class ApplicationPdfService {
       const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
       return (isPng || isJpeg) ? buf : null;
     } catch (e) {
-      return null; // unreachable CDN — the box still prints, just empty
+      return null; // unreachable CDN — the box still prints, just with the instruction
     }
   }
+
+  // ─── Form data (one numbered section per configured page) ───────────────────
 
   /**
-   * Passport-size box under the letterhead at the right edge. Reserves that
-   * region so the title and grid rows beside it stay to its left.
-   */
-  _drawPhotoBox(doc, buffer, isBlank) {
-    const x = R - PHOTO_W;
-    const y = doc.y;
-    doc.roundedRect(x, y, PHOTO_W, PHOTO_H, 3).lineWidth(0.8)
-      .fillAndStroke(isBlank ? '#ffffff' : C.boxBg, isBlank ? C.blankLine : C.boxBorder);
-    doc.lineWidth(1).strokeColor('#000000');
-
-    let drawn = false;
-    if (buffer) {
-      try {
-        doc.image(buffer, x + 2, y + 2, { cover: [PHOTO_W - 4, PHOTO_H - 4], align: 'center', valign: 'center' });
-        drawn = true;
-      } catch (e) { /* unreadable image — fall through to the placeholder */ }
-    }
-    if (!drawn) {
-      doc.fontSize(7.5).fillColor(C.placeholder);
-      const lines = isBlank ? ['Affix passport', 'size photograph'] : ['No photo', 'uploaded'];
-      lines.forEach((line, i) => this._t(doc, line, x + 6, y + PHOTO_H / 2 - 10 + i * 10,
-        { width: PHOTO_W - 12, align: 'center', lineBreak: false }));
-      doc.fillColor(C.text);
-    }
-
-    doc._photoReserve = { page: doc.bufferedPageRange().count, bottom: y + PHOTO_H + 10, width: PHOTO_W + GUT };
-    doc.y = y;
-  }
-
-  /** Content width at the cursor — narrower while beside the photo box */
-  _availWidth(doc) {
-    const r = doc._photoReserve;
-    if (r && doc.bufferedPageRange().count === r.page && doc.y < r.bottom) return CW - r.width;
-    return CW;
-  }
-
-  /** Full-width blocks (tables) must start below the photo box */
-  _clearPhotoReserve(doc) {
-    const r = doc._photoReserve;
-    if (r && doc.bufferedPageRange().count === r.page && doc.y < r.bottom) doc.y = r.bottom;
-  }
-
-  // ─── Applicant summary ──────────────────────────────────────────────────────
-
-  _addBeneficiaryInfo(doc, application) {
-    const b = application.beneficiary || {};
-    const rows = [
-      { label: 'Name', value: b.name || 'N/A' },
-      { label: 'Phone', value: b.phone || 'N/A' }
-    ];
-
-    const location = [application.unit?.name, application.area?.name, application.district?.name]
-      .filter(Boolean).join(', ');
-    if (location) rows.push({ label: 'Location', value: location });
-    if (application.scheme?.name) rows.push({ label: 'Scheme', value: application.scheme.name });
-    if (application.project?.name) rows.push({ label: 'Project', value: application.project.name });
-    if (application.requestedAmount) {
-      rows.push({ label: 'Requested Amount', value: `Rs. ${Number(application.requestedAmount).toLocaleString('en-IN')}` });
-    }
-
-    this._renderSectionHeader(doc, 'Applicant Information');
-    this._renderGrid(doc, rows.map(r => ({
-      key: r.label,
-      field: { label: r.label },
-      value: r.value
-    })), false);
-  }
-
-  // ─── Form data (the part that mirrors the on-screen view) ───────────────────
-
-  /**
-   * Renders every configured page as a section: 2-column label/value grid for
-   * regular fields, full-width tables for row/column (matrix) fields.
+   * Renders every configured page as a numbered section: label/value table
+   * for regular fields, bordered matrix tables for row/column fields. File
+   * fields are collected and returned for the Documents table.
    */
   _addFormData(doc, formConfig, formData, isBlank) {
     const configPages = (formConfig && Array.isArray(formConfig.pages)) ? formConfig.pages : [];
     const data = formData || {};
     const consumed = new Set();
-    let rendered = false;
+    const files = [];
 
-    // The profile photo is drawn in the letterhead, never as a grid cell
+    // The profile photo is drawn in the title block, never as a table row
     for (const page of configPages) {
       for (const f of this._allFields(page)) {
         if (f && f.type === 'profile_photo') consumed.add(`field_${f.id}`);
       }
     }
 
-    configPages.forEach((page, pageIdx) => {
-      const fields = this._pageFields(page);
-      if (fields.length === 0) return;
-
-      const entries = this._orderedEntries(fields, data, isBlank, consumed);
-      if (entries.length === 0) return;
-
+    const renderSection = (title, entries) => {
       const grid = [];
       const tables = [];
       for (const entry of entries) {
-        if (this._isTableEntry(entry.field, entry.value, isBlank)) tables.push(entry);
+        if (entry.field?.type === 'file' || (!entry.field && this._fileInfo(entry.value))) files.push(entry);
+        else if (this._isTableEntry(entry.field, entry.value, isBlank)) tables.push(entry);
         else grid.push(entry);
       }
+      if (!grid.length && !tables.length) return;
 
-      // Every form page after the first starts on its own PDF page
-      if (rendered) doc.addPage();
-      rendered = true;
+      this._sectionHeading(doc, title);
+      if (grid.length) this._renderFieldTable(doc, grid, isBlank);
+      for (const entry of tables) {
+        // A page holding only this one table needs no repeated sub-heading
+        const label = entry.field?.label || this._humanizeKey(entry.key);
+        const hideLabel = !grid.length && tables.length === 1
+          && label.trim().toLowerCase() === String(title).trim().toLowerCase();
+        this._renderMatrix(doc, entry, data, isBlank, hideLabel ? '' : label);
+      }
+    };
 
-      this._renderSectionHeader(doc, page.title || `Page ${pageIdx + 1}`);
-      if (grid.length) this._renderGrid(doc, grid, isBlank);
-      for (const entry of tables) this._renderTableField(doc, entry, data, isBlank);
-      doc.y += 4;
+    configPages.forEach((page, pageIdx) => {
+      const fields = this._pageFields(page);
+      if (fields.length === 0) return;
+      const entries = this._orderedEntries(fields, data, isBlank, consumed);
+      if (entries.length) renderSection(page.title || `Page ${pageIdx + 1}`, entries);
     });
 
     // Any submitted value that no configured field claims — same as the
@@ -489,14 +544,10 @@ class ApplicationPdfService {
       const leftovers = Object.keys(data)
         .filter(k => !consumed.has(k) && !k.endsWith('__rowMeta') && !['_id', '__v', 'id'].includes(k))
         .map(k => ({ key: k, field: null, value: data[k] }));
-      if (leftovers.length) {
-        const grid = leftovers.filter(e => !this._isTableEntry(e.field, e.value, false));
-        const tables = leftovers.filter(e => this._isTableEntry(e.field, e.value, false));
-        this._renderSectionHeader(doc, 'Other Details');
-        if (grid.length) this._renderGrid(doc, grid, false);
-        for (const entry of tables) this._renderTableField(doc, entry, data, false);
-      }
+      if (leftovers.length) renderSection('Other Details', leftovers);
     }
+
+    return files;
   }
 
   /** Every field on a page, including section-nested ones */
@@ -542,139 +593,54 @@ class ApplicationPdfService {
     return out;
   }
 
-  _renderSectionHeader(doc, title) {
-    this._ensureSpace(doc, 46);
-    const w = this._availWidth(doc);
-    doc.fontSize(9).fillColor(C.muted);
-    this._t(doc, String(title).toUpperCase(), L, doc.y, { width: w, characterSpacing: 0.6 }, true);
-    doc.y += 3;
-    doc.moveTo(L, doc.y).lineTo(L + w, doc.y).lineWidth(0.6).strokeColor(C.rule).stroke();
-    doc.lineWidth(1).strokeColor('#000000').fillColor(C.text);
-    doc.y += 10;
-  }
+  // ─── Label / value table ────────────────────────────────────────────────────
+  // Two short fields share a row (label | value | label | value); a long value,
+  // a textarea, or an unpaired field spans the full row (label | value).
 
-  // ─── 2-column field grid ────────────────────────────────────────────────────
-
-  _renderGrid(doc, entries, isBlank) {
-    for (let i = 0; i < entries.length; i += 2) {
-      const pair = [entries[i], entries[i + 1]].filter(Boolean);
-      // Rows beside the profile photo box use the narrower width left of it
-      const colW = (this._availWidth(doc) - GUT) / 2;
-      const cells = pair.map(entry => this._prepareCell(doc, entry, colW, isBlank));
-      const rowH = Math.max(...cells.map(c => c.height));
-
-      this._ensureSpace(doc, rowH + 4);
-      const y = doc.y;
-      cells.forEach((cell, idx) => this._drawCell(doc, cell, L + idx * (colW + GUT), y));
-      doc.y = y + rowH + 12;
-    }
-  }
-
-  /** Measure a label/value cell up front so both grid columns can align */
-  _prepareCell(doc, entry, w, isBlank) {
-    const innerW = w - PAD * 2;
-    const rawLabel = entry.field?.label || this._humanizeKey(entry.key);
-    const label = `${rawLabel}${isBlank && entry.field?.required ? ' *' : ''}`;
-    const labelH = this._measure(doc, label, 8, w, true);
-
-    const cell = { w, innerW, label, labelH, kind: 'text', boxH: MIN_BOX_H };
-
-    if (isBlank) {
-      cell.kind = 'blank';
-      cell.boxH = BLANK_BOX_H;
-      cell.help = entry.field?.helpText || '';
-      cell.helpH = cell.help ? this._measure(doc, cell.help, 7, w) + 2 : 0;
-      cell.height = labelH + 3 + cell.helpH + cell.boxH;
-      return cell;
-    }
-
-    const file = this._fileInfo(entry.value);
-    if (file) {
-      const img = file.buffer ? this._openImage(doc, file.buffer) : null;
-      if (img) {
-        const scale = Math.min(innerW / img.width, 130 / img.height, 1);
-        cell.kind = 'image';
-        cell.image = file.buffer;
-        cell.imgW = img.width * scale;
-        cell.imgH = img.height * scale;
-        cell.caption = file.name;
-        cell.captionH = this._measure(doc, file.name, 7.5, innerW);
-        cell.boxH = cell.imgH + cell.captionH + PAD * 2 + 4;
+  _renderFieldTable(doc, entries, isBlank) {
+    const widths = GRID.map(f => TW * f);
+    const rows = [];
+    for (let i = 0; i < entries.length;) {
+      const a = entries[i];
+      const b = entries[i + 1];
+      if (b && this._isNarrow(doc, a, isBlank, widths[1]) && this._isNarrow(doc, b, isBlank, widths[1])) {
+        rows.push({
+          cells: [...this._fieldCells(a, isBlank), ...this._fieldCells(b, isBlank)],
+          minH: this._blankRowH(a, isBlank)
+        });
+        i += 2;
       } else {
-        cell.kind = 'file';
-        cell.caption = file.isPdf ? `${file.name} (PDF)` : file.name;
-        cell.link = file.url || null;
-        cell.captionH = this._measure(doc, cell.caption, 8.5, innerW);
-        cell.boxH = Math.max(MIN_BOX_H, cell.captionH + PAD * 2);
+        const [label, value] = this._fieldCells(a, isBlank);
+        rows.push({ cells: [label, { ...value, span: 3 }], minH: this._blankRowH(a, isBlank) });
+        i += 1;
       }
-      cell.height = labelH + 3 + cell.boxH;
-      return cell;
     }
-
-    if (entry.field?.type === 'file' && this._isEmpty(entry.value)) {
-      cell.text = 'No file uploaded';
-      cell.empty = true;
-    } else {
-      const display = this._getDisplayValue(entry.field, entry.value);
-      cell.empty = this._isEmpty(entry.value) || display === '—';
-      cell.text = cell.empty ? '—' : display;
-    }
-    const textH = this._measure(doc, cell.text, 9.5, innerW);
-    cell.boxH = Math.max(MIN_BOX_H, textH + PAD * 2);
-
-    // Absurdly long values: drop the box and let the text flow across pages
-    if (cell.boxH > this._usableHeight(doc)) {
-      cell.kind = 'flow';
-      cell.boxH = textH;
-    }
-    cell.height = labelH + 3 + cell.boxH;
-    return cell;
+    this._renderTable(doc, widths, rows);
   }
 
-  _drawCell(doc, cell, x, y) {
-    doc.fontSize(8).fillColor(C.muted);
-    this._t(doc, cell.label, x, y, { width: cell.w }, true);
-    let cy = y + cell.labelH + 3;
+  _fieldCells(entry, isBlank) {
+    const raw = entry.field?.label || this._humanizeKey(entry.key);
+    const label = `${raw}${isBlank && entry.field?.required ? ' *' : ''}`;
+    return [this._labelCell(label), this._valueCell(isBlank ? '' : this._entryText(entry))];
+  }
 
-    if (cell.kind === 'blank') {
-      if (cell.help) {
-        doc.fontSize(7).fillColor(C.placeholder);
-        this._t(doc, cell.help, x, cy, { width: cell.w });
-        cy += cell.helpH;
-      }
-      doc.roundedRect(x, cy, cell.w, cell.boxH, 3).lineWidth(0.7)
-        .fillAndStroke('#ffffff', C.blankLine);
-      doc.lineWidth(1).strokeColor('#000000').fillColor(C.text);
-      return;
-    }
+  _entryText(entry) {
+    if (entry._text === undefined) entry._text = this._getDisplayValue(entry.field, entry.value);
+    return entry._text;
+  }
 
-    if (cell.kind === 'flow') {
-      doc.fontSize(9.5).fillColor(C.value);
-      this._t(doc, cell.text, x, cy, { width: cell.w });
-      doc.fillColor(C.text);
-      return;
-    }
+  _blankRowH(entry, isBlank) {
+    if (!isBlank) return 0;
+    return entry.field?.type === 'textarea' ? BLANK_TEXTAREA_H : BLANK_ROW_H;
+  }
 
-    doc.roundedRect(x, cy, cell.w, cell.boxH, 3).lineWidth(0.7)
-      .fillAndStroke(C.boxBg, C.boxBorder);
-    doc.lineWidth(1).strokeColor('#000000');
-
-    if (cell.kind === 'image') {
-      try {
-        doc.image(cell.image, x + PAD, cy + PAD, { width: cell.imgW, height: cell.imgH });
-      } catch (e) { /* unreadable image — caption still renders */ }
-      doc.fontSize(7.5).fillColor(C.link);
-      this._t(doc, cell.caption, x + PAD, cy + PAD + cell.imgH + 4, { width: cell.innerW });
-    } else if (cell.kind === 'file') {
-      doc.fontSize(8.5).fillColor(C.link);
-      this._t(doc, cell.caption, x + PAD, cy + PAD, {
-        width: cell.innerW, underline: true, ...(cell.link ? { link: cell.link } : {})
-      });
-    } else {
-      doc.fontSize(9.5).fillColor(cell.empty ? C.placeholder : C.value);
-      this._t(doc, cell.text, x + PAD, cy + PAD, { width: cell.innerW });
-    }
-    doc.fillColor(C.text);
+  /** Fits on one line in a half-width value cell, so it can share a row */
+  _isNarrow(doc, entry, isBlank, valueW) {
+    if (entry.field?.type === 'textarea') return false;
+    if (isBlank) return true;
+    const innerW = valueW - PAD_X * 2;
+    const oneLine = this._measure(doc, 'Xg', FS.value, innerW);
+    return this._measure(doc, this._entryText(entry), FS.value, innerW) <= oneLine + 0.5;
   }
 
   // ─── Matrix / table fields ──────────────────────────────────────────────────
@@ -708,8 +674,7 @@ class ApplicationPdfService {
     return out;
   }
 
-  _renderTableField(doc, entry, formData, isBlank) {
-    this._clearPhotoReserve(doc);
+  _renderMatrix(doc, entry, formData, isBlank, label) {
     const field = entry.field || {};
     const isMatrix = field.type === 'row' || field.type === 'column';
     const columnTitles = Array.isArray(field.columnTitles) ? field.columnTitles : [];
@@ -724,21 +689,6 @@ class ApplicationPdfService {
 
     const rowMeta = Array.isArray(formData?.[`${entry.key}__rowMeta`]) ? formData[`${entry.key}__rowMeta`] : null;
 
-    // Column count: for matrix fields `columns` is the table width; otherwise it
-    // is a layout span, so derive the width from the data itself.
-    const configuredCols = isMatrix ? Math.max(Number(field.columns) || 0, columnTitles.length) : columnTitles.length;
-    const dataCols = data.length ? Math.max(...data.map(r => r.length)) : 0;
-    const colCount = Math.max(configuredCols, dataCols, 1);
-
-    const rowCount = data.length || (rowMeta ? rowMeta.length : (Number(field.rows) || 2));
-    const tableData = data.length
-      ? data
-      : Array.from({ length: rowCount }, () => Array(colCount).fill(''));
-
-    const labelColW = hasRowLabels ? Math.min(120, CW * 0.28) : 0;
-    const colW = (CW - labelColW) / colCount;
-    const cellPad = 5;
-
     const getRowLabel = (i) => {
       if (rowMeta && rowMeta[i]) {
         const base = rowTitles[rowMeta[i].sourceRow] || `Row ${rowMeta[i].sourceRow + 1}`;
@@ -747,92 +697,98 @@ class ApplicationPdfService {
       return rowTitles[i] || `Row ${i + 1}`;
     };
 
+    // Column count: for matrix fields `columns` is the table width; otherwise it
+    // is a layout span, so derive the width from the data itself.
+    const configuredCols = isMatrix ? Math.max(Number(field.columns) || 0, columnTitles.length) : columnTitles.length;
+    const dataCols = data.length ? Math.max(...data.map(r => r.length)) : 0;
+    const colCount = Math.max(configuredCols, dataCols, 1);
+    // Every configured row prints (empty ones as dashes), as on screen
+    const rowCount = rowMeta ? rowMeta.length : Math.max(data.length, Number(field.rows) || 0) || 2;
+
+    // Row-label column hugs its longest label ("Sl. No." stays narrow, "Qualification" gets room)
+    let labelColW = 0;
+    if (hasRowLabels) {
+      const labels = [firstColumnHeader, ...Array.from({ length: rowCount }, (_, i) => getRowLabel(i))];
+      const widest = Math.max(...labels.map(t => {
+        const str = String(t || '');
+        doc.font(this._hasMalayalam(str) ? 'Regular' : 'Helvetica').fontSize(FS.label);
+        return doc.widthOfString(str);
+      }));
+      labelColW = Math.min(120, Math.max(48, widest + PAD_X * 2 + 6));
+    }
+    const colW = (TW - labelColW) / colCount;
+    const widths = hasRowLabels ? [labelColW, ...Array(colCount).fill(colW)] : Array(colCount).fill(colW);
+
     const headers = [];
     if (hasRowLabels) headers.push(firstColumnHeader);
     for (let i = 0; i < colCount; i++) headers.push(columnTitles[i] || `Column ${i + 1}`);
 
-    const widths = hasRowLabels ? [labelColW, ...Array(colCount).fill(colW)] : Array(colCount).fill(colW);
-
-    const rowHeight = (cells, size, bold) => {
-      let h = 0;
-      cells.forEach((txt, i) => {
-        h = Math.max(h, this._measure(doc, txt || '', size, widths[i] - cellPad * 2, bold));
-      });
-      return Math.max(18, h + cellPad * 2);
-    };
-
-    const headerH = rowHeight(headers, 8, true);
-
-    // Field label above the table
-    const labelText = field.label || this._humanizeKey(entry.key);
-    const labelH = this._measure(doc, labelText, 8, CW, true);
-    this._ensureSpace(doc, labelH + headerH + 30);
-    doc.fontSize(8).fillColor(C.muted);
-    this._t(doc, labelText, L, doc.y, { width: CW }, true);
-    doc.y += 4;
-
-    const drawRow = (cells, y, h, opts = {}) => {
-      let x = L;
-      cells.forEach((txt, i) => {
-        const w = widths[i];
-        const bg = opts.headerRow ? C.headBg : (opts.labelCol && i === 0 ? '#f8fafc' : opts.bg);
-        if (bg) doc.rect(x, y, w, h).fill(bg);
-        doc.rect(x, y, w, h).lineWidth(0.5).stroke(C.boxBorder);
-        const bold = !!opts.headerRow || (opts.labelCol && i === 0);
-        doc.fontSize(8).fillColor(opts.headerRow || (opts.labelCol && i === 0) ? C.text : C.value);
-        const txtStr = String(txt || '');
-        if (txtStr) {
-          this._t(doc, txtStr, x + cellPad, y + cellPad, { width: w - cellPad * 2 }, bold);
-        } else if (!isBlank && !opts.headerRow) {
-          doc.fillColor(C.placeholder);
-          this._t(doc, '—', x + cellPad, y + cellPad, { width: w - cellPad * 2 });
-        }
-        x += w;
-      });
-      doc.lineWidth(1).strokeColor('#000000').fillColor(C.text);
-    };
-
-    let y = doc.y;
-    drawRow(headers, y, headerH, { headerRow: true, labelCol: hasRowLabels });
-    y += headerH;
-
+    const rows = [{ cells: headers.map(h => this._headCell(h)) }];
     for (let r = 0; r < rowCount; r++) {
       const cells = [];
-      if (hasRowLabels) cells.push(getRowLabel(r));
-      for (let c = 0; c < colCount; c++) cells.push(isBlank ? '' : (tableData[r]?.[c] || ''));
-
-      const h = rowHeight(cells, 8, false);
-      if (y + h > this._contentBottom(doc)) {
-        doc.y = y;
-        doc.addPage();
-        y = doc.y;
-        drawRow(headers, y, headerH, { headerRow: true, labelCol: hasRowLabels });
-        y += headerH;
+      if (hasRowLabels) cells.push(this._valueCell(getRowLabel(r)));
+      for (let c = 0; c < colCount; c++) {
+        const v = isBlank ? '' : (data[r]?.[c] || '');
+        cells.push(this._valueCell(v || (isBlank ? '' : '—')));
       }
-      drawRow(cells, y, h, { bg: r % 2 === 1 ? C.zebra : null, labelCol: hasRowLabels });
-      y += h;
+      rows.push({ cells, minH: isBlank ? BLANK_ROW_H : 0 });
     }
 
-    doc.y = y + 12;
+    if (label) {
+      const labelH = this._measure(doc, label, FS.subLabel, CW, true);
+      this._ensureSpace(doc, labelH + 60);
+      doc.fontSize(FS.subLabel).fillColor(C.text);
+      this._t(doc, label, L, doc.y, { width: CW }, true);
+      doc.y += 4;
+    }
+    this._renderTable(doc, widths, rows, { repeatHeader: true });
   }
 
   // ─── Documents ──────────────────────────────────────────────────────────────
 
-  _addDocumentsList(doc, documents) {
-    if (!documents || documents.length === 0) return;
+  /** Uploaded-file fields plus the application's document attachments, one row each */
+  _addDocumentsTable(doc, fileEntries, documents, isBlank) {
+    const rows = [{ cells: [this._headCell('Document'), this._headCell('Status / File')] }];
 
-    this._renderSectionHeader(doc, 'Submitted Documents');
-    documents.forEach((item, idx) => {
-      const label = item.fieldLabel || item.type || 'Document';
-      const name = item.filename || item.originalName || 'Uploaded';
-      const text = `${idx + 1}.  ${label}: ${name}`;
-      const h = this._measure(doc, text, 9, CW - 10);
-      this._ensureSpace(doc, h + 8);
-      doc.fontSize(9).fillColor(C.value);
-      this._t(doc, text, L + 4, doc.y, { width: CW - 10 });
-      doc.y += 6;
+    for (const entry of fileEntries) {
+      const raw = entry.field?.label || this._humanizeKey(entry.key);
+      if (isBlank) {
+        rows.push({ cells: [this._valueCell(`${raw}${entry.field?.required ? ' *' : ''}`), this._valueCell('')], minH: BLANK_ROW_H });
+        continue;
+      }
+      const file = this._fileInfo(entry.value);
+      const status = file
+        ? this._valueCell(`Submitted (${file.name})`, file.url ? { link: file.url, color: C.link } : {})
+        : this._valueCell('Not Uploaded');
+      rows.push({ cells: [this._valueCell(raw), status] });
+    }
+
+    for (const item of documents || []) {
+      const name = item.name || item.fieldLabel || item.originalName || 'Document';
+      rows.push({ cells: [this._valueCell(name), this._valueCell('Submitted', item.url ? { link: item.url, color: C.link } : {})] });
+    }
+
+    if (rows.length === 1) return;
+    this._sectionHeading(doc, 'Documents Submitted');
+    this._renderTable(doc, [TW * 0.5, TW * 0.5], rows, { repeatHeader: true });
+  }
+
+  // ─── Office use / signatures ────────────────────────────────────────────────
+
+  _addOfficeUse(doc) {
+    this._ensureSpace(doc, 170);
+    this._sectionHeading(doc, 'Office Use');
+    const y = doc.y + 96;
+    const colW = CW / 3;
+    doc.fontSize(FS.label).fillColor(C.text);
+    ['Applicant Signature', 'Interview Officer', 'Authorized Signatory'].forEach((label, i) => {
+      const x = L + colW * i;
+      this._t(doc, label, x, y, { width: colW, align: 'center', lineBreak: false });
+      doc.moveTo(x + colW / 2 - 55, y + 30).lineTo(x + colW / 2 + 55, y + 30)
+        .lineWidth(0.6).strokeColor(C.text).stroke();
     });
-    doc.fillColor(C.text);
+    doc.lineWidth(1).fillColor(C.text);
+    doc.y = y + 44;
   }
 
   // ─── Value helpers ──────────────────────────────────────────────────────────
@@ -843,10 +799,6 @@ class ApplicationPdfService {
     if (typeof formData.toObject === 'function') return formData.toObject();
     if (formData instanceof Map) return Object.fromEntries(formData);
     return formData;
-  }
-
-  _usableHeight(doc) {
-    return this._contentBottom(doc) - CONT_TOP;
   }
 
   _isEmpty(value) {
@@ -870,17 +822,12 @@ class ApplicationPdfService {
   _fileInfo(value) {
     if (value && typeof value === 'object' && typeof value.dataUrl === 'string') {
       const name = value.fileName || value.originalName || 'file';
-      const mime = value.mimeType || (value.dataUrl.match(/^data:([^;]+);/) || [])[1] || '';
-      return {
-        name,
-        isPdf: mime === 'application/pdf' || /\.pdf$/i.test(name),
-        buffer: this._dataUrlToImageBuffer(value.dataUrl, mime),
-        url: null
-      };
+      return { name, url: null };
     }
     if (typeof value === 'string' && /^https?:\/\//i.test(value)) {
-      const name = decodeURIComponent(value.split('/').pop().split('?')[0] || 'file');
-      return { name, isPdf: /\.pdf(\?.*)?$/i.test(value), buffer: null, url: value };
+      // Uploads are stored as "<timestamp>-<original name>"; print only the original name
+      const name = decodeURIComponent(value.split('/').pop().split('?')[0] || 'file').replace(/^\d{10,}-/, '');
+      return { name, url: value };
     }
     return null;
   }
@@ -893,17 +840,7 @@ class ApplicationPdfService {
       const idx = dataUrl.indexOf('base64,');
       if (idx === -1) return null;
       const buf = Buffer.from(dataUrl.slice(idx + 7), 'base64');
-      // Keep generated PDFs a sane size — huge scans fall back to a filename row
       return buf.length > MAX_EMBED_BYTES ? null : buf;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  _openImage(doc, buffer) {
-    try {
-      const img = doc.openImage(buffer);
-      return (img && img.width && img.height) ? img : null;
     } catch (e) {
       return null;
     }
@@ -930,16 +867,31 @@ class ApplicationPdfService {
       }
     }
 
+    if (field?.type === 'date' || field?.type === 'datetime') {
+      const formatted = field.type === 'date' ? this._formatDate(rawValue) : this._formatDateTime(rawValue);
+      if (formatted) return formatted;
+    }
+
     return String(rawValue);
   }
 
+  /** "28 August 2026"; ISO date-only strings are read as calendar dates, not UTC instants */
   _formatDate(dateVal) {
-    if (!dateVal) return 'N/A';
-    return new Date(dateVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    if (!dateVal) return '—';
+    const iso = typeof dateVal === 'string' && dateVal.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const d = iso ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])) : new Date(dateVal);
+    if (isNaN(d.getTime())) return typeof dateVal === 'string' ? dateVal : '—';
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  _formatDateTime(dateVal) {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return typeof dateVal === 'string' ? dateVal : '—';
+    return d.toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   _formatStatus(status) {
-    if (!status) return 'N/A';
+    if (!status) return '—';
     return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 }
