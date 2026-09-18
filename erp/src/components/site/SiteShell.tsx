@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { MobileBottomNav } from "@/components/site/MobileBottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
+import { ScrollProgress } from "@/components/site/ScrollProgress";
 import { useSiteData } from "@/hooks/useSiteData";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,8 @@ export function SiteShell({ children, loading = false }: SiteShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="site-font min-h-screen bg-background">
+      <ScrollProgress />
       <SiteHeader donateLink={donateLink} />
       {children}
       <SiteFooter settings={s} />

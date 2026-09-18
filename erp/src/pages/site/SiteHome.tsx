@@ -1,12 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Users, ArrowRight, Play, Quote, ChevronRight, Sparkles, Loader2,
+  Users, ArrowRight, Sparkles, Loader2,
   Sprout,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { VolunteerDialog } from "@/components/site/VolunteerDialog";
@@ -15,15 +14,17 @@ import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { MobileBottomNav } from "@/components/site/MobileBottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
+import { ScrollProgress } from "@/components/site/ScrollProgress";
 import { HeroSlider } from "@/components/site/HeroSlider";
 import { useSiteData, getYouTubeId, videoThumb } from "@/hooks/useSiteData";
 import { resolveIcon } from "@/lib/siteIcons";
-import { ProjectsGrid } from "@/components/site/ProjectsGrid";
+import { ProjectsShowcase } from "@/components/site/ProjectsShowcase";
+import { ContentRail } from "@/components/site/ContentRail";
+import { VideoRow } from "@/components/site/VideoRow";
 import { ZakatCalculator } from "@/components/site/ZakatCalculator";
 import { AnimatedCounter } from "@/components/site/AnimatedCounter";
 import { Reveal } from "@/components/site/Reveal";
 import { AnimatedTitle } from "@/components/site/AnimatedTitle";
-import { DonateCard } from "@/components/site/DonateCard";
 import { SchemesStack } from "@/components/site/SchemesStack";
 import { ClientLogosCarousel } from "@/components/site/ClientLogosCarousel";
 import { VolunteerDonateBand } from "@/components/site/VolunteerDonateBand";
@@ -132,8 +133,6 @@ export default function SiteHome() {
     whatsapp: orgDonationDefaults.whatsapp || s.contactDetails?.whatsapp,
     email: orgDonationDefaults.email || s.contactDetails?.email,
   };
-  const showDonateCard = Boolean(donateContent.qrImageUrl || donateContent.accounts.length);
-
   // Associate logos come solely from Partners in the admin, which stores name,
   // uploaded logo and link. No bundled fallback: like every other section, the
   // band simply does not render when there is nothing to show.
@@ -217,97 +216,114 @@ export default function SiteHome() {
         </section>
       ),
     about: () => (
-      <section id="about" className="scroll-mt-20 py-5">
-        <div className={cn("container mx-auto grid items-center gap-8 px-4 sm:gap-10", showDonateCard ? "lg:grid-cols-[1.1fr_1fr_0.75fr]" : "lg:grid-cols-2")}>
-          <div className="space-y-5">
+      <section id="about" className="scroll-mt-20 py-6">
+        {/* The band used to carry four jobs at once — lead copy, artwork, the
+            vision/mission pair, four value panels and the QR donate card — in a
+            column that only split in three at `lg`. On a laptop panel or a
+            phone that stacked into roughly three screens of scrolling, so the
+            section never arrived as a whole. The donate panel now lives in the
+            Donate section with the rest of the giving details. */}
+        <div className="container mx-auto px-4">
+          <div className="grid items-center gap-6 sm:grid-cols-[1.05fr_0.95fr] sm:gap-10">
+          <div className="space-y-4">
             <Reveal as="span" className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
               About Us
             </Reveal>
             <AnimatedTitle
               as="h2"
               delay={90}
-              className="text-3xl font-extrabold tracking-tight md:text-4xl"
+              className="text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-4xl"
               text={s.aboutUs?.title || `About ${org.displayName || org.erpTitle}`}
             />
             <Reveal as="p" delay={180} className="leading-relaxed text-muted-foreground">
               {s.aboutUs?.description || org.aboutText || org.tagline}
             </Reveal>
-            <Reveal delay={260}>
+            <Reveal delay={260} className="flex flex-wrap gap-3 pt-1">
               <Button className="rounded-full" onClick={() => navigate("/p/about-us")}>
                 Learn More <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
+              <Button asChild variant="outline" className="rounded-full">
+                <a href="#donate">Donate Now</a>
+              </Button>
             </Reveal>
-            <div className="grid gap-4 pt-2 sm:grid-cols-2">
-              {s.vision?.description && (
-                <Card className="border-border/60">
-                  <CardContent className="space-y-2 p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={iconBadgeStyle(s.vision?.color)}><VisionIcon className="h-5 w-5" /></div>
-                    <h3 className="font-semibold">{s.vision?.title || "Our Vision"}</h3>
-                    <p className="text-sm text-muted-foreground">{s.vision.description}</p>
-                  </CardContent>
-                </Card>
-              )}
-              {s.mission?.description && (
-                <Card className="border-border/60">
-                  <CardContent className="space-y-2 p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={iconBadgeStyle(s.mission?.color)}><MissionIcon className="h-5 w-5" /></div>
-                    <h3 className="font-semibold">{s.mission?.title || "Our Mission"}</h3>
-                    <p className="text-sm text-muted-foreground">{s.mission.description}</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
           </div>
 
           <div className="relative">
             {s.aboutUs?.imageUrl ? (
-              <img loading="lazy" decoding="async" src={s.aboutUs.imageUrl} alt="about" className="w-full rounded-3xl object-cover shadow-xl" />
+              <img loading="lazy" decoding="async" src={s.aboutUs.imageUrl} alt="about" className="aspect-[16/11] w-full rounded-3xl object-cover shadow-xl" />
             ) : (
-              <div className="flex aspect-[4/3] w-full items-center justify-center rounded-3xl bg-gradient-hero">
-                <Sprout className="h-24 w-24 text-primary-foreground/70" />
+              <div className="flex aspect-[16/11] w-full items-center justify-center rounded-3xl bg-gradient-hero">
+                <Sprout className="h-16 w-16 text-primary-foreground/70" />
               </div>
             )}
-            <p className="pointer-events-none absolute right-4 top-6 max-w-[7rem] font-serif text-base italic leading-snug text-primary/80 drop-shadow-sm">
+            {/* White with a soft cast shadow: the accent colour it used to be
+                was unreadable once a photo (or the blue fallback panel) sat
+                behind it. */}
+            <p className="pointer-events-none absolute right-4 top-5 max-w-[7rem] font-serif text-sm italic leading-snug text-white [text-shadow:0_1px_10px_rgba(2,20,35,0.75)]">
               Small Contributions, Big Changes
             </p>
           </div>
+          </div>
 
-          {showDonateCard && (
-            <Reveal delay={120} className="h-full">
-              <DonateCard
-                qrImageUrl={donateContent.qrImageUrl}
-                accounts={donateContent.accounts}
-                whatsapp={donateContent.whatsapp}
-                email={donateContent.email}
-              />
-            </Reveal>
+          {/* Vision + Mission: one short pair rather than two tall cards. The
+              icon sits beside the text so each block stays two or three lines. */}
+          {(s.vision?.description || s.mission?.description) && (
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              {[
+                { key: "vision", Icon: VisionIcon, title: s.vision?.title || "Our Vision", body: s.vision?.description, color: s.vision?.color },
+                { key: "mission", Icon: MissionIcon, title: s.mission?.title || "Our Mission", body: s.mission?.description, color: s.mission?.color },
+              ].filter((x) => x.body).map((x, i) => (
+                <Reveal key={x.key} delay={i * 100} className="h-full">
+                  <Card className="h-full border-border/60">
+                    <CardContent className="flex gap-3 p-4">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={iconBadgeStyle(x.color)}>
+                        <x.Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold">{x.title}</h3>
+                        <p className="mt-1 text-sm leading-snug text-muted-foreground">{x.body}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Reveal>
+              ))}
+            </div>
+          )}
+
+          {/* Values: two per row even on the narrowest screen. One per row put
+              four 180px panels under everything else and doubled the band. */}
+          {values.length > 0 && (
+            <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-6 lg:grid-cols-4">
+              {values.map((v, i) => {
+                const Icon = iconFor(v.icon);
+                return (
+                  <Reveal key={i} delay={i * 80} className="h-full">
+                    {/* Numbered, ruled panels rather than cards: the values are a
+                        list of principles, and bordered boxes alongside the
+                        bordered Vision/Mission pair read as two card grids. */}
+                    <div className="group h-full border-t-2 border-border/70 pt-3 transition-colors duration-300 hover:border-primary">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={iconBadgeStyle(v.color)}><Icon className="h-4 w-4" /></div>
+                        <span className="font-serif text-2xl font-bold leading-none text-primary/15 transition-colors duration-300 group-hover:text-primary/35">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                      </div>
+                      <h3 className="mt-3 text-sm font-semibold">{v.title}</h3>
+                      <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{v.description}</p>
+                    </div>
+                  </Reveal>
+                );
+              })}
+            </div>
           )}
         </div>
-
-        {/* Values */}
-        {values.length > 0 && (
-          <div className="container mx-auto mt-10 grid gap-6 px-4 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
-            {values.map((v, i) => {
-              const Icon = iconFor(v.icon);
-              return (
-                <Card key={i} className="border-border/60 transition-shadow hover:shadow-lg">
-                  <CardContent className="space-y-3 p-6">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={iconBadgeStyle(v.color)}><Icon className="h-5 w-5" /></div>
-                    <h3 className="font-semibold">{v.title}</h3>
-                    <p className="text-sm text-muted-foreground">{v.description}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
       </section>
     ),
     projects: () => projects.length > 0 && (
         <section id="projects" className="scroll-mt-20 bg-muted/60 py-5">
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="Zakat in Action" title="Our Projects" subtitle="Real support for real lives. Explore our key initiatives." />
-            <ProjectsGrid projects={projects} />
+            <ProjectsShowcase projects={projects} />
             <div className="mt-6 text-center sm:mt-10">
               <Button variant="outline" className="rounded-full" onClick={() => navigate("/projects-hub")}>
                 View all projects <ArrowRight className="ml-1 h-4 w-4" />
@@ -341,30 +357,24 @@ export default function SiteHome() {
       </section>
     ),
     news: () => news.length > 0 && (
-        <section id="news" className="scroll-mt-20 bg-muted/30 py-5">
+        <section id="news" className="scroll-mt-20 py-8 sm:py-10">
           <div className="container mx-auto px-4">
-            <SectionHeading eyebrow="Updates" title="News & Events" subtitle="Stay informed about our latest activities and announcements." />
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {news.slice(0, 3).map((n) => (
-                <Card key={n._id} className="group cursor-pointer overflow-hidden border-border/60 transition-shadow hover:shadow-xl" onClick={() => navigate(`/news/${n._id}`)}>
-                  <div className="relative h-44 w-full overflow-hidden">
-                    {n.imageUrl ? (
-                      <img loading="lazy" decoding="async" src={n.imageUrl} alt={n.title} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gradient-hero"><Sparkles className="h-12 w-12 text-primary-foreground/70" /></div>
-                    )}
-                    {n.category && <Badge className="absolute left-3 top-3 capitalize">{n.category.replace(/_/g, " ")}</Badge>}
-                  </div>
-                  <CardContent className="space-y-2 p-6">
-                    {n.publishDate && <span className="text-xs text-muted-foreground">{new Date(n.publishDate).toLocaleDateString()}</span>}
-                    <h3 className="text-lg font-semibold">{n.title}</h3>
-                    <p className="line-clamp-3 text-sm text-muted-foreground">{n.description}</p>
-                    <span className="inline-flex items-center pt-1 text-sm font-medium text-primary">Read More <ArrowRight className="ml-1 h-3.5 w-3.5" /></span>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <div className="mt-6 text-center sm:mt-8">
+            {/* Copy and layout follow the organisation's own marketing site. */}
+            <ContentRail
+              heading="What we’ve been up to lately"
+              onOpen={(id) => navigate(`/news/${id}`)}
+              items={news.slice(0, 6).map((n) => ({
+                _id: n._id,
+                title: n.title,
+                imageUrl: n.imageUrl,
+                eyebrow: (n.category || "news").replace(/_/g, " "),
+                meta: n.publishDate
+                  ? new Date(n.publishDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+                  : "",
+                byline: `By ${org.displayName || "People's Foundation"}`,
+              }))}
+            />
+            <div className="mt-8 text-center">
               <Button variant="outline" className="rounded-full" onClick={() => navigate("/news")}>
                 View all news & events <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
@@ -372,11 +382,11 @@ export default function SiteHome() {
           </div>
         </section>
       ),
-    gallery: () => (gallery.length > 0 || videos.length > 0) && (
-        <section id="gallery" className="scroll-mt-20 bg-gray-50 py-5">
-          <div className="container mx-auto grid gap-5 px-4 lg:grid-cols-5">
+    gallery: () => gallery.length > 0 && (
+        <section id="gallery" className="scroll-mt-20 bg-gray-50 py-8 sm:py-10">
+          <div className="container mx-auto px-4">
             {gallery.length > 0 && (
-              <div className="rounded-3xl border border-border/50 bg-card p-5 shadow-sm sm:p-6 lg:col-span-3">
+              <div className="rounded-3xl border border-border/50 bg-card p-5 shadow-sm sm:p-6">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-wide text-primary">Gallery</span>
@@ -389,105 +399,68 @@ export default function SiteHome() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  {gallery.slice(0, 3).map((a) => (
-                    <button
-                      key={a._id}
-                      onClick={() => navigate(`/gallery/${a._id}`)}
-                      className="group relative aspect-square overflow-hidden rounded-xl bg-muted"
-                    >
-                      {a.coverImageUrl ? (
-                        <img loading="lazy" decoding="async" src={a.coverImageUrl} alt={a.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-hero"><Sparkles className="h-6 w-6 text-primary-foreground/70" /></div>
-                      )}
-                      {/* Album title on hover — three larger tiles have room for
-                          it where four small ones did not. */}
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent p-2 text-left text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-                        {a.title}
-                      </span>
-                    </button>
+                  {gallery.slice(0, 3).map((a, i) => (
+                    <Reveal key={a._id} delay={i * 100} className="min-w-0">
+                      <button
+                        onClick={() => navigate(`/gallery/${a._id}`)}
+                        className="group relative block aspect-square w-full overflow-hidden rounded-xl bg-muted"
+                      >
+                        {a.coverImageUrl ? (
+                          <img loading="lazy" decoding="async" src={a.coverImageUrl} alt={a.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-hero"><Sparkles className="h-6 w-6 text-primary-foreground/70" /></div>
+                        )}
+                        {/* Album title on hover — three larger tiles have room for
+                            it where four small ones did not. */}
+                        <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent p-2 text-left text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                          {a.title}
+                        </span>
+                      </button>
+                    </Reveal>
                   ))}
                 </div>
               </div>
             )}
 
-            {videos.length > 0 && (
-              <div className="rounded-3xl border border-border/50 bg-card p-5 shadow-sm sm:p-6 lg:col-span-2">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-primary">Videos</span>
-                    <h3 className="text-lg font-bold">Watch &amp; Learn</h3>
-                  </div>
-                  <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => navigate("/videos")}>
-                    View all<span className="hidden sm:inline">&nbsp;videos</span> <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                {(() => {
-                  const v = videos[0];
-                  const thumb = videoThumb(v.videoUrl, v.thumbnailUrl);
-                  return (
-                    // The whole thumbnail is the control — the separate "Watch
-                    // Now" button was the only way in before, even though the
-                    // image is what people actually click.
-                    <button
-                      type="button"
-                      onClick={() => setActiveVideo(v.videoUrl)}
-                      aria-label={`Play ${v.title}`}
-                      className="group/vid relative block w-full overflow-hidden rounded-2xl bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                    >
-                      <div className="aspect-video w-full">
-                        {thumb ? (
-                          <img loading="lazy" decoding="async" src={thumb} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover/vid:scale-105" />
-                        ) : (
-                          <div className="h-full w-full bg-gradient-hero" />
-                        )}
-                      </div>
-
-                      <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-
-                      <span className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-primary shadow-xl transition-transform duration-300 group-hover/vid:scale-110">
-                        {/* Nudged right: a triangle centred on its bounding box
-                            looks off-centre inside a circle. */}
-                        <Play className="ml-0.5 h-7 w-7 fill-current" />
-                      </span>
-
-                      <span className="absolute inset-x-0 bottom-0 p-4 text-left">
-                        <span className="line-clamp-1 block font-semibold text-white">{v.title}</span>
-                        {v.description && (
-                          <span className="mt-0.5 line-clamp-1 block text-xs text-white/80">{v.description}</span>
-                        )}
-                      </span>
-                    </button>
-                  );
-                })()}
-              </div>
-            )}
           </div>
         </section>
       ),
-    videos: () => null,
-    blogs: () => blogs.length > 0 && (
-        <section className="py-5">
+    videos: () => videos.length > 0 && (
+        <section id="videos" className="scroll-mt-20 py-8 sm:py-10">
           <div className="container mx-auto px-4">
-            <SectionHeading eyebrow="Read" title="From our Blog" subtitle="Perspectives, insights and stories." />
-            <div className="grid gap-6 md:grid-cols-3">
-              {blogs.map((b) => (
-                <Card key={b._id} className="group cursor-pointer overflow-hidden border-border/60 transition-shadow hover:shadow-xl" onClick={() => navigate(`/blog/${b.slug}`)}>
-                  {b.coverImageUrl ? (
-                    <img loading="lazy" decoding="async" src={b.coverImageUrl} alt={b.title} className="h-44 w-full object-cover transition-transform group-hover:scale-105" />
-                  ) : (
-                    <div className="flex h-44 items-center justify-center bg-gradient-hero"><Quote className="h-12 w-12 text-primary-foreground/70" /></div>
-                  )}
-                  <CardContent className="space-y-2 p-6">
-                    <div className="text-xs text-muted-foreground">{b.author}{b.publishDate ? ` · ${new Date(b.publishDate).toLocaleDateString()}` : ""}</div>
-                    <h3 className="text-lg font-semibold">{b.title}</h3>
-                    <p className="line-clamp-3 text-sm text-muted-foreground">{b.excerpt}</p>
-                    <span className="inline-flex items-center text-sm font-medium text-primary">Read more <ChevronRight className="h-4 w-4" /></span>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <div className="mt-6 text-center sm:mt-8">
+            <VideoRow
+              videos={videos.map((v) => ({
+                _id: v._id,
+                title: v.title,
+                videoUrl: v.videoUrl,
+                thumbnailUrl: videoThumb(v.videoUrl, v.thumbnailUrl),
+              }))}
+              channelName={org.displayName || "People's Foundation"}
+              onPlay={(url) => setActiveVideo(url)}
+              onExplore={() => navigate("/videos")}
+            />
+          </div>
+        </section>
+      ),
+    blogs: () => blogs.length > 0 && (
+        <section id="blogs" className="scroll-mt-20 py-8 sm:py-10">
+          <div className="container mx-auto px-4">
+            {/* Same card as the news band, matching the marketing site. */}
+            <ContentRail
+              heading="Blogs"
+              onOpen={(slug) => navigate(`/blog/${slug}`)}
+              items={blogs.slice(0, 6).map((b) => ({
+                _id: b.slug,
+                title: b.title,
+                imageUrl: b.coverImageUrl,
+                eyebrow: (b.category || "general").replace(/_/g, " "),
+                meta: b.publishDate
+                  ? new Date(b.publishDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+                  : "",
+                byline: b.author ? `By ${b.author}` : undefined,
+              }))}
+            />
+            <div className="mt-8 text-center">
               <Button variant="outline" className="rounded-full" onClick={() => navigate("/blogs")}>
                 View all posts <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
@@ -500,15 +473,17 @@ export default function SiteHome() {
           <div className="container mx-auto px-4">
             <SectionHeading eyebrow="In the news" title="Media Coverage" />
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {mediaItems.map((m) => (
-                <a key={m._id} href={m.link || "#"} target="_blank" rel="noreferrer"
-                  className="group overflow-hidden rounded-2xl border border-border/60 bg-card transition-shadow hover:shadow-lg">
-                  {m.imageUrl && <img loading="lazy" decoding="async" src={m.imageUrl} alt={m.title} className="h-36 w-full object-cover" />}
-                  <div className="space-y-1 p-4">
-                    {m.source && <span className="text-xs font-medium uppercase tracking-wide text-primary">{m.source}</span>}
-                    <h3 className="line-clamp-2 text-sm font-semibold">{m.title}</h3>
-                  </div>
-                </a>
+              {mediaItems.map((m, i) => (
+                <Reveal key={m._id} delay={i * 80} className="h-full">
+                  <a href={m.link || "#"} target="_blank" rel="noreferrer"
+                    className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                    {m.imageUrl && <img loading="lazy" decoding="async" src={m.imageUrl} alt={m.title} className="h-36 w-full object-cover" />}
+                    <div className="space-y-1 p-4">
+                      {m.source && <span className="text-xs font-medium uppercase tracking-wide text-primary">{m.source}</span>}
+                      <h3 className="line-clamp-2 text-sm font-semibold">{m.title}</h3>
+                    </div>
+                  </a>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -524,12 +499,26 @@ export default function SiteHome() {
             onVolunteer={() => setVolunteerOpen(true)}
           />
           {donation.enabled && (donation.accountName || donation.accountNumber || donation.bankName) && (
-            <div className="mt-5 grid gap-2 rounded-2xl border border-border/50 bg-card p-5 text-sm shadow-sm sm:grid-cols-2">
-              {donation.accountName && <Row label="Account Name" value={donation.accountName} />}
-              {donation.accountNumber && <Row label="Account No." value={donation.accountNumber} />}
-              {donation.bankName && <Row label="Bank" value={donation.bankName} />}
-              {donation.ifsc && <Row label="IFSC" value={donation.ifsc} />}
-              {donation.upiId && <Row label="UPI ID" value={donation.upiId} />}
+            /* The QR moved here from the About band: it belongs beside the
+               account details, and its white plate was most of what made About
+               three screens tall. */
+            <div className="mt-5 flex flex-col gap-5 rounded-2xl border border-border/50 bg-card p-5 text-sm shadow-sm sm:flex-row sm:items-center">
+              {donateContent.qrImageUrl && (
+                <img
+                  src={donateContent.qrImageUrl}
+                  alt="Scan to donate"
+                  loading="lazy"
+                  decoding="async"
+                  className="mx-auto h-32 w-32 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm sm:mx-0"
+                />
+              )}
+              <div className="grid flex-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+                {donation.accountName && <Row label="Account Name" value={donation.accountName} />}
+                {donation.accountNumber && <Row label="Account No." value={donation.accountNumber} />}
+                {donation.bankName && <Row label="Bank" value={donation.bankName} />}
+                {donation.ifsc && <Row label="IFSC" value={donation.ifsc} />}
+                {donation.upiId && <Row label="UPI ID" value={donation.upiId} />}
+              </div>
             </div>
           )}
         </div>
@@ -552,21 +541,24 @@ export default function SiteHome() {
         <section id="faq" className="scroll-mt-20 py-5">
           <div className="container mx-auto max-w-3xl px-4">
             <SectionHeading eyebrow="Help" title="Frequently Asked Questions" />
-            <Accordion type="single" collapsible className="w-full">
-              {faqs.map((f) => (
-                <AccordionItem key={f._id} value={f._id}>
-                  <AccordionTrigger className="text-left">{f.question}</AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground">{f.answer}</AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+            <Reveal delay={80}>
+              <Accordion type="single" collapsible className="w-full">
+                {faqs.map((f) => (
+                  <AccordionItem key={f._id} value={f._id}>
+                    <AccordionTrigger className="text-left">{f.question}</AccordionTrigger>
+                    <AccordionContent className="text-muted-foreground">{f.answer}</AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </Reveal>
           </div>
         </section>
       ),
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="site-font min-h-screen bg-background">
+      <ScrollProgress />
       <SiteHeader donateLink={donateLink} />
 
       {/* STICKY HERO — pinned via .site-hero (position: sticky); the
@@ -618,10 +610,13 @@ export default function SiteHome() {
 }
 
 function Row({ label, value }: { label: string; value: string }) {
+  // Tuned for the light card these sit on: the label used to be
+  // `text-primary-foreground/75` and the rule `border-white/15`, both of which
+  // are near-white — so every label rendered invisible against the panel.
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/15 pb-2 last:border-0">
-      <span className="text-primary-foreground/75">{label}</span>
-      <span className="font-medium">{value}</span>
+    <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2 last:border-0">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="text-right font-medium">{value}</span>
     </div>
   );
 }

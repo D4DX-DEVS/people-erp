@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroMontage from "@/assets/bnr1.png";
 import { HeroBannerSlider } from "@/components/site/HeroBannerSlider";
+import { usePointerParallax } from "@/hooks/useParallax";
 
 interface Banner {
   _id: string;
@@ -125,6 +126,9 @@ export function HeroSlider({ banners, hero }: HeroSliderProps) {
 }
 
 function IllustratedHero({ banners, hero }: HeroSliderProps) {
+  // Publishes the pointer position onto the band; the layers below read it back
+  // through their own `--depth` (see .hero-layer in index.css).
+  const heroRef = usePointerParallax<HTMLElement>();
   const [index, setIndex] = useState(0);
   const count = SLIDES.length;
   const active = banners[index % (banners.length || 1)];
@@ -153,7 +157,7 @@ function IllustratedHero({ banners, hero }: HeroSliderProps) {
     : { line1: sentenceCase(slide.titleLine1), line2: sentenceCase(slide.titleLine2) };
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-muted via-background to-muted py-6 sm:py-10 md:py-14">
+    <section ref={heroRef} className="relative overflow-hidden bg-gradient-to-br from-muted via-background to-muted py-6 sm:py-10 md:py-14">
       {/* Subtle Islamic geometric dot pattern */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.4]"
@@ -164,41 +168,61 @@ function IllustratedHero({ banners, hero }: HeroSliderProps) {
       />
       {/* Decorative dot grid, top right */}
       <div
-        className="drift-mark pointer-events-none absolute right-6 top-6 hidden h-24 w-24 opacity-40 md:block"
-        style={{
-          backgroundImage: "radial-gradient(hsl(var(--warning)) 1.5px, transparent 1.5px)",
-          backgroundSize: "10px 10px",
-        }}
-      />
-      {/* Faint mosque silhouette, centered */}
-      <svg
-        viewBox="0 0 400 200"
-        className="drift-mark pointer-events-none absolute bottom-0 left-1/2 hidden h-40 w-auto -translate-x-1/2 text-primary/[0.06] md:block"
-        style={{ "--drift-delay": "-1.7s" } as CSSProperties}
-        fill="currentColor"
+        className="hero-layer pointer-events-none absolute right-6 top-6 hidden h-24 w-24 opacity-40 md:block"
+        style={{ "--depth": 34 } as CSSProperties}
       >
-        <rect x="60" y="120" width="280" height="80" />
-        <path d="M60 120 Q 200 20 340 120 Z" />
-        <rect x="190" y="0" width="20" height="60" />
-        <circle cx="200" cy="0" r="12" />
-        <rect x="30" y="90" width="16" height="110" />
-        <circle cx="38" cy="80" r="10" />
-        <rect x="354" y="90" width="16" height="110" />
-        <circle cx="362" cy="80" r="10" />
-      </svg>
+        <div
+          className="drift-mark h-full w-full"
+          style={{
+            backgroundImage: "radial-gradient(hsl(var(--warning)) 1.5px, transparent 1.5px)",
+            backgroundSize: "10px 10px",
+          }}
+        />
+      </div>
+      {/* Faint mosque silhouette, centered */}
+      {/* The centring translate lives on the svg, not on the parallax wrapper:
+          a Tailwind `-translate-x-1/2` and .hero-layer's own transform would
+          otherwise fight over the same property. */}
+      <div
+        className="hero-layer pointer-events-none absolute bottom-0 left-1/2 hidden md:block"
+        style={{ "--depth": 26 } as CSSProperties}
+      >
+        <svg
+          viewBox="0 0 400 200"
+          className="drift-mark h-40 w-auto -translate-x-1/2 text-primary/[0.06]"
+          style={{ "--drift-delay": "-1.7s" } as CSSProperties}
+          fill="currentColor"
+        >
+          <rect x="60" y="120" width="280" height="80" />
+          <path d="M60 120 Q 200 20 340 120 Z" />
+          <rect x="190" y="0" width="20" height="60" />
+          <circle cx="200" cy="0" r="12" />
+          <rect x="30" y="90" width="16" height="110" />
+          <circle cx="38" cy="80" r="10" />
+          <rect x="354" y="90" width="16" height="110" />
+          <circle cx="362" cy="80" r="10" />
+        </svg>
+      </div>
       {/* Palm trees, bottom corners. Desktop only: below lg the montage fills
           the band as a backdrop, and the palms only muddied it. */}
       <div
-        className="drift-mark pointer-events-none absolute bottom-0 left-0 hidden h-32 w-24 text-primary/10 lg:block lg:h-40 lg:w-32"
-        style={{ "--drift-delay": "-3.4s" } as CSSProperties}
+        className="hero-layer pointer-events-none absolute bottom-0 left-0 hidden h-32 w-24 text-primary/10 lg:block lg:h-40 lg:w-32"
+        style={{ "--depth": 20, "--drift-delay": "-3.4s" } as CSSProperties}
       >
-        <PalmSilhouette />
+        <div className="drift-mark h-full w-full">
+          <PalmSilhouette />
+        </div>
       </div>
       <div
-        className="drift-mark pointer-events-none absolute bottom-0 right-0 hidden h-32 w-24 text-primary/10 lg:block lg:h-40 lg:w-32"
-        style={{ "--drift-delay": "-2.6s" } as CSSProperties}
+        /* A negative depth: this corner drifts against the pointer, which is
+           what separates the two sides into near/far instead of a single plane
+           sliding about. */
+        className="hero-layer pointer-events-none absolute bottom-0 right-0 hidden h-32 w-24 text-primary/10 lg:block lg:h-40 lg:w-32"
+        style={{ "--depth": -16, "--drift-delay": "-2.6s" } as CSSProperties}
       >
-        <PalmSilhouette flip />
+        <div className="drift-mark h-full w-full">
+          <PalmSilhouette flip />
+        </div>
       </div>
 
       {/* Edge navigation arrows */}
@@ -308,7 +332,10 @@ function IllustratedHero({ banners, hero }: HeroSliderProps) {
             headline and CTAs sit on top of it in one column, rather than the
             two stacked blocks that made the hero a screen and a half tall.
             From lg it returns to the flow as the grid's second column. */}
-        <div className="absolute inset-0 z-0 lg:relative lg:mx-auto lg:flex lg:w-full lg:max-w-2xl lg:items-center lg:justify-center lg:gap-6">
+        <div
+          className="hero-tilt absolute inset-0 z-0 lg:relative lg:mx-auto lg:flex lg:w-full lg:max-w-2xl lg:items-center lg:justify-center lg:gap-6"
+          style={{ "--depth": 18 } as CSSProperties}
+        >
           <img
             src={heroMontage}
             alt=""

@@ -135,3 +135,67 @@ export function useTilt<T extends HTMLElement = HTMLElement>(max = 7) {
 const DEPTHS = [34, 18, 46, 26];
 
 export const depthForIndex = (index = 0) => DEPTHS[index % DEPTHS.length];
+
+/**
+ * Publishes how far the pointer is from the centre of an element as
+ * `--pointer-x` / `--pointer-y`, each running -1..1 (centre = 0).
+ *
+ * This is what drives the hero's layered parallax: the hook writes the two
+ * custom properties on the hero section, and every layer inside declares its
+ * own `--depth` in CSS (see `.hero-layer`), so one pointer listener moves the
+ * artwork, the decorations and the copy past each other at different rates.
+ * No React state is touched, so tracking the pointer never re-renders the hero.
+ *
+ * Skipped entirely for reduced motion and for coarse pointers — a phone has no
+ * hover to track, and the layers just sit flat.
+ */
+export function usePointerParallax<T extends HTMLElement = HTMLElement>() {
+  const ref = useRef<T | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || prefers(REDUCED_MOTION) || prefers(COARSE_POINTER)) return;
+
+    let frame = 0;
+    let x = 0;
+    let y = 0;
+
+    const apply = () => {
+      frame = 0;
+      el.style.setProperty("--pointer-x", x.toFixed(4));
+      el.style.setProperty("--pointer-y", y.toFixed(4));
+    };
+
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+
+    const clamp = (n: number) => Math.max(-1, Math.min(1, n));
+
+    const onMove = (event: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      x = clamp(((event.clientX - rect.left) / rect.width - 0.5) * 2);
+      y = clamp(((event.clientY - rect.top) / rect.height - 0.5) * 2);
+      schedule();
+    };
+
+    const reset = () => {
+      x = 0;
+      y = 0;
+      schedule();
+    };
+
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", reset);
+    el.addEventListener("blur", reset);
+    return () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", reset);
+      el.removeEventListener("blur", reset);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return ref;
+}

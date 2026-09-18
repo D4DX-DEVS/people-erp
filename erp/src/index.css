@@ -244,9 +244,21 @@ All colors MUST be HSL.
   animation-delay: var(--reveal-delay, 0ms);
 }
 
+/* Once the entrance has played, drop the animation completely. A finished
+   transform animation keeps resolving to an identity matrix, and ANY transform
+   makes the element a containing block for position: fixed descendants — which
+   breaks ScrollTrigger pinning inside it (the Schemes card stack). After the
+   animation is removed the transform is genuinely `none` again. */
+.reveal.is-done {
+  opacity: 1;
+  animation: none;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal,
-  .reveal.is-visible {
+  .reveal.is-visible,
+  .reveal.is-done {
     opacity: 1;
     animation: none;
     transform: none;
@@ -480,10 +492,53 @@ All colors MUST be HSL.
   transform: translate3d(0, 0, 38px);
 }
 
+/* ── Hero layers follow the pointer ──────────────────────────────────────────
+   usePointerParallax() writes --pointer-x / --pointer-y (-1..1, centre = 0)
+   onto the hero section. Each layer inside declares its own --depth in pixels,
+   and the two axes are scaled differently (1 and 0.55) because the hero band is
+   far wider than it is tall — matching the axes keeps the motion feeling round
+   rather than stretched.
+
+   These layers also carry the `drift-mark` idle animation, which animates the
+   independent `translate`/`rotate` properties rather than `transform`. The two
+   compose, so the marks keep breathing while also tracking the pointer.
+
+   The transition is what turns discrete pointer samples into a glide: the
+   handler writes a fresh target every frame and the browser eases towards it,
+   so the hero reads as damped rather than snapping to the cursor. */
+.hero-layer {
+  transform: translate3d(
+    calc(var(--pointer-x, 0) * var(--depth, 0) * 1px),
+    calc(var(--pointer-y, 0) * var(--depth, 0) * 0.55px),
+    0
+  );
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* The artwork also leans, so the band has a front face instead of being a flat
+   picture that merely slides. Kept to a few degrees: past that the collage
+   stops reading as a photograph and starts reading as a skew. */
+.hero-tilt {
+  transform: perspective(1600px)
+    rotateY(calc(var(--pointer-x, 0) * 4deg))
+    rotateX(calc(var(--pointer-y, 0) * -2.6deg))
+    translate3d(
+      calc(var(--pointer-x, 0) * var(--depth, 0) * 1px),
+      calc(var(--pointer-y, 0) * var(--depth, 0) * 0.55px),
+      0
+    );
+  transform-style: preserve-3d;
+  transition: transform 450ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .parallax-media,
   .tilt-card,
-  .tilt-layer {
+  .tilt-layer,
+  .hero-layer,
+  .hero-tilt {
     transform: none;
     transition: none;
     will-change: auto;
@@ -492,4 +547,46 @@ All colors MUST be HSL.
   .parallax-frame > .parallax-media {
     inset: 0;
   }
+}
+
+/* ── Public-site typography ──────────────────────────────────────────────────
+   The marketing site runs a different type system from the ERP: Montserrat for
+   UI and body copy, Clash Display for section headings, Anek Malayalam for news
+   card titles — all three loaded in index.html. The `.site-font` class is put on
+   the public site's outermost wrapper only, so the admin keeps Tailwind's
+   default stack and nothing here leaks into a dashboard.
+
+   Display headings run a tight line-height and slightly negative tracking
+   because Clash Display is a display face: at its natural spacing the counters
+   look loose at these sizes. */
+.site-font {
+  font-family: "Montserrat", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.site-font h1,
+.site-font h2,
+.site-font h3,
+.site-font h4 {
+  font-family: "Clash Display", "Montserrat", system-ui, sans-serif;
+  letter-spacing: -0.028em;
+  line-height: 1.02;
+}
+
+/* Weights track the live site: page and hero headings are set at 400–500 —
+   Clash Display is drawn for display sizes and reads heavy above that — while
+   the small card headings need 500 to hold their own next to body copy. */
+.site-font h1 {
+  font-weight: 500;
+}
+
+.site-font h2 {
+  font-weight: 400;
+}
+
+.site-font h3,
+.site-font h4 {
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  line-height: 1.2;
 }
