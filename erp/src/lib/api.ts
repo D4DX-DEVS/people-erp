@@ -1398,6 +1398,25 @@ export const applications = {
     }
     return extendedApiClient.request(`/applications/receipts${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
   },
+  getDistributions: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, (value as string).toString());
+        }
+      });
+    }
+    return extendedApiClient.request(`/applications/distributions${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+  },
+  markDistributed: (
+    applicationId: string,
+    data: { paymentId?: string | null; distributedAt: string; method: string; referenceNumber?: string; notes?: string }
+  ) =>
+    extendedApiClient.request(`/applications/${applicationId}/distribute`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   export: (params?: any) => extendedApiClient.request(buildExportUrl('/applications/export', params)),
   downloadPdf: async (id: string): Promise<Blob> => {
     const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';

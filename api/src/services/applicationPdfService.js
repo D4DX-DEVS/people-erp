@@ -22,6 +22,9 @@ const TOP_MARGIN = 50;
 const FOOTER_RESERVE = 56;     // keep clear of the page-number footer
 const PHOTO_W = 99;            // passport photo box, 35mm x 45mm
 const PHOTO_H = 127;
+const HEAD_TOP = 40;           // top edge of the page-1 header band
+const LOGO_W = 54;             // logo square on the letterhead
+const HEAD_GAP = 12;           // header band to the first table
 const MAX_EMBED_BYTES = 4 * 1024 * 1024; // largest photo embedded in the PDF
 const PHOTO_FETCH_MS = 8000;   // give up on a slow CDN rather than stall the download
 const GRID = [0.22, 0.28, 0.22, 0.28]; // label | value | label | value
@@ -166,8 +169,7 @@ class ApplicationPdfService {
     doc.pipe(stream);
     this._registerFonts(doc);
 
-    this._addLetterhead(doc);
-    this._addTitleBlock(doc, this._formTitle(application.scheme?.name), photo, false);
+    this._addHeader(doc, this._formTitle(application.scheme?.name), photo, false);
     this._renderTable(doc, GRID.map(f => TW * f), this._filledSummaryRows(application));
     const fileEntries = this._addFormData(doc, formConfig, formData, false);
     this._addDocumentsTable(doc, fileEntries, application.documents || [], false);
@@ -202,8 +204,7 @@ class ApplicationPdfService {
     this._registerFonts(doc);
 
     const title = schemeName || formConfig?.title || 'Application';
-    this._addLetterhead(doc);
-    this._addTitleBlock(doc, this._formTitle(title), null, true);
+    this._addHeader(doc, this._formTitle(title), null, true);
     this._renderTable(doc, GRID.map(f => TW * f), [
       this._pairRow('Application No.', '', 'Date', '', BLANK_ROW_H),
       this._pairRow('Scheme', title, 'Requested Amount', '', BLANK_ROW_H)
@@ -267,30 +268,56 @@ class ApplicationPdfService {
     }
   }
 
-  // ─── Letterhead / title block ───────────────────────────────────────────────
+  // ─── Page-1 header ──────────────────────────────────────────────────────────
 
-  /** Logo at the left, organisation name and contact lines centred on the page */
-  _addLetterhead(doc) {
-    const top = 42;
-    let logoH = 0;
+  /**
+   * Logo at the left, organisation identity and the form title centred in the
+   * space beside it, passport photo box in the top-right corner. The title
+   * fills the band next to the lower part of that box, so the whole header
+   * costs no more height than the photo box itself.
+   */
+  _addHeader(doc, title, photo, isBlank) {
+    const bx = R - PHOTO_W;
+    this._drawPhotoBox(doc, bx, HEAD_TOP, photo);
+
+    let logoBottom = HEAD_TOP;
     try {
       if (fs.existsSync(this.logoPath)) {
-        doc.image(this.logoPath, L, top, { fit: [64, 64] });
-        logoH = 64;
+        doc.image(this.logoPath, L, HEAD_TOP, { fit: [LOGO_W, LOGO_W] });
+        logoBottom = HEAD_TOP + LOGO_W;
       }
     } catch (e) { /* no logo */ }
 
-    // Symmetric side gutters keep the text centred on the page, clear of the logo
-    const x = L + 72;
-    const w = CW - 144;
+    // Identity lines centred in the gap between the logo and the photo box
+    const cx = logoBottom > HEAD_TOP ? L + LOGO_W + 10 : L;
+    const cw = bx - 12 - cx;
     doc.fontSize(FS.org).fillColor(C.text);
-    this._t(doc, this.org.name, x, top + 4, { width: w, align: 'center' }, true);
-    doc.y += 3;
+    this._t(doc, this.org.name, cx, HEAD_TOP + 2, { width: cw, align: 'center' }, true);
+    doc.y += 2;
     doc.fontSize(FS.orgLine).fillColor(C.text);
-    this._t(doc, `Reg. No: ${this.org.regNumber} | ${this.org.address}`, x, doc.y, { width: w, align: 'center' });
-    this._t(doc, `Phone: ${this.org.phone} | Email: ${this.org.email}`, x, doc.y, { width: w, align: 'center' });
+    this._t(doc, `Reg. No: ${this.org.regNumber} | ${this.org.address}`, cx, doc.y, { width: cw, align: 'center' });
+    this._t(doc, `Phone: ${this.org.phone} | Email: ${this.org.email}`, cx, doc.y, { width: cw, align: 'center' });
 
-    doc.y = Math.max(doc.y, top + logoH) + 16;
+    // Title sits in what is left of the photo-box band, shrinking a step at a
+    // time so a long scheme name stays inside it instead of pushing it taller.
+    const bandTop = Math.max(doc.y, logoBottom) + 8;
+    const bandH = HEAD_TOP + PHOTO_H - bandTop;
+    const note = isBlank ? 'Please fill in BLOCK LETTERS. Fields marked * are mandatory.' : '';
+    const noteH = note ? this._measure(doc, note, FS.small, cw) + 5 : 0;
+    const sizes = [FS.title, FS.title - 1.5, FS.title - 3, FS.title - 4.5];
+    const size = sizes.find(v => this._measure(doc, title, v, cw, true) + noteH <= bandH) || sizes[sizes.length - 1];
+    const titleH = this._measure(doc, title, size, cw, true);
+
+    const ty = bandTop + Math.max(0, (bandH - titleH - noteH) / 2);
+    doc.fontSize(size).fillColor(C.text);
+    this._t(doc, title, cx, ty, { width: cw, align: 'center' }, true);
+    if (note) {
+      doc.fontSize(FS.small).fillColor(C.muted);
+      this._t(doc, note, cx, ty + titleH + 5, { width: cw, align: 'center' });
+    }
+
+    doc.lineWidth(1).strokeColor(C.text).fillColor(C.text);
+    doc.y = Math.max(HEAD_TOP + PHOTO_H, ty + titleH + noteH) + HEAD_GAP;
   }
 
   /** "<SCHEME> APPLICATION" — no double suffix when the scheme is already named that way */
@@ -299,22 +326,16 @@ class ApplicationPdfService {
     return /\b(APPLICATION|FORM)\b/.test(upper) ? upper : `${upper} APPLICATION`;
   }
 
-  /**
-   * Passport photo box at the right edge with the form title centred in the
-   * space beside it. The photo prints when one was uploaded; otherwise the box
-   * carries the "affix photograph" instruction.
-   */
-  _addTitleBlock(doc, title, photo, isBlank) {
-    const top = doc.y;
-    const bx = R - PHOTO_W;
-    doc.rect(bx, top, PHOTO_W, PHOTO_H).lineWidth(1).fillAndStroke('#ffffff', C.text);
+  /** The uploaded photo prints inside the box; otherwise it carries the instruction */
+  _drawPhotoBox(doc, x, y, photo) {
+    doc.rect(x, y, PHOTO_W, PHOTO_H).lineWidth(1).fillAndStroke('#ffffff', C.text);
 
     let drawn = false;
     if (photo) {
       try {
         doc.save();
-        doc.rect(bx + 1, top + 1, PHOTO_W - 2, PHOTO_H - 2).clip();
-        doc.image(photo, bx + 1, top + 1, { cover: [PHOTO_W - 2, PHOTO_H - 2], align: 'center', valign: 'center' });
+        doc.rect(x + 1, y + 1, PHOTO_W - 2, PHOTO_H - 2).clip();
+        doc.image(photo, x + 1, y + 1, { cover: [PHOTO_W - 2, PHOTO_H - 2], align: 'center', valign: 'center' });
         doc.restore();
         drawn = true;
       } catch (e) {
@@ -323,24 +344,10 @@ class ApplicationPdfService {
     }
     if (!drawn) {
       doc.fontSize(FS.small).fillColor(C.text);
-      ['AFFIX PASSPORT', 'SIZE PHOTOGRAPH'].forEach((line, i) => this._t(doc, line, bx + 4,
-        top + PHOTO_H / 2 - 10 + i * 11, { width: PHOTO_W - 8, align: 'center', lineBreak: false }));
+      ['AFFIX PASSPORT', 'SIZE PHOTOGRAPH'].forEach((line, i) => this._t(doc, line, x + 4,
+        y + PHOTO_H / 2 - 10 + i * 11, { width: PHOTO_W - 8, align: 'center', lineBreak: false }));
     }
-
-    const tw = bx - 20 - L;
-    const titleH = this._measure(doc, title, FS.title, tw, true);
-    const note = isBlank ? 'Please fill in BLOCK LETTERS. Fields marked * are mandatory.' : '';
-    const noteH = note ? this._measure(doc, note, FS.label, tw) + 6 : 0;
-    const ty = top + Math.max(0, (PHOTO_H - titleH - noteH) / 2);
-    doc.fontSize(FS.title).fillColor(C.text);
-    this._t(doc, title, L, ty, { width: tw, align: 'center' }, true);
-    if (note) {
-      doc.fontSize(FS.label).fillColor(C.muted);
-      this._t(doc, note, L, ty + titleH + 6, { width: tw, align: 'center' });
-    }
-
     doc.lineWidth(1).strokeColor(C.text).fillColor(C.text);
-    doc.y = top + PHOTO_H + 14;
   }
 
   // ─── Application summary (unnumbered table under the title) ─────────────────

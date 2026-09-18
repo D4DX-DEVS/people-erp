@@ -376,8 +376,9 @@ paymentSchema.virtual('approvalStatus').get(function() {
   return 'approved';
 });
 
-// Pre-save middleware to generate payment number (atomic via Counter model)
-paymentSchema.pre('save', async function(next) {
+// Generate the payment number before validation — it is a required field, so a
+// pre('save') hook would run too late and every auto-numbered create would fail
+paymentSchema.pre('validate', async function(next) {
   if (this.isNew && !this.paymentNumber) {
     try {
       const year = new Date().getFullYear();

@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
 import { GenericFilters } from "@/components/filters/GenericFilters";
@@ -71,6 +70,22 @@ const stageProgress = (application: Application) => {
   return { completed, total: stages.length };
 };
 
+type PaymentPlan = 'one_time' | 'installments' | 'recurring';
+
+// The three ways approved money can reach a beneficiary, in plain words
+const PAYMENT_PLANS: { value: PaymentPlan; icon: typeof IndianRupee; label: string; hint: string }[] = [
+  { value: 'one_time', icon: IndianRupee, label: 'One-time payment', hint: 'The full amount is given once' },
+  { value: 'installments', icon: Calendar, label: 'Split into installments', hint: 'Given in parts on different dates' },
+  { value: 'recurring', icon: Repeat, label: 'Recurring payment', hint: 'The same amount repeats every month or year' },
+];
+
+const PERIOD_LABELS: Record<string, string> = {
+  monthly: 'month',
+  quarterly: '3 months',
+  semi_annually: '6 months',
+  annually: 'year',
+};
+
 export default function CommitteeApproval() {
   const { hasAnyPermission } = useRBAC();
   const canApprove = hasAnyPermission(['applications.approve', 'committee.approve']);
@@ -95,17 +110,23 @@ export default function CommitteeApproval() {
   // Full application view with the verification stages (opens the shared detail modal)
   const [detailApplicationId, setDetailApplicationId] = useState<string | null>(null);
   
-  // Recurring payment state
-  const [isRecurring, setIsRecurring] = useState(false);
+  // How the approved money reaches the beneficiary
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>('one_time');
+  const [oneTimeDate, setOneTimeDate] = useState('');
+
+  // Recurring plan
   const [recurringPeriod, setRecurringPeriod] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually'>('monthly');
   const [numberOfPayments, setNumberOfPayments] = useState(12);
   const [amountPerPayment, setAmountPerPayment] = useState(0);
   const [recurringStartDate, setRecurringStartDate] = useState('');
-  
-  // Distribution timeline state
+
+  // Installment plan
   const [distributionTimeline, setDistributionTimeline] = useState([
-    { id: 1, phase: "First Installment", percentage: 40, date: "" },
+    { id: 1, phase: "First Installment", percentage: 100, date: "" },
   ]);
+
+  const timelineTotalPercent = distributionTimeline.reduce((sum, phase) => sum + (phase.percentage || 0), 0);
+  const recurringTotal = (amountPerPayment || 0) * (numberOfPayments || 0);
 
   useEffect(() => {
     if (canApprove) {
@@ -173,38 +194,32 @@ export default function CommitteeApproval() {
     setComments("");
     setApprovedAmount(application.requestedAmount); // Initialize with requested amount
     
-    // Reset recurring payment fields
-    setIsRecurring(false);
+    // Reset the payment plan fields
     setRecurringPeriod('monthly');
     setNumberOfPayments(12);
-    setAmountPerPayment(0);
+    setAmountPerPayment(application.requestedAmount);
     // Default to 7 days from today
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
     setRecurringStartDate(sevenDaysFromNow.toISOString().split('T')[0]);
     
-    // Set distribution timeline for approval
+    // Preselect the plan the interview proposed: several phases means installments
     if (decisionType === 'approved') {
-      // Load the distribution timeline from interview (should always exist when forwarded)
-      if (application.distributionTimeline && application.distributionTimeline.length > 0) {
-        // Convert backend format to UI format
-        const existingTimeline = application.distributionTimeline.map((timeline, index) => ({
-          id: index + 1,
-          phase: timeline.description,
-          percentage: timeline.percentage,
-          date: timeline.expectedDate ? new Date(timeline.expectedDate).toISOString().split('T')[0] : ""
-        }));
-        
-        console.log('📋 Loading distribution timeline from interview:', existingTimeline);
-        setDistributionTimeline(existingTimeline);
-      } else {
-        // This shouldn't happen if application was properly forwarded from interview
-        console.warn('⚠️ No distribution timeline found from interview - application may not have been properly forwarded');
-        // Set empty timeline with single phase
-        setDistributionTimeline([
-          { id: 1, phase: "First Installment", percentage: 100, date: "" }
-        ]);
-      }
+      const interviewTimeline = application.distributionTimeline || [];
+
+      setDistributionTimeline(interviewTimeline.length > 0
+        ? interviewTimeline.map((timeline, index) => ({
+            id: index + 1,
+            phase: timeline.description,
+            percentage: timeline.percentage,
+            date: timeline.expectedDate ? new Date(timeline.expectedDate).toISOString().split('T')[0] : ""
+          }))
+        : [{ id: 1, phase: "First Installment", percentage: 100, date: "" }]);
+
+      setPaymentPlan(interviewTimeline.length > 1 ? 'installments' : 'one_time');
+      setOneTimeDate(interviewTimeline[0]?.expectedDate
+        ? new Date(interviewTimeline[0].expectedDate).toISOString().split('T')[0]
+        : "");
     }
     
     setShowDecisionModal(true);
@@ -213,71 +228,94 @@ export default function CommitteeApproval() {
   const handleSubmitDecision = async () => {
     if (!selectedApplication || !decision) return;
 
-    // Validation for recurring payments
-    if (decision === 'approved' && isRecurring) {
+    if (decision === 'approved' && paymentPlan === 'recurring') {
+      if (!amountPerPayment || amountPerPayment <= 0) {
+        toast({
+          title: "Amount missing",
+          description: "Enter how much is paid each time",
+          variant: "destructive",
+        });
+        return;
+      }
       if (!recurringStartDate) {
         toast({
-          title: "Validation Error",
-          description: "Please select a start date for recurring payments",
+          title: "Start date missing",
+          description: "Select when the first payment should start",
           variant: "destructive",
         });
         return;
       }
       if (numberOfPayments < 1 || numberOfPayments > 60) {
         toast({
-          title: "Validation Error",
-          description: "Number of cycles must be between 1 and 60",
+          title: "Check the count",
+          description: "Number of payments must be between 1 and 60",
           variant: "destructive",
         });
         return;
       }
     }
 
+    if (decision === 'approved' && paymentPlan !== 'recurring' && (!approvedAmount || approvedAmount <= 0)) {
+      toast({
+        title: "Amount missing",
+        description: "Enter the approved amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
 
-      // Distribution timeline data (used for both one-time and recurring)
-      const hasDistributionTimeline = distributionTimeline && distributionTimeline.length > 0 && distributionTimeline[0].phase;
-      
-      const timelineData = decision === 'approved' && hasDistributionTimeline ? distributionTimeline.map(phase => ({
-        description: phase.phase,
-        percentage: phase.percentage,
-        amount: Math.round(approvedAmount * (phase.percentage / 100)),
-        expectedDate: phase.date
-      })) : undefined;
+      // One-time and installment plans both travel to the API as a distribution timeline
+      const timelineData = decision === 'approved' && paymentPlan !== 'recurring'
+        ? (paymentPlan === 'one_time'
+            ? [{
+                description: 'Full payment',
+                percentage: 100,
+                amount: approvedAmount,
+                expectedDate: oneTimeDate
+              }]
+            : distributionTimeline.map(phase => ({
+                description: phase.phase,
+                percentage: phase.percentage,
+                amount: Math.round(approvedAmount * (phase.percentage / 100)),
+                expectedDate: phase.date
+              })))
+        : undefined;
 
-      // Recurring config (can be with or without timeline)
-      const recurringConfig = decision === 'approved' && isRecurring ? {
+      // Recurring plan: the same amount simply repeats, no phase pattern
+      const recurringConfig = decision === 'approved' && paymentPlan === 'recurring' ? {
         period: recurringPeriod,
         numberOfPayments: numberOfPayments,
-        // If timeline exists, amount per payment will be calculated from timeline phases
-        // Otherwise use the single amount
-        amountPerPayment: hasDistributionTimeline ? approvedAmount : (amountPerPayment || Math.round(approvedAmount / numberOfPayments)),
+        amountPerPayment: amountPerPayment,
         startDate: recurringStartDate,
         customAmounts: [],
-        // Include timeline if both are set
-        hasDistributionTimeline: hasDistributionTimeline,
-        distributionTimeline: hasDistributionTimeline ? timelineData : undefined
+        hasDistributionTimeline: false
       } : undefined;
 
       const response = await applications.committeeDecision(selectedApplication._id, {
         decision,
         comments,
-        distributionTimeline: !isRecurring ? timelineData : undefined, // Only send timeline if not recurring (to avoid duplication)
-        isRecurring: isRecurring,
+        distributionTimeline: timelineData,
+        isRecurring: paymentPlan === 'recurring',
         recurringConfig: recurringConfig
       });
 
       if (response.success) {
-        const message = isRecurring && hasDistributionTimeline
-          ? `Application approved with ${distributionTimeline.length}-phase timeline recurring ${numberOfPayments} times`
-          : isRecurring
-          ? `Application approved with ${numberOfPayments} recurring payments`
-          : `Application ${decision} successfully`;
-          
+        const message = decision !== 'approved'
+          ? `Application ${decision} successfully`
+          : paymentPlan === 'recurring'
+          ? `Approved — ₹${amountPerPayment.toLocaleString('en-IN')} every ${PERIOD_LABELS[recurringPeriod]}, ${numberOfPayments} times`
+          : paymentPlan === 'installments'
+          ? `Approved — ₹${approvedAmount.toLocaleString('en-IN')} in ${distributionTimeline.length} installments`
+          : `Approved — ₹${approvedAmount.toLocaleString('en-IN')} as a single payment`;
+
         toast({
-          title: "Success",
-          description: message,
+          title: decision === 'approved' ? "Approved" : "Success",
+          description: decision === 'approved' && paymentPlan !== 'recurring'
+            ? `${message}. It now waits under Fund Distribution until the money is handed over.`
+            : message,
         });
         setShowDecisionModal(false);
         loadApplications(); // Reload the list
@@ -791,295 +829,232 @@ export default function CommitteeApproval() {
                 </div>
               )}
 
-              {/* Approved Amount - Only for Approval */}
+              {/* Payment plan — only for approval */}
               {decision === 'approved' && (
-                <div className="space-y-2">
-                  <Label className="font-semibold">Approved Amount <span className="text-destructive">*</span></Label>
-                  <div className="relative">
-                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="number"
-                      placeholder="Enter approved amount"
-                      value={approvedAmount}
-                      onChange={(e) => {
-                        const amount = Number(e.target.value);
-                        setApprovedAmount(amount);
-                        // Auto-calculate amount per payment if recurring is enabled
-                        if (isRecurring && numberOfPayments > 0) {
-                          setAmountPerPayment(Math.round(amount / numberOfPayments));
-                        }
-                      }}
-                      className="pl-10"
-                      min={0}
-                      max={selectedApplication.requestedAmount}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Enter the amount approved by committee (max: ₹{selectedApplication.requestedAmount.toLocaleString('en-IN')})
-                  </p>
-                </div>
-              )}
-
-              {/* Recurring Payment Configuration - Only for Approval */}
-              {decision === 'approved' && (
-                <div className="rounded-lg border-2 border-blue-200 p-5 space-y-4 bg-gradient-to-br from-blue-50 to-blue-50/30">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Repeat className="h-5 w-5 text-blue-600" />
+                <div className="space-y-5">
+                  {/* One-time and installments share a single approved total */}
+                  {paymentPlan !== 'recurring' && (
+                    <div className="space-y-2">
+                      <Label className="font-semibold">Approved Amount <span className="text-destructive">*</span></Label>
+                      <div className="relative">
+                        <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="number"
+                          placeholder="Enter approved amount"
+                          value={approvedAmount}
+                          onChange={(e) => setApprovedAmount(Number(e.target.value))}
+                          className="pl-10"
+                          min={0}
+                          max={selectedApplication.requestedAmount}
+                        />
                       </div>
-                      <div>
-                        <Label htmlFor="recurring" className="text-base font-semibold cursor-pointer flex items-center gap-2">
-                          Recurring Payments
-                        </Label>
-                        <p className="text-xs text-muted-foreground mt-1">Enable for monthly, quarterly, or yearly payments</p>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Total amount the committee approved (requested: ₹{selectedApplication.requestedAmount.toLocaleString('en-IN')})
+                      </p>
                     </div>
-                    <Checkbox
-                      id="recurring"
-                      checked={isRecurring}
-                      onCheckedChange={(checked) => {
-                        setIsRecurring(checked as boolean);
-                        if (checked && approvedAmount > 0 && numberOfPayments > 0) {
-                          setAmountPerPayment(Math.round(approvedAmount / numberOfPayments));
-                        }
-                      }}
-                      className="mt-1"
-                    />
+                  )}
+
+                  {/* The choice */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">How will this money be paid?</Label>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {PAYMENT_PLANS.map((plan) => {
+                        const PlanIcon = plan.icon;
+                        const selected = paymentPlan === plan.value;
+                        return (
+                          <button
+                            key={plan.value}
+                            type="button"
+                            onClick={() => setPaymentPlan(plan.value)}
+                            className={`text-left rounded-lg border-2 p-4 transition-colors ${
+                              selected
+                                ? 'border-primary bg-primary/5 shadow-sm'
+                                : 'border-muted hover:border-muted-foreground/40'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <PlanIcon className={`h-4 w-4 ${selected ? 'text-primary' : 'text-muted-foreground'}`} />
+                              <span className="font-semibold text-sm">{plan.label}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5">{plan.hint}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {isRecurring && (
-                    <div className="space-y-4 pt-4 border-t-2 border-blue-200">
-                      <Alert className="bg-blue-50 border-blue-200">
-                        <AlertCircle className="h-4 w-4 text-blue-600" />
-                        <AlertDescription className="text-sm">
-                          <div className="font-semibold text-blue-900 mb-2">💡 Recurring Payment Modes:</div>
-                          <div className="space-y-2">
-                            <div className="flex items-start gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5"></div>
-                              <div>
-                                <strong>Simple Recurring:</strong> <span className="text-muted-foreground">Same amount repeated (e.g., ₹5,000/month for ration)</span>
-                              </div>
-                            </div>
-                            <div className="flex items-start gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5"></div>
-                              <div>
-                                <strong>With Timeline:</strong> <span className="text-muted-foreground">Phase pattern repeats (e.g., 3-term education fees recurring yearly)</span>
-                              </div>
-                            </div>
-                          </div>
-                        </AlertDescription>
-                      </Alert>
+                  {/* One-time */}
+                  {paymentPlan === 'one_time' && (
+                    <div className="rounded-lg border p-4 bg-muted/30 space-y-2 max-w-sm">
+                      <Label className="font-medium">Expected date of payment</Label>
+                      <Input
+                        type="date"
+                        value={oneTimeDate}
+                        onChange={(e) => setOneTimeDate(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Optional. The actual hand-over is recorded later under Fund Distribution.
+                      </p>
+                    </div>
+                  )}
 
-                      <div className="grid md:grid-cols-2 gap-4">
-                        {/* Recurring Period */}
-                        <div className="space-y-2">
-                          <Label className="font-medium flex items-center gap-2">
-                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs">1</span>
-                            Recurring Period <span className="text-destructive">*</span>
-                          </Label>
-                          <Select value={recurringPeriod} onValueChange={(value: any) => setRecurringPeriod(value)}>
-                            <SelectTrigger className="h-11">
-                              <SelectValue placeholder="Select frequency" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="monthly">📅 Monthly (12 payments/year)</SelectItem>
-                              <SelectItem value="quarterly">📅 Quarterly (4 payments/year)</SelectItem>
-                              <SelectItem value="semi_annually">📅 Semi-Annually (2 payments/year)</SelectItem>
-                              <SelectItem value="annually">📅 Annually (1 payment/year)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">How often should payments repeat?</p>
-                        </div>
-
-                        {/* Number of Payments */}
-                        <div className="space-y-2">
-                          <Label className="font-medium flex items-center gap-2">
-                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs">2</span>
-                            Number of Cycles <span className="text-destructive">*</span>
-                          </Label>
-                          <Input
-                            type="number"
-                            value={numberOfPayments}
-                            onChange={(e) => {
-                              const num = Number(e.target.value);
-                              setNumberOfPayments(num);
-                              if (approvedAmount > 0 && num > 0) {
-                                setAmountPerPayment(Math.round(approvedAmount / num));
-                              }
-                            }}
-                            min={1}
-                            max={60}
-                            placeholder="e.g., 12 for 12 months"
-                            className="h-11"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            <strong>Max 60 cycles.</strong> How many times to repeat?
+                  {/* Installments */}
+                  {paymentPlan === 'installments' && (
+                    <div className="rounded-lg border p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="font-semibold">Installments</Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Give each part a name, its share of the amount, and the date it is expected.
                           </p>
                         </div>
-
-                        {/* Amount Per Payment - Only show if no distribution timeline */}
-                        {distributionTimeline.length === 0 && (
-                          <div className="space-y-2">
-                            <Label className="font-medium">Amount Per Cycle</Label>
-                            <div className="relative">
-                              <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                type="number"
-                                value={amountPerPayment}
-                                onChange={(e) => setAmountPerPayment(Number(e.target.value))}
-                                className="pl-10"
-                                min={0}
-                                placeholder="Auto-calculated"
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {approvedAmount > 0 && numberOfPayments > 0 
-                                ? `Default: ₹${Math.round(approvedAmount / numberOfPayments).toLocaleString('en-IN')}`
-                                : 'Will be auto-calculated'}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Start Date */}
-                        <div className="space-y-2">
-                          <Label className="font-medium flex items-center gap-2">
-                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs">3</span>
-                            Start Date <span className="text-destructive">*</span>
-                          </Label>
-                          <Input
-                            type="date"
-                            value={recurringStartDate}
-                            onChange={(e) => setRecurringStartDate(e.target.value)}
-                            min={new Date().toISOString().split('T')[0]}
-                            className="h-11"
-                          />
-                          <p className="text-xs text-muted-foreground">📅 When should the first cycle start?</p>
-                        </div>
+                        <Button size="sm" variant="outline" onClick={addDistributionPhase}>
+                          Add Installment
+                        </Button>
                       </div>
 
-                      {/* Summary */}
-                      <div className="bg-gradient-to-br from-white to-blue-50 rounded-lg p-4 space-y-2 text-sm border-2 border-blue-200 shadow-sm">
-                        <div className="font-semibold text-blue-700 text-base flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4" />
-                          Summary
-                        </div>
-                        {distributionTimeline.length > 0 ? (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Pattern:</span>
-                              <span className="font-medium">{distributionTimeline.length} phase timeline</span>
+                      <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
+                        <span className="col-span-4">Name</span>
+                        <span className="col-span-2">Share %</span>
+                        <span className="col-span-2">Amount</span>
+                        <span className="col-span-3">Expected date</span>
+                        <span className="col-span-1" />
+                      </div>
+
+                      <div className="space-y-2">
+                        {distributionTimeline.map((phase) => (
+                          <div key={phase.id} className="grid grid-cols-12 gap-2 items-center">
+                            <Input
+                              className="col-span-4"
+                              value={phase.phase}
+                              onChange={(e) => updateDistributionPhase(phase.id, 'phase', e.target.value)}
+                              placeholder="e.g. First installment"
+                            />
+                            <Input
+                              className="col-span-2"
+                              type="number"
+                              value={phase.percentage}
+                              onChange={(e) => updateDistributionPhase(phase.id, 'percentage', Number(e.target.value))}
+                              placeholder="%"
+                              min="0"
+                              max="100"
+                            />
+                            <div className="col-span-2 flex items-center px-3 py-2 border rounded-md bg-muted text-sm font-medium">
+                              ₹{Math.round(approvedAmount * ((phase.percentage || 0) / 100)).toLocaleString('en-IN')}
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Amount per cycle:</span>
-                              <span className="font-medium">₹{approvedAmount.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Repeats:</span>
-                              <span className="font-medium">{numberOfPayments} times ({recurringPeriod})</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Total Amount:</span>
-                              <span className="font-bold text-blue-700">₹{(approvedAmount * numberOfPayments).toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-2 p-2 bg-blue-50 rounded">
-                              Example: Each year will have {distributionTimeline.length} payments following the timeline below, repeated {numberOfPayments} times.
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Amount per payment:</span>
-                              <span className="font-medium">₹{(amountPerPayment || Math.round(approvedAmount / numberOfPayments)).toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Payments:</span>
-                              <span className="font-medium">{numberOfPayments} payments ({recurringPeriod})</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Total Amount:</span>
-                              <span className="font-bold text-blue-700">₹{(approvedAmount * numberOfPayments).toLocaleString('en-IN')}</span>
-                            </div>
-                          </>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Starts:</span>
-                          <span className="font-medium">{recurringStartDate ? new Date(recurringStartDate).toLocaleDateString('en-IN') : 'Not set'}</span>
-                        </div>
+                            <Input
+                              className="col-span-3"
+                              type="date"
+                              value={phase.date}
+                              onChange={(e) => updateDistributionPhase(phase.id, 'date', e.target.value)}
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="col-span-1"
+                              onClick={() => removeDistributionPhase(phase.id)}
+                              disabled={distributionTimeline.length === 1}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Distribution Timeline - Only for Approval (can work with or without recurring) */}
-              {decision === 'approved' && (
-                <div className="space-y-3 rounded-lg border-2 border-purple-200 p-5 bg-gradient-to-br from-purple-50 to-purple-50/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <Calendar className="h-5 w-5 text-purple-600" />
+                  {/* Recurring */}
+                  {paymentPlan === 'recurring' && (
+                    <div className="rounded-lg border p-4 space-y-4">
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label className="font-medium">Amount each time <span className="text-destructive">*</span></Label>
+                          <div className="relative">
+                            <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              value={amountPerPayment}
+                              onChange={(e) => setAmountPerPayment(Number(e.target.value))}
+                              className="pl-10"
+                              min={0}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="font-medium">How often <span className="text-destructive">*</span></Label>
+                          <Select value={recurringPeriod} onValueChange={(value: any) => setRecurringPeriod(value)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="monthly">Every month</SelectItem>
+                              <SelectItem value="quarterly">Every 3 months</SelectItem>
+                              <SelectItem value="semi_annually">Every 6 months</SelectItem>
+                              <SelectItem value="annually">Every year</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="font-medium">How many times <span className="text-destructive">*</span></Label>
+                          <Input
+                            type="number"
+                            value={numberOfPayments}
+                            onChange={(e) => setNumberOfPayments(Number(e.target.value))}
+                            min={1}
+                            max={60}
+                          />
+                          <p className="text-xs text-muted-foreground">Maximum 60</p>
+                        </div>
                       </div>
-                      <div>
-                        <Label className="text-base font-semibold">Distribution Timeline (Optional)</Label>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {isRecurring 
-                            ? `⚡ This timeline will repeat ${numberOfPayments} times (${recurringPeriod})` 
-                            : 'Break down payment into phases with dates'}
-                        </p>
+
+                      <div className="space-y-2 max-w-sm">
+                        <Label className="font-medium">First payment on <span className="text-destructive">*</span></Label>
+                        <Input
+                          type="date"
+                          value={recurringStartDate}
+                          onChange={(e) => setRecurringStartDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                        />
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" onClick={addDistributionPhase}>
-                      Add Phase
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {distributionTimeline.map((phase, index) => (
-                      <div key={phase.id} className="grid grid-cols-12 gap-2 items-center">
-                        <Input
-                          className="col-span-4"
-                          value={phase.phase}
-                          onChange={(e) => updateDistributionPhase(phase.id, 'phase', e.target.value)}
-                          placeholder="Phase name"
-                        />
-                        <Input
-                          className="col-span-2"
-                          type="number"
-                          value={phase.percentage}
-                          onChange={(e) => updateDistributionPhase(phase.id, 'percentage', Number(e.target.value))}
-                          placeholder="%"
-                          min="0"
-                          max="100"
-                        />
-                        <div className="col-span-2 flex items-center px-3 py-2 border rounded-md bg-muted text-sm font-medium">
-                          ₹{Math.round(approvedAmount * ((phase.percentage || 0) / 100)).toLocaleString('en-IN')}
-                        </div>
-                        <Input
-                          className="col-span-3"
-                          type="date"
-                          value={phase.date}
-                          onChange={(e) => updateDistributionPhase(phase.id, 'date', e.target.value)}
-                        />
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="col-span-1"
-                          onClick={() => removeDistributionPhase(phase.id)}
-                          disabled={distributionTimeline.length === 1}
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Distribution Total Validation */}
+                  )}
+
+                  {/* Plain-language summary of what is being approved */}
                   {(() => {
-                    const total = distributionTimeline.reduce((sum, phase) => sum + (phase.percentage || 0), 0);
-                    const isValid = total === 100;
+                    const installmentsValid = timelineTotalPercent === 100;
+                    const ok = paymentPlan !== 'installments' || installmentsValid;
                     return (
-                      <div className={`text-sm font-medium p-3 rounded-lg border ${isValid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                        Total Distribution: {total}% {isValid ? '✓' : '(Must be 100%)'} = ₹{Math.round(approvedAmount * (total / 100)).toLocaleString('en-IN')}
+                      <div
+                        className={`rounded-lg border p-3 text-sm ${
+                          ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'
+                        }`}
+                      >
+                        {paymentPlan === 'one_time' && (
+                          <>
+                            <strong>₹{approvedAmount.toLocaleString('en-IN')}</strong> will be given in a single payment
+                            {oneTimeDate ? ` around ${new Date(oneTimeDate).toLocaleDateString('en-IN')}` : ''}.
+                          </>
+                        )}
+                        {paymentPlan === 'installments' && (
+                          installmentsValid ? (
+                            <>
+                              <strong>₹{approvedAmount.toLocaleString('en-IN')}</strong> will be given in{' '}
+                              {distributionTimeline.length} installment{distributionTimeline.length > 1 ? 's' : ''}.
+                            </>
+                          ) : (
+                            <>The installment shares add up to {timelineTotalPercent}%. They must total 100%.</>
+                          )
+                        )}
+                        {paymentPlan === 'recurring' && (
+                          <>
+                            <strong>₹{(amountPerPayment || 0).toLocaleString('en-IN')}</strong> every{' '}
+                            {PERIOD_LABELS[recurringPeriod]}, {numberOfPayments} time{numberOfPayments > 1 ? 's' : ''} ={' '}
+                            <strong>₹{recurringTotal.toLocaleString('en-IN')}</strong> in total
+                            {recurringStartDate ? `, starting ${new Date(recurringStartDate).toLocaleDateString('en-IN')}` : ''}.
+                          </>
+                        )}
                       </div>
                     );
                   })()}
@@ -1118,10 +1093,11 @@ export default function CommitteeApproval() {
             <Button
               onClick={handleSubmitDecision}
               disabled={
-                submitting || 
-                !comments.trim() || 
-                (decision === 'approved' && 
-                  distributionTimeline.reduce((sum, phase) => sum + (phase.percentage || 0), 0) !== 100)
+                submitting ||
+                !comments.trim() ||
+                (decision === 'approved' && paymentPlan === 'installments' && timelineTotalPercent !== 100) ||
+                (decision === 'approved' && paymentPlan !== 'recurring' && !(approvedAmount > 0)) ||
+                (decision === 'approved' && paymentPlan === 'recurring' && (!(amountPerPayment > 0) || !recurringStartDate))
               }
               className={decision === 'approved' ? "bg-success hover:bg-success/90" : ""}
               variant={decision === 'rejected' ? "destructive" : "default"}

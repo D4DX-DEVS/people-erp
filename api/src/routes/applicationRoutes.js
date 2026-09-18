@@ -24,7 +24,9 @@ const {
   getApplicationConsolidation,
   getApplicationDuplicates,
   updateApplicationLocation,
-  getApplicationReceipts
+  getApplicationReceipts,
+  getFundDistributions,
+  markFundDistributed
 } = require('../controllers/applicationController');
 const { authenticate, crossFranchiseResolver, authorize } = require('../middleware/auth');
 const { syncApplicationStages } = require('../middleware/syncStages');
@@ -121,6 +123,13 @@ router.get('/receipts',
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
   getApplicationReceipts
 );
+// Fund distribution — approved amounts waiting to be handed over (must be before /:id)
+router.get('/distributions',
+  authenticate, crossFranchiseResolver,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
+  getFundDistributions
+);
+
 // Renewal management routes (must come before /:id routes)
 router.get('/renewal-due',
   authenticate, crossFranchiseResolver,
@@ -374,6 +383,20 @@ router.get('/committee/pending',
   }
 );
 
+// Record that an approved amount has been distributed (money moves outside the system)
+router.patch('/:id/distribute',
+  authenticate, crossFranchiseResolver,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin'),
+  [
+    body('paymentId').optional().isMongoId().withMessage('Valid payment ID is required'),
+    body('distributedAt').optional().isISO8601().withMessage('Valid distribution date is required'),
+    body('method').optional().isIn(['bank_transfer', 'cheque', 'cash', 'digital_wallet', 'upi']).withMessage('Invalid payment method'),
+    body('referenceNumber').optional().trim().isLength({ max: 100 }).withMessage('Reference must be less than 100 characters'),
+    body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be less than 500 characters')
+  ],
+  markFundDistributed
+);
+
 // Committee decision on application
 router.patch('/:id/committee-decision', 
   authenticate, crossFranchiseResolver, 
@@ -499,6 +522,7 @@ router.patch('/:id/committee-decision',
               },
               status: 'pending',
               initiatedBy: req.user._id,
+              franchise: req.franchiseId || application.franchise,
               location: {
                 state: application.location?.state,
                 district: application.location?.district,

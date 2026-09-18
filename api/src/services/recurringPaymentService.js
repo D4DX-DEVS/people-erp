@@ -341,7 +341,8 @@ class RecurringPaymentService {
           processedAt: new Date()
         },
         initiatedBy: userId,
-        processedBy: userId
+        processedBy: userId,
+        franchise: recurringPayment.application?.franchise || recurringPayment.franchise
       });
       
       await payment.save({ session });

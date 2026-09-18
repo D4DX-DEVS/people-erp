@@ -967,6 +967,7 @@ router.post('/create-from-interview',
               expectedCompletionDate: new Date(timeline.expectedDate)
             },
             initiatedBy: req.user._id,
+            franchise: req.franchiseId || interview.application?.franchise,
             metadata: {
               notes: `Payment created from interview ${interview.interviewNumber}`,
               tags: ['interview-generated'],
@@ -992,6 +993,7 @@ router.post('/create-from-interview',
             expectedCompletionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
           },
           initiatedBy: req.user._id,
+          franchise: req.franchiseId || interview.application?.franchise,
           metadata: {
             notes: `Full payment created from interview ${interview.interviewNumber}`,
             tags: ['interview-generated'],

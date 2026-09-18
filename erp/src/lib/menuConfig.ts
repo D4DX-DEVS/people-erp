@@ -24,6 +24,7 @@ import {
   Bug,
   ClipboardList,
   ReceiptText,
+  HandCoins,
   HelpCircle,
   Images,
   Video,
@@ -356,6 +357,17 @@ export const menuCategories: MenuCategory[] = [
             keywords: ["forecast", "prediction", "budget"],
           },
         ],
+      },
+      {
+        to: "/fund-distribution",
+        icon: HandCoins,
+        label: "Fund Distribution",
+        permissions: [
+          "finances.read.all",
+          "finances.read.regional",
+          "finances.manage",
+        ],
+        keywords: ["distribution", "approved", "handover", "disburse", "given"],
       },
       {
         to: "/receipts",
