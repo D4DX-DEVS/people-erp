@@ -48,7 +48,15 @@ export interface SiteHomeData {
   schemes: Array<{ _id: string; name?: string; title?: string; description?: string; category?: string; imageUrl?: string }>;
   news: Array<{ _id: string; title: string; description?: string; category?: string; imageUrl?: string; publishDate?: string; featured?: boolean }>;
   blogs: Array<{ _id: string; title: string; slug: string; excerpt?: string; author?: string; coverImageUrl?: string; category?: string; publishDate?: string }>;
-  gallery: Array<{ _id: string; title: string; category?: string; coverImageUrl?: string; imageCount?: number }>;
+  gallery: Array<{
+    _id: string;
+    title: string;
+    category?: string;
+    coverImageUrl?: string;
+    imageCount?: number;
+    /** A few frames from the album, used by the home photo wall. */
+    images?: string[];
+  }>;
   videos: Array<{ _id: string; title: string; description?: string; videoUrl: string; thumbnailUrl?: string; category?: string; featured?: boolean }>;
   partners: Array<{ _id: string; name: string; logoUrl?: string; link?: string }>;
   brochures: Array<{ _id: string; title: string; description?: string; fileUrl: string; fileName?: string; category?: string }>;

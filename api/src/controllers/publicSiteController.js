@@ -74,7 +74,11 @@ exports.getHome = async (req, res) => {
       title: a.title,
       category: a.category,
       coverImageUrl: a.coverImageUrl || (a.images && a.images[0] && a.images[0].imageUrl) || '',
-      imageCount: (a.images || []).length
+      imageCount: (a.images || []).length,
+      // A few frames from each album, so the home gallery band can lay out a
+      // wall of photographs instead of one cover per album. Capped low on
+      // purpose: this is a summary payload, not the album contents.
+      images: (a.images || []).slice(0, 4).map(i => i.imageUrl).filter(Boolean)
     }));
 
     res.json({

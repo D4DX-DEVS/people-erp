@@ -5,7 +5,11 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { MobileBottomNav } from "@/components/site/MobileBottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
 import { ScrollProgress } from "@/components/site/ScrollProgress";
+import { ZakatFab } from "@/components/site/ZakatFab";
 import { useSiteData } from "@/hooks/useSiteData";
+import { useConfig } from "@/contexts/ConfigContext";
+import { usesFloatingZakatButton } from "@/config/orgFeatures";
+import { isHomeSectionVisible } from "@/types/siteHome";
 import { cn } from "@/lib/utils";
 
 interface SiteShellProps {
@@ -19,9 +23,14 @@ interface SiteShellProps {
  * cached aggregated home payload (react-query dedupes across pages).
  */
 export function SiteShell({ children, loading = false }: SiteShellProps) {
+  const { org } = useConfig();
   const { data, isLoading } = useSiteData();
   const s = data?.settings || {};
   const donateLink = s.donation?.paymentLink || s.hero?.ctaLink;
+  // Same gate the header uses for its icon button, so the shortcut never
+  // disappears when a franchise switches the calculator section off.
+  const floatingZakat =
+    isHomeSectionVisible(s.homeLayout, "calculator") && usesFloatingZakatButton(org.key);
 
   if (isLoading || loading) {
     return (
@@ -39,6 +48,7 @@ export function SiteShell({ children, loading = false }: SiteShellProps) {
       <SiteFooter settings={s} />
       <MobileBottomNav />
       <BackToTop />
+      {floatingZakat && <ZakatFab />}
     </div>
   );
 }

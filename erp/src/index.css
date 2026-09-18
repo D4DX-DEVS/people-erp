@@ -460,6 +460,42 @@ All colors MUST be HSL.
   }
 }
 
+/* ── Associate logo marquee ────────────────────────────────────────────────
+   Two rows of partner logos drifting right to left without end. Each track
+   holds its logo list twice and translates by exactly -50%, so the second copy
+   lands precisely where the first began and the loop shows no seam. That exact
+   figure is why the spacing lives on each tile as a trailing margin rather than
+   in a flex `gap`: with a gap the two copies would be separated by one extra
+   gap that -50% does not account for, and the row would hitch on every lap.
+
+   Unlike the hero's logo strip this one is a plain CSS transform rather than
+   scripted scrollLeft. Nothing here has to agree with a manual control — there
+   are no arrows — so the compositor can own the whole animation. */
+@keyframes associate-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+.associate-track {
+  display: flex;
+  width: max-content;
+  animation: associate-drift var(--marquee-duration, 64s) linear infinite;
+  animation-delay: var(--marquee-delay, 0s);
+}
+
+/* The logos are links a visitor may want to hit, so the drift stops under the
+   pointer and while anything in the row holds focus. */
+.associate-marquee:hover .associate-track,
+.associate-marquee:focus-within .associate-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .associate-track {
+    animation: none;
+  }
+}
+
 /* ── Parallax cards ──────────────────────────────────────────────────────────
    useParallax() writes --parallax-y onto the media node as the card travels
    through the viewport; useTilt() writes --tilt-x/--tilt-y as the pointer moves
@@ -589,4 +625,25 @@ All colors MUST be HSL.
   font-weight: 500;
   letter-spacing: -0.012em;
   line-height: 1.2;
+}
+
+/* ── Campaign tile ───────────────────────────────────────────────────────────
+   The marketing site's campaign cards are rounded rectangles with a circular
+   bite taken out of the top-right corner. It is a mask rather than a second
+   element sitting on top, so the notch reads as a hole through whatever is
+   behind it — a white patch would break the moment the band changed colour. */
+.campaign-tile {
+  border-radius: 1.5rem;
+  -webkit-mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
+  mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
+}
+
+/* CTA red sampled from the live site's "Click here" button. */
+.campaign-cta {
+  background-color: #e1213a;
+  color: #fff;
+}
+
+.campaign-cta:hover {
+  background-color: #c81632;
 }

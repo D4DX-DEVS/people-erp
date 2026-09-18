@@ -1,14 +1,23 @@
-import { Facebook, Instagram, Youtube, Twitter, Linkedin, Mail, Phone, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Twitter } from "lucide-react";
 import { useConfig } from "@/contexts/ConfigContext";
 import { cn } from "@/lib/utils";
 import { resolveOfficeContact } from "@/config/orgContact";
 import { BrandMark } from "@/components/site/BrandMark";
+import {
+  FacebookBrandIcon,
+  InstagramBrandIcon,
+  LinkedinBrandIcon,
+  YoutubeBrandIcon,
+} from "@/components/site/SocialBrandIcons";
 import type { SiteSettings } from "@/hooks/useSiteData";
 
 interface SiteFooterProps {
   settings?: SiteSettings;
 }
+
+/** The shared link treatment for both navigation columns. */
+const linkClass = "text-[17px] leading-[1.5] text-[#B3B3B3] transition-colors hover:text-white";
 
 export function SiteFooter({ settings }: SiteFooterProps) {
   const { org } = useConfig();
@@ -19,6 +28,10 @@ export function SiteFooter({ settings }: SiteFooterProps) {
   const social = settings?.socialMedia || {};
   const footer = settings?.footer || {};
   const year = new Date().getFullYear();
+
+  const address = contact.address || org.address || office.address;
+  const phone = contact.phone || org.phone;
+  const email = contact.email || org.email;
 
   // org.copyrightText is built from the org's copyrightHolder (orgConfig.js /
   // the franchise record), which is the name that belongs on a copyright line —
@@ -46,13 +59,32 @@ export function SiteFooter({ settings }: SiteFooterProps) {
     </>
   );
 
+  // Ordered to match the live foundation site, which leads with Facebook and
+  // LinkedIn. Twitter is kept last rather than dropped: this list has always
+  // been filtered by which handles the franchise actually filled in, and an
+  // empty entry simply does not render.
   const socials = [
-    { url: social.facebook, Icon: Facebook, label: "Facebook" },
-    { url: social.instagram, Icon: Instagram, label: "Instagram" },
-    { url: social.youtube, Icon: Youtube, label: "YouTube" },
+    { url: social.facebook, Icon: FacebookBrandIcon, label: "Facebook" },
+    { url: social.linkedin, Icon: LinkedinBrandIcon, label: "LinkedIn" },
+    { url: social.instagram, Icon: InstagramBrandIcon, label: "Instagram" },
+    { url: social.youtube, Icon: YoutubeBrandIcon, label: "YouTube" },
+    // Twitter has no solid brand mark in the source design, so it keeps the
+    // stroked lucide glyph rather than borrow another network's logo.
     { url: social.twitter, Icon: Twitter, label: "Twitter" },
-    { url: social.linkedin, Icon: Linkedin, label: "LinkedIn" },
   ].filter((s) => s.url);
+
+  const primaryLinks = [
+    { label: "Home", href: "/" },
+    { label: "About Us", href: "/p/about-us" },
+    { label: "Projects", href: "/projects-hub" },
+    { label: "Updates", href: "/news" },
+  ];
+
+  const legalLinks = [
+    { label: "Privacy Policy", href: "/privacy-policy" },
+    { label: "Terms and Conditions", href: "/p/terms-and-conditions" },
+    { label: "Refund and Cancellation Policy", href: "/p/refund-and-cancellation-policy" },
+  ];
 
   return (
     <>
@@ -69,142 +101,96 @@ export function SiteFooter({ settings }: SiteFooterProps) {
           selector would catch. The mobile strip below carries the same marker:
           BackToTop measures whichever of the two the current width renders, so
           it parks above the copyright line at every size. */}
-      <footer data-site-footer className="hidden bg-gradient-hero text-primary-foreground lg:block">
-        {/* divide-x draws the 1px rule on every column but the first. It only
-            applies from lg up, where the columns actually sit side by side — on
-            the stacked mobile layout it would render as stray left borders. */}
-        <div className="container mx-auto grid gap-10 px-4 py-14 md:grid-cols-2 lg:grid-cols-5 lg:divide-x lg:divide-white/15">
-          {/* Brand */}
-          <div className="space-y-4 lg:col-span-2">
-            {/* The footer variant is the light-on-dark lockup, so it needs no
-                plate behind it and no filter — the earlier brightness-0/invert
-                trick flattened the emblem's detail into a silhouette. */}
-            <BrandMark variant="footer" className="h-14 w-auto object-contain" />
-            <p className="text-sm leading-relaxed text-primary-foreground/80">
-              {footer.description || org.aboutText || org.tagline}
-            </p>
-            {socials.length > 0 && (
-              <div className="flex gap-2 pt-1">
-                {socials.map(({ url, Icon, label }) => (
-                  <a
-                    key={label}
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={label}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-primary-foreground transition-colors hover:bg-[hsl(var(--warning))]"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </a>
-                ))}
+      <footer data-site-footer className="hidden lg:block">
+        {/* A full-bleed black card that only rounds its top corners, so the page
+            background shows through the notches. Ported from the live
+            foundation site: 62px radius, 10px inset either side, and a 1300px
+            content cap that only starts to bite on wide desktop. */}
+        <div className="rounded-t-[62px] bg-black px-2.5 font-site">
+          <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-5 pt-[60px] pb-[50px]">
+            {/* Column widths are the live site's 30 / 15 / 25 / 30 split. The
+                first navigation column carries the extra left padding that
+                keeps "Home" clear of the wide logo column. */}
+            <div className="flex w-full items-start">
+              <div className="w-[30%] shrink-0 p-2.5">
+                <BrandMark variant="footer" className="h-[69px] w-auto object-contain" />
               </div>
-            )}
-          </div>
 
-          {/* Quick links */}
-          <div className="lg:pl-10">
-            <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide">Quick Links</h4>
-            <ul className="space-y-2 text-sm text-primary-foreground/80">
-              {[
-                { label: "Home", href: "/" },
-                { label: "About Us", href: "/#about" },
-                { label: "Zakat", href: "/#calculator" },
-                { label: "Projects", href: "/projects-hub" },
-                { label: "Schemes", href: "/schemes" },
-                { label: "News & Events", href: "/news" },
-                { label: "Branches", href: "/p/contact-us" },
-              ].map((l) => (
-                <li key={l.label}>
-                  {l.href.includes("#") ? (
-                    <a href={l.href} className="transition-colors hover:text-white">{l.label}</a>
-                  ) : (
-                    <Link to={l.href} className="transition-colors hover:text-white">{l.label}</Link>
+              <div className="w-[15%] shrink-0 p-2.5 pl-10">
+                <ul className="space-y-[3px]">
+                  {primaryLinks.map((l) => (
+                    <li key={l.label}>
+                      <Link to={l.href} className={linkClass}>
+                        {l.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="w-[25%] shrink-0 p-2.5">
+                <ul className="space-y-[3px]">
+                  {legalLinks.map((l) => (
+                    <li key={l.label}>
+                      <Link to={l.href} className={linkClass}>
+                        {l.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* min-w-0 down the column, plus a break rule on the address: a
+                  place name like "Ponmuliparambu" and an email address are each
+                  wider than this track, and a grid/flex track sizes to its
+                  content by default, which pushed the footer past the viewport
+                  and put a horizontal scrollbar on every page. It has to be
+                  `anywhere` rather than `break-words` — only that shrinks an
+                  element's min-content width, which is what the track measures. */}
+              <div className="w-[30%] min-w-0 shrink-0 p-2.5">
+                <ul className="space-y-[7px] text-[17px] leading-[1.5] text-[#B3B3B3]">
+                  {address && <li className="min-w-0 [overflow-wrap:anywhere]">{address}</li>}
+                  {email && (
+                    <li className="min-w-0 [overflow-wrap:anywhere]">
+                      <a href={`mailto:${email}`} className="transition-colors hover:text-white">
+                        {email}
+                      </a>
+                    </li>
                   )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Resources */}
-          <div className="lg:pl-10">
-            <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide">Resources</h4>
-            <ul className="space-y-2 text-sm text-primary-foreground/80">
-              {[
-                { label: "Zakat Calculator", href: "/#calculator" },
-                { label: "Brochures & Reports", href: "/download" },
-                { label: "Gallery", href: "/gallery" },
-                { label: "FAQ", href: "/#faq" },
-                { label: "Privacy Policy", href: "/privacy-policy" },
-              ].map((l) => (
-                <li key={l.label}>
-                  {l.href.includes("#") ? (
-                    <a href={l.href} className="transition-colors hover:text-white">{l.label}</a>
-                  ) : (
-                    <Link to={l.href} className="transition-colors hover:text-white">{l.label}</Link>
+                  {phone && (
+                    <li>
+                      <a href={`tel:${phone}`} className="transition-colors hover:text-white">
+                        {phone}
+                      </a>
+                    </li>
                   )}
-                </li>
-              ))}
-              {(footer.links || []).map((l, i) => (
-                <li key={i}>
-                  {l.url?.startsWith("/") ? (
-                    <Link to={l.url} className="transition-colors hover:text-white">{l.label}</Link>
-                  ) : (
-                    <a href={l.url} className="transition-colors hover:text-white">{l.label}</a>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Get in touch */}
-          {/* min-w-0 all the way down, plus a break rule on the two fields that
-              can be single long tokens. An email address and a place name like
-              "Ponmuliparambu" are each wider than this 1/5 column, and a grid
-              track grows to its content by default — that widened the footer
-              past the viewport and put a horizontal scrollbar on every page.
-              It has to be `anywhere`/`break-all` rather than `break-words`:
-              only those two shrink an element's min-content width, which is what
-              the track is actually sized from. */}
-          <div className="min-w-0 lg:pl-10">
-            <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide">Get in touch</h4>
-            <ul className="space-y-3 text-sm text-primary-foreground/80">
-              {(contact.address || org.address || office.address) && (
-                <li className="flex min-w-0 gap-2">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--warning))]" />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{contact.address || org.address || office.address}</span>
-                </li>
-              )}
-              {(contact.phone || org.phone) && (
-                <li className="flex min-w-0 gap-2">
-                  <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--warning))]" />
-                  <a href={`tel:${contact.phone || org.phone}`} className="hover:text-white">{contact.phone || org.phone}</a>
-                </li>
-              )}
-              {(contact.email || org.email) && (
-                <li className="flex min-w-0 gap-2">
-                  <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--warning))]" />
-                  <a href={`mailto:${contact.email || org.email}`} className="min-w-0 break-all hover:text-white">{contact.email || org.email}</a>
-                </li>
-              )}
-            </ul>
-          </div>
-        </div>
-
-        <div className="border-t border-white/15 py-5">
-          {/* Three even tracks so the legal links sit dead centre of the bar,
-              not merely centred in the space left over between its neighbours. */}
-          <div className="container mx-auto grid gap-3 px-4 text-center text-xs text-primary-foreground/70 sm:grid-cols-3 sm:items-center">
-            <span className="sm:text-left">{copyright}</span>
-
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link to="/privacy-policy" className="hover:text-white">Privacy Policy</Link>
-              <Link to="/p/terms-and-conditions" className="hover:text-white">Terms &amp; Conditions</Link>
-              <Link to="/p/disclaimer" className="hover:text-white">Disclaimer</Link>
+                </ul>
+              </div>
             </div>
 
-            <span className="sm:text-right">
-              {poweredBy("text-primary-foreground/90 hover:text-white")}
-            </span>
+            {/* Copyright and socials, split to the two edges with no rule
+                between this row and the columns above — the live site separates
+                them with spacing alone. */}
+            <div className="flex w-full items-center justify-between gap-5 pt-2.5">
+              <span className="text-base text-[#9D9B9B]">{copyright}</span>
+
+              {socials.length > 0 && (
+                <div className="flex shrink-0 items-center gap-[26px]">
+                  {socials.map(({ url, Icon, label }) => (
+                    <a
+                      key={label}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={label}
+                      className="text-white transition-opacity hover:opacity-70"
+                    >
+                      <Icon className="h-[25px] w-[25px]" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </footer>

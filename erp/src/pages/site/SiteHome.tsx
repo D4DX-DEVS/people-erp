@@ -14,6 +14,7 @@ import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { MobileBottomNav } from "@/components/site/MobileBottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
+import { ZakatFab } from "@/components/site/ZakatFab";
 import { ScrollProgress } from "@/components/site/ScrollProgress";
 import { HeroSlider } from "@/components/site/HeroSlider";
 import { useSiteData, getYouTubeId, videoThumb } from "@/hooks/useSiteData";
@@ -26,12 +27,15 @@ import { AnimatedCounter } from "@/components/site/AnimatedCounter";
 import { Reveal } from "@/components/site/Reveal";
 import { AnimatedTitle } from "@/components/site/AnimatedTitle";
 import { SchemesStack } from "@/components/site/SchemesStack";
-import { ClientLogosCarousel } from "@/components/site/ClientLogosCarousel";
+import { AssociatesMarquee } from "@/components/site/AssociatesMarquee";
 import { VolunteerDonateBand } from "@/components/site/VolunteerDonateBand";
 import { resolveDonationDefaults } from "@/config/donationDefaults";
 import { iconBadgeStyle } from "@/lib/siteColors";
-import { resolveHomeLayout, type HomeSectionKey } from "@/types/siteHome";
+import { resolveHomeLayout, isHomeSectionVisible, type HomeSectionKey } from "@/types/siteHome";
+import { usesFloatingZakatButton } from "@/config/orgFeatures";
 import { schemePath } from "@/lib/siteSchemes";
+import { categoryLabel, projectImage, projectPath } from "@/lib/siteProjects";
+import { CampaignCarousel } from "@/components/site/CampaignCarousel";
 import { cn } from "@/lib/utils";
 
 const iconFor = (name?: string) => resolveIcon(name);
@@ -215,6 +219,28 @@ export default function SiteHome() {
           </div>
         </section>
       ),
+    // Lead campaigns, laid out like the organisation's marketing site: a large
+    // display headline over a wide campaign tile with the corner notch and the
+    // red call to action. Slides come from the newest projects, so the band is
+    // maintained from the same records as the projects section rather than a
+    // second copy of the same content.
+    campaigns: () => projects.length > 0 && (
+      <section id="campaigns" className="scroll-mt-20 py-8 sm:py-12">
+        <div className="container mx-auto px-4">
+          <CampaignCarousel
+            slides={projects.slice(0, 3).map((p) => ({
+              _id: p._id,
+              headline: p.name,
+              kicker: categoryLabel(p.category),
+              detail: p.description,
+              imageUrl: projectImage(p),
+              href: projectPath(p),
+            }))}
+            onOpen={(href) => navigate(href)}
+          />
+        </div>
+      </section>
+    ),
     about: () => (
       <section id="about" className="scroll-mt-20 py-6">
         {/* The band used to carry four jobs at once — lead copy, artwork, the
@@ -232,10 +258,10 @@ export default function SiteHome() {
             <AnimatedTitle
               as="h2"
               delay={90}
-              className="text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-4xl"
+              className="font-display text-[32px] font-normal leading-[1.05] tracking-[-1.1px] sm:text-[38px] sm:leading-[38px]"
               text={s.aboutUs?.title || `About ${org.displayName || org.erpTitle}`}
             />
-            <Reveal as="p" delay={180} className="leading-relaxed text-muted-foreground">
+            <Reveal as="p" delay={180} className="font-site text-[18px] leading-[1.6] text-[#505256] lg:text-[22px] lg:leading-[33px]">
               {s.aboutUs?.description || org.aboutText || org.tagline}
             </Reveal>
             <Reveal delay={260} className="flex flex-wrap gap-3 pt-1">
@@ -290,26 +316,41 @@ export default function SiteHome() {
             </div>
           )}
 
-          {/* Values: two per row even on the narrowest screen. One per row put
-              four 180px panels under everything else and doubled the band. */}
+          {/* Values, in the live site's "Our Impacts" treatment: an icon, a large
+              accent-coloured figure and a label, held apart by hairlines instead
+              of boxed into cards. Lifted onto the same warm accent the display
+              headings already use for their second half, so the strip reads as
+              part of this palette rather than a transplant.
+
+              Two per row on the narrowest screen — one per row put four tall
+              columns under everything else and doubled the band. */}
           {values.length > 0 && (
-            <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-6 lg:grid-cols-4">
+            <div className="mt-10 grid grid-cols-2 gap-y-10 lg:grid-cols-4 lg:gap-y-0">
               {values.map((v, i) => {
                 const Icon = iconFor(v.icon);
                 return (
-                  <Reveal key={i} delay={i * 80} className="h-full">
-                    {/* Numbered, ruled panels rather than cards: the values are a
-                        list of principles, and bordered boxes alongside the
-                        bordered Vision/Mission pair read as two card grids. */}
-                    <div className="group h-full border-t-2 border-border/70 pt-3 transition-colors duration-300 hover:border-primary">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={iconBadgeStyle(v.color)}><Icon className="h-4 w-4" /></div>
-                        <span className="font-serif text-2xl font-bold leading-none text-primary/15 transition-colors duration-300 group-hover:text-primary/35">
+                  <Reveal
+                    key={i}
+                    delay={i * 80}
+                    className="h-full border-[#D7D7D7] px-5 lg:border-r lg:last:border-r-0"
+                  >
+                    {/* A fixed gap rather than justify-between. The reference
+                        pins its figure to the foot of the column, but that only
+                        lines the four figures up because its blocks are all the
+                        same height — ours carry descriptions of different
+                        lengths, and bottom-anchoring them left the figures
+                        stepping up and down across the row. */}
+                    <div className="flex h-full flex-col gap-10 lg:gap-24">
+                      <Icon className="h-11 w-11 text-[hsl(var(--warning))]" strokeWidth={1.5} />
+                      <div>
+                        <span className="block font-site text-[52px] font-medium leading-none text-[hsl(var(--warning))] lg:text-[60px]">
                           {String(i + 1).padStart(2, "0")}
                         </span>
+                        <h3 className="mt-3 font-site text-[24px] font-medium leading-tight text-[#010101] lg:text-[27px]">
+                          {v.title}
+                        </h3>
+                        <p className="mt-1.5 font-site text-[14px] leading-snug text-muted-foreground">{v.description}</p>
                       </div>
-                      <h3 className="mt-3 text-sm font-semibold">{v.title}</h3>
-                      <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{v.description}</p>
                     </div>
                   </Reveal>
                 );
@@ -532,8 +573,24 @@ export default function SiteHome() {
         {/* Strip shares the page container with the heading — it used to be
             full-bleed, which made it wider than every other section. */}
         <div className="container mx-auto px-4">
-          <SectionHeading eyebrow="Our Network" title="Associates & Partners" subtitle="Working together with organisations that share our purpose." />
-          <ClientLogosCarousel logos={associateLogos} />
+          {/* Title and supporting line as a centred pair rather than the eyebrow
+              + centred heading the other sections use: this band is ported from
+              the live site, where the pair is what sets the two drifting rows
+              apart from the sections above. */}
+          {/* Wider than the live site's pair: that one heads with "Our
+              Associates", and our longer "Associates & Partners" wraps to two
+              lines in a 320px column. */}
+          <div className="mx-auto grid max-w-[735px] gap-3 pb-8 sm:pb-10 lg:grid-cols-[380px_335px] lg:gap-5">
+            <AnimatedTitle
+              as="h2"
+              className="font-display text-[32px] font-normal leading-[1.05] tracking-[-1.1px] sm:text-[38px] sm:leading-[38px]"
+              text="Associates & Partners"
+            />
+            <Reveal as="p" delay={120} className="font-site text-[18px] leading-[1.6] text-[#505256] lg:text-[22px] lg:leading-[33px]">
+              Working together with organisations that share our purpose.
+            </Reveal>
+          </div>
+          <AssociatesMarquee logos={associateLogos} />
         </div>
       </section>
     ),
@@ -582,6 +639,9 @@ export default function SiteHome() {
 
       <MobileBottomNav />
       <BackToTop />
+      {/* The home page renders its own chrome rather than going through
+          SiteShell, so the floating shortcut has to be mounted here too. */}
+      {isHomeSectionVisible(s.homeLayout, "calculator") && usesFloatingZakatButton(org.key) && <ZakatFab />}
 
       {/* Video lightbox */}
       <VolunteerDialog open={volunteerOpen} onOpenChange={setVolunteerOpen} />

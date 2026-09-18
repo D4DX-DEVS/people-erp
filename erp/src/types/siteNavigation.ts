@@ -117,7 +117,11 @@ function usedTargets(items: NavItem[]): Set<string> {
 /** The automatic menu — what visitors see until the admin customizes the header. */
 export function buildDefaultNavigation(pages: NavPage[] = []): NavigationSettings {
   const builtIn: NavItem[] = [
-    { type: "link", label: "Home", kind: "home", target: "/", visible: true },
+    // No "Home" entry: the header logo already links to "/", and below `lg` the
+    // Home tab sits in the bottom bar, so the item spent a menu slot on a link
+    // the visitor is usually already standing on.
+    // "News" is gone from the menu too. Both destinations still exist — the
+    // footer points at /news as "Updates".
     {
       type: "dropdown", label: "About Us", kind: "custom", target: "", visible: true,
       children: [
@@ -127,7 +131,6 @@ export function buildDefaultNavigation(pages: NavPage[] = []): NavigationSetting
       ],
     },
     { type: "link", label: "Projects", kind: "builtin", target: "/projects-hub", visible: true },
-    { type: "link", label: "News", kind: "builtin", target: "/news", visible: true },
     {
       type: "dropdown", label: "Gallery", kind: "custom", target: "", visible: true,
       children: [

@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import { ArrowUp } from "lucide-react";
+import { useFooterClearance } from "@/hooks/useFooterClearance";
 import { cn } from "@/lib/utils";
 
 /** How far down the page the visitor must be, in viewport heights, before the
  *  button appears. Roughly "past the fold and heading for the bottom". */
 const SHOW_AFTER_SCREENS = 1.5;
-
-/** Gap left between the button and whatever it is sitting above, in px. */
-const FOOTER_GAP = 24;
 
 /**
  * Floating "back to top" control for the public site, on every screen size.
@@ -19,32 +17,16 @@ const FOOTER_GAP = 24;
  * of links — a static offset either overlaps its contact column or floats
  * absurdly high up the page.
  *
- * SiteFooter marks two elements, the desktop footer and the copyright strip
- * that replaces it below `lg`; exactly one of them is displayed at any width,
- * so the button measures whichever currently has a layout box.
+ * Working out how much the footer is covering the viewport bottom is shared
+ * with the floating Zakat shortcut, which has the same problem from the
+ * opposite corner (see useFooterClearance).
  */
 export function BackToTop() {
   const [visible, setVisible] = useState(false);
-  const [footerOverlap, setFooterOverlap] = useState(0);
+  const clearance = useFooterClearance();
 
   useEffect(() => {
-    const update = () => {
-      setVisible(window.scrollY > window.innerHeight * SHOW_AFTER_SCREENS);
-
-      // How much of the footer is currently on screen. The hidden one of the
-      // pair measures zero, so skipping zero-height elements picks out the
-      // variant this width actually renders.
-      const footer = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-site-footer]"),
-      ).find((el) => el.offsetHeight > 0);
-      if (!footer) {
-        setFooterOverlap(0);
-        return;
-      }
-      const { top } = footer.getBoundingClientRect();
-      setFooterOverlap(Math.max(0, window.innerHeight - top));
-    };
-
+    const update = () => setVisible(window.scrollY > window.innerHeight * SHOW_AFTER_SCREENS);
     update();
     // passive: this listener never calls preventDefault, and saying so lets the
     // browser keep scrolling on its own thread.
@@ -73,7 +55,7 @@ export function BackToTop() {
       tabIndex={visible ? 0 : -1}
       // Only set once the footer is actually on screen, so the responsive
       // class below stays in charge everywhere else.
-      style={footerOverlap ? { bottom: `${footerOverlap + FOOTER_GAP}px` } : undefined}
+      style={clearance ? { bottom: `${clearance}px` } : undefined}
       className={cn(
         "fixed right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full",
         "border border-white/15 bg-[image:var(--gradient-brand)] text-white shadow-lg",

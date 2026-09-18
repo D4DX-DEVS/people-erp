@@ -18,6 +18,7 @@ import {
 import { SiteTheme } from "@/components/site/SiteTheme";
 import { isHomeSectionVisible } from "@/types/siteHome";
 import { goToSiteTarget } from "@/lib/siteNav";
+import { usesFloatingZakatButton } from "@/config/orgFeatures";
 // The wordmark resolves through the franchise config so each franchise serves
 // its own brand; BrandMark falls back to the bundled asset when a franchise
 // has not uploaded one.
@@ -100,6 +101,9 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
   // (Website Settings → Home layout). When it is off there is nothing at
   // /#calculator to reach, so the shortcut goes with it.
   const showCalculator = isHomeSectionVisible(settings?.homeLayout, "calculator");
+  // Franchises that float the shortcut below `lg` too must drop it from this
+  // row, or the control renders twice (see ZakatFab).
+  const floatingZakat = usesFloatingZakatButton(org.key);
   const donateLink = donateLinkProp ?? (settings?.donation?.paymentLink || settings?.hero?.ctaLink);
   const phone = settings?.contactDetails?.phone || org.phone;
   const email = settings?.contactDetails?.email || org.email;
@@ -386,7 +390,7 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
             {/* Icon only. The label is carried by aria-label and the native
                 tooltip, so the control still announces itself to a screen
                 reader and names itself on hover. */}
-            {showCalculator && (
+            {showCalculator && !floatingZakat && (
               <Button
                 variant="outline"
                 size="icon"
