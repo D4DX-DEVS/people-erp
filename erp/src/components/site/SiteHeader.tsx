@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Menu, X, Heart, HandHeart, User, LogIn, Phone, Mail, ArrowRight, ExternalLink, ChevronDown,
-  Calculator, Download, Search,
+  Download, Search,
   Facebook, Instagram, Youtube, Twitter, Linkedin,
   type LucideIcon,
 } from "lucide-react";
@@ -16,9 +16,7 @@ import {
   type NavigationSettings, type NavItem, type NavLink, type NavButton,
 } from "@/types/siteNavigation";
 import { SiteTheme } from "@/components/site/SiteTheme";
-import { isHomeSectionVisible } from "@/types/siteHome";
 import { goToSiteTarget } from "@/lib/siteNav";
-import { usesFloatingZakatButton } from "@/config/orgFeatures";
 // The wordmark resolves through the franchise config so each franchise serves
 // its own brand; BrandMark falls back to the bundled asset when a franchise
 // has not uploaded one.
@@ -108,13 +106,6 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
   const { data: publicPages } = usePublicPages();
 
   const settings = siteData?.settings;
-  // The Zakat calculator is a home-page section a franchise can switch off
-  // (Website Settings → Home layout). When it is off there is nothing at
-  // /#calculator to reach, so the shortcut goes with it.
-  const showCalculator = isHomeSectionVisible(settings?.homeLayout, "calculator");
-  // Franchises that float the shortcut below `lg` too must drop it from this
-  // row, or the control renders twice (see ZakatFab).
-  const floatingZakat = usesFloatingZakatButton(org.key);
   const donateLink = donateLinkProp ?? (settings?.donation?.paymentLink || settings?.hero?.ctaLink);
   const phone = settings?.contactDetails?.phone || org.phone;
   const email = settings?.contactDetails?.email || org.email;
@@ -241,13 +232,6 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
         {b.label}
       </Button>
     );
-  };
-
-  const goToCalculator = () => {
-    if (preview) return;
-    setDrawerOpen(false);
-    closeSearch();
-    goToSiteTarget(navigate, location.pathname, "/#calculator");
   };
 
   const searchPanel = (
@@ -438,21 +422,12 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
                 )}
               </div>
             )}
-            {/* Icon only. The label is carried by aria-label and the native
-                tooltip, so the control still announces itself to a screen
-                reader and names itself on hover. */}
-            {showCalculator && !floatingZakat && (
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Calculate Zakat"
-                title="Calculate Zakat"
-                className={cn("h-10 w-10 shrink-0 rounded-full", BRAND_OUTLINE_CLASS)}
-                onClick={goToCalculator}
-              >
-                <Calculator className="h-5 w-5" />
-              </Button>
-            )}
+            {/* No calculator here. It was a third circular control sitting
+                between the search and Donate, and it competed with the two
+                buttons that actually move a visitor on — the hero carries a
+                "Calculate Zakat" call to action, and below `lg` the tab bar
+                keeps a Calculator tab. Baithuzzakath floats it instead of
+                dropping it, from the opposite corner (see ZakatFab). */}
             {buttons.map((b, i) => renderButton(b, i))}
           </div>
         </div>
