@@ -77,6 +77,17 @@ const LOGIN_LINK: NavLink = { label: "Login", kind: "builtin", target: "/login" 
 const DONATE_LINK: NavLink = { label: "Donate", kind: "donate", target: "" };
 const DONATE_SECTION_LINK: NavLink = { label: "Donate", kind: "section", target: "/#donate" };
 
+/**
+ * The synthetic dropdown that carries the menu's tail below `xl`.
+ *
+ * Built at render time rather than stored: it is a device for a narrow bar, not
+ * something an admin configured, so it must never reach the saved navigation or
+ * show up in the header builder.
+ */
+function moreItem(children: NavLink[]): NavItem {
+  return { type: "dropdown", label: "More", kind: "custom", target: "", children, visible: true };
+}
+
 interface SiteHeaderProps {
   donateLink?: string;
   /** Override the stored config (used by the admin live preview). */
@@ -113,6 +124,38 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
     publicPages || [],
     donateLink,
   );
+
+  // From `xl` up the bar has room for the whole menu. Below that the tail folds
+  // into a "More" panel instead of wrapping onto a second line — see the nav.
+  const INLINE_ITEM_LIMIT = 3;
+  const inlineItems = items.slice(0, INLINE_ITEM_LIMIT);
+  const overflowItems = items.slice(INLINE_ITEM_LIMIT);
+  // A dropdown in the tail contributes its own links, because the panel renders
+  // one flat list — there is no second level to render.
+  const moreLinks: NavLink[] = overflowItems.flatMap((i) =>
+    i.type === "dropdown" ? i.children || [] : [i],
+  );
+
+  /** One menu entry, wherever it ends up. */
+  const renderNavItem = (item: NavItem, key: string) =>
+    item.type === "dropdown" ? (
+      <DesktopDropdown
+        key={key}
+        item={item}
+        onGo={go}
+        alignRight={menuAlignment === "right"}
+        pathname={location.pathname}
+      />
+    ) : (
+      <button
+        key={key}
+        onClick={() => go(item)}
+        className={cn(LINK_CLASS, isActiveTarget(item.target, location.pathname) && LINK_ACTIVE_CLASS)}
+        aria-current={isActiveTarget(item.target, location.pathname) ? "page" : undefined}
+      >
+        {item.label}
+      </button>
+    );
 
   // The mobile bar shows the two actions as icons rather than labelled pills,
   // so it needs the configured buttons themselves — a donate button carries the
@@ -346,26 +389,27 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
             <h1 className="sr-only">{org.displayName || org.erpTitle}</h1>
           </button>
 
-          <nav className={cn("flex flex-wrap items-center gap-1", ALIGN_CLASS[menuAlignment])}>
-            {items.map((item, i) =>
-              item.type === "dropdown" ? (
+          {/* `flex-nowrap`, because the previous `flex-wrap` is what turned a
+              tight bar into a broken one: between `lg` and `xl` the row carries
+              the logo, the menu and the actions in about 1000px, and the menu
+              answered by dropping its last link onto a second line and growing
+              the whole header instead of giving anything up. */}
+          <nav className={cn("flex flex-nowrap items-center gap-1", ALIGN_CLASS[menuAlignment])}>
+            {inlineItems.map((item, i) => renderNavItem(item, item._id || `inline-${i}`))}
+            {overflowItems.length > 0 && (
+              <div className="hidden items-center gap-1 xl:flex">
+                {overflowItems.map((item, i) => renderNavItem(item, item._id || `wide-${i}`))}
+              </div>
+            )}
+            {moreLinks.length > 0 && (
+              <div className="flex xl:hidden">
                 <DesktopDropdown
-                  key={item._id || i}
-                  item={item}
+                  item={moreItem(moreLinks)}
                   onGo={go}
                   alignRight={menuAlignment === "right"}
                   pathname={location.pathname}
                 />
-              ) : (
-                <button
-                  key={item._id || i}
-                  onClick={() => go(item)}
-                  className={cn(LINK_CLASS, isActiveTarget(item.target, location.pathname) && LINK_ACTIVE_CLASS)}
-                  aria-current={isActiveTarget(item.target, location.pathname) ? "page" : undefined}
-                >
-                  {item.label}
-                </button>
-              ),
+              </div>
             )}
           </nav>
 
@@ -373,7 +417,14 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
             {!preview && (
               <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSearchOpen(false); }}>
                 <button
-                  className="rounded-full p-2 text-foreground/70 hover:bg-muted hover:text-foreground"
+                  // Same outlined circle as the calculator beside it. The search
+                  // used to be a bare padded glyph in grey, which sat next to a
+                  // bordered brand-green button as though the two belonged to
+                  // different toolbars.
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border",
+                    BRAND_OUTLINE_CLASS,
+                  )}
                   onClick={() => setSearchOpen((v) => !v)}
                   aria-label="Search"
                   aria-expanded={searchOpen}

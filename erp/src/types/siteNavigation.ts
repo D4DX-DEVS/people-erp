@@ -114,6 +114,21 @@ function usedTargets(items: NavItem[]): Set<string> {
   return new Set(targets.filter(Boolean));
 }
 
+/**
+ * The About page's label, taken from the page the franchise actually published.
+ *
+ * This entry used to read "Baithuzzakath Kerala" outright. The automatic menu
+ * is shared by every franchise — it is what they all see before they customise
+ * their header — so that put one organisation's name in another's navigation
+ * the moment a second franchise existed. The published page already carries the
+ * label its own admin chose, so the menu defers to it and falls back to a plain
+ * "About Us" only when there is no such page.
+ */
+function aboutPageLabel(pages: NavPage[]): string {
+  const page = pages.find((p) => pageTarget(p.slug) === "/p/about-us");
+  return page?.navLabel?.trim() || page?.title?.trim() || "About Us";
+}
+
 /** The automatic menu — what visitors see until the admin customizes the header. */
 export function buildDefaultNavigation(pages: NavPage[] = []): NavigationSettings {
   const builtIn: NavItem[] = [
@@ -125,7 +140,7 @@ export function buildDefaultNavigation(pages: NavPage[] = []): NavigationSetting
     {
       type: "dropdown", label: "About Us", kind: "custom", target: "", visible: true,
       children: [
-        { label: "Baithuzzakath Kerala", kind: "page", target: "/p/about-us", visible: true },
+        { label: aboutPageLabel(pages), kind: "page", target: "/p/about-us", visible: true },
         { label: "Board of Directors", kind: "page", target: "/p/board-of-directors", visible: true },
         { label: "Our Schemes", kind: "builtin", target: "/public-schemes", visible: true },
       ],
