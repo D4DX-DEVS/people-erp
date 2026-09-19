@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { Phone, ArrowLeft, UserCircle, Shield, Loader2, Building2 } from "lucide-react";
+import { Phone, ArrowLeft, ArrowRight, UserCircle, Shield, Loader2, Building2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { auth } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useAuth, type FranchiseOption, type RoleOption } from "@/hooks/useAuth";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
@@ -43,6 +44,16 @@ export default function Login() {
 
   // Get the return URL from location state
   const from = location.state?.from?.pathname || "/dashboard";
+
+  /** The line of brand copy under the mark, if this franchise has one. */
+  const tagline = org.tagline || org.erpSubtitle || "";
+
+  /** One step back, following the order the steps were entered in. */
+  const goBack = () => {
+    if (step === "otp") setStep("phone");
+    else if (step === "franchise-select" || step === "role-select") setStep("otp");
+    else setStep("role");
+  };
 
   const handleRoleSelect = () => {
     setStep("phone");
@@ -324,98 +335,124 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
-      <Card className="w-full max-w-md shadow-elegant">
-        <CardHeader className="space-y-1">
-          <div className="flex flex-col items-center mb-2">
-            <img 
-              src={orgLogoUrl} 
-              alt={org.erpTitle} 
-              className="h-14 w-auto object-contain mb-2" 
-              onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} 
+    <div className="flex min-h-screen flex-col gap-5 bg-muted/40 pb-6 lg:flex-row lg:gap-0 lg:pb-0">
+      {/* Brand rail. Short and full-width on phones so the form stays above the
+          fold; from `lg` it becomes the left half of a split. */}
+      <aside className="relative isolate overflow-hidden bg-gradient-primary px-5 py-6 text-primary-foreground sm:px-8 lg:flex lg:w-1/2 lg:shrink-0 lg:flex-col lg:justify-center lg:px-14 lg:py-16 xl:px-20">
+        {/* The dot field the hero already uses, at low opacity — texture in the
+            theme's own colour rather than a second one to keep in sync. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(#fff_1.5px,transparent_1.5px)] [background-size:20px_20px]"
+        />
+        <div className="relative flex min-w-0 items-center gap-3 lg:block">
+          {/* The wordmark is dark, so it rides on a plate instead of going
+              straight onto the gradient. */}
+          <span className="inline-flex shrink-0 items-center rounded-2xl bg-white px-3.5 py-2 shadow-sm lg:px-4 lg:py-3">
+            <img
+              src={orgLogoUrl}
+              alt={org.erpTitle}
+              className="h-7 w-auto max-w-[8.5rem] object-contain sm:h-8 lg:h-9 lg:max-w-[11rem]"
+              onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }}
             />
-            <p className="text-sm font-semibold text-muted-foreground">{org.erpTitle}</p>
+          </span>
+          <div className="min-w-0 lg:mt-8">
+            <p className="truncate text-sm font-semibold sm:text-base lg:text-2xl">{org.erpTitle}</p>
+            {tagline && (
+              // Hidden on the narrowest phones: the band is a masthead there,
+              // and the column left beside the mark fits about six words before
+              // it has to cut the sentence off mid-thought.
+              <p className="mt-1 hidden truncate text-xs text-primary-foreground/80 sm:block lg:mt-3 lg:max-w-sm lg:overflow-visible lg:whitespace-normal lg:text-base lg:leading-relaxed">
+                {tagline}
+              </p>
+            )}
           </div>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-2xl font-bold">
-              {step === "role" ? "Select Login Type"
-                : step === "phone" ? "Login"
-                : step === "otp" ? "Verify OTP"
-                : step === "franchise-select" ? "Select Organisation"
-                : "Select Role"}
-            </CardTitle>
+        </div>
+      </aside>
+
+      <Card className="mx-auto my-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border-border/60 shadow-elegant lg:w-[26rem] lg:max-w-none">
+        <CardHeader className="space-y-1 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="text-xl font-bold sm:text-2xl">
+                {step === "role" ? "Select Login Type"
+                  : step === "phone" ? "Login"
+                  : step === "otp" ? "Verify OTP"
+                  : step === "franchise-select" ? "Select Organisation"
+                  : "Select Role"}
+              </CardTitle>
+              <CardDescription>
+                {step === "role"
+                  ? "Choose how you want to access the system"
+                  : step === "phone"
+                    ? `Logging in as ${role === "admin" ? "Admin" : "Beneficiary"}`
+                    : step === "otp"
+                      ? `We've sent a verification code to +91 ${phoneNumber}`
+                      : step === "franchise-select"
+                        ? "Select the organisation you want to log into"
+                        : "Select the role you want to use for this session"
+                }
+              </CardDescription>
+            </div>
             {step !== "role" && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  if (step === "otp") setStep("phone");
-                  else if (step === "franchise-select" || step === "role-select") setStep("otp");
-                  else setStep("role");
-                }}
+                className="-mr-2 -mt-1 shrink-0 rounded-full text-muted-foreground"
+                onClick={goBack}
               >
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Back
+                <ArrowLeft className="h-4 w-4" />
+                <span className="ml-1 hidden sm:inline">Back</span>
               </Button>
             )}
           </div>
-          <CardDescription>
-            {step === "role" 
-              ? "Choose how you want to access the system"
-              : step === "phone" 
-                ? `Logging in as ${role === "admin" ? "Admin" : "Beneficiary"}`
-                : step === "otp"
-                  ? `We've sent a verification code to +91 ${phoneNumber}`
-                  : step === "franchise-select"
-                    ? "Select the organisation you want to log into"
-                    : "Select the role you want to use for this session"
-            }
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5 p-5 pt-0 sm:p-6 sm:pt-0">
           {step === "role" ? (
             <>
-              <RadioGroup value={role} onValueChange={(v) => setRole(v as "beneficiary" | "admin")}>
-                <div className="space-y-3">
-                  <div 
-                    className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-all ${
-                      role === "beneficiary" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                    }`}
-                    onClick={() => setRole("beneficiary")}
-                  >
-                    <RadioGroupItem value="beneficiary" id="beneficiary" />
-                    <Label htmlFor="beneficiary" className="flex items-center gap-3 cursor-pointer flex-1">
-                      <UserCircle className="h-8 w-8 text-primary" />
-                      <div>
-                        <p className="font-semibold">Beneficiary Login</p>
-                        <p className="text-sm text-muted-foreground">Apply for schemes and track applications</p>
-                      </div>
-                    </Label>
-                  </div>
-                  
-                  <div 
-                    className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-all ${
-                      role === "admin" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                    }`}
-                    onClick={() => setRole("admin")}
-                  >
-                    <RadioGroupItem value="admin" id="admin" />
-                    <Label htmlFor="admin" className="flex items-center gap-3 cursor-pointer flex-1">
-                      <Shield className="h-8 w-8 text-primary" />
-                      <div>
-                        <p className="font-semibold">Admin Login</p>
-                        <p className="text-sm text-muted-foreground">Manage applications and system</p>
-                      </div>
-                    </Label>
-                  </div>
-                </div>
-              </RadioGroup>
-              
-              <Button 
-                className="w-full bg-gradient-primary shadow-glow" 
-                onClick={handleRoleSelect}
+              {/* One label per option, so the whole card is the hit target
+                  rather than the radio dot on its own. */}
+              <RadioGroup
+                value={role}
+                onValueChange={(v) => setRole(v as "beneficiary" | "admin")}
+                className="gap-3"
               >
+                {([
+                  { value: "beneficiary", Icon: UserCircle, title: "Beneficiary Login", body: "Apply for schemes and track applications" },
+                  { value: "admin", Icon: Shield, title: "Admin Login", body: "Manage applications and system" },
+                ] as const).map(({ value, Icon, title, body }) => {
+                  const active = role === value;
+                  return (
+                    <Label
+                      key={value}
+                      htmlFor={value}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-all",
+                        "hover:border-primary/40 hover:bg-muted/50",
+                        active ? "border-primary bg-primary/5 shadow-sm" : "border-border",
+                      )}
+                    >
+                      <RadioGroupItem value={value} id={value} className="mt-1" />
+                      <span
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+                          active ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary",
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold sm:text-base">{title}</span>
+                        <span className="mt-0.5 block text-xs leading-snug text-muted-foreground sm:text-sm">{body}</span>
+                      </span>
+                    </Label>
+                  );
+                })}
+              </RadioGroup>
+
+              <Button className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow" onClick={handleRoleSelect}>
                 Continue
+                <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             </>
           ) : step === "phone" ? (
@@ -423,21 +460,26 @@ export default function Login() {
               <div className="space-y-2">
                 <Label htmlFor="phone">Mobile Number</Label>
                 <div className="flex gap-2">
-                  <div className="flex items-center justify-center border border-input rounded-md px-3 bg-muted text-sm font-medium">
+                  <span className="flex h-12 shrink-0 items-center rounded-xl border border-input bg-muted px-3 text-sm font-semibold">
                     +91
-                  </div>
+                  </span>
                   <Input
                     id="phone"
                     type="tel"
-                    placeholder="Enter 10-digit mobile number"
+                    // Numeric keypad and the saved-number autofill on a phone,
+                    // which is most of what "mobile first" means for a login.
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    placeholder="10-digit mobile number"
+                    className="h-12 rounded-xl"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     maxLength={10}
                   />
                 </div>
               </div>
-              <Button 
-                className="w-full bg-gradient-primary shadow-glow" 
+              <Button
+                className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow"
                 onClick={handleSendOTP}
                 disabled={loading}
               >
@@ -451,24 +493,24 @@ export default function Login() {
             </>
           ) : step === "otp" ? (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="otp">Enter OTP</Label>
-                {developmentOTP && (
-                  <div className="bg-green-50 border border-green-200 rounded-md p-3 text-center">
-                    <p className="text-sm text-green-800 font-medium">
-                      Static OTP: <span className="font-mono text-lg">{developmentOTP}</span>
-                    </p>
-                    <p className="text-xs text-green-600 mt-1">
-                      This OTP is always 123456 for all logins
-                    </p>
-                  </div>
-                )}
+              {/* Token colours rather than the fixed green-50/green-200 this
+                  used, so the panel stays legible if the theme is dark. */}
+              {developmentOTP && (
+                <div className="rounded-xl border border-success/30 bg-success/10 p-3 text-center">
+                  <p className="text-sm font-medium">
+                    Static OTP: <span className="font-mono text-lg">{developmentOTP}</span>
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This OTP is always 123456 for all logins
+                  </p>
+                </div>
+              )}
+              <div className="space-y-3">
+                <Label htmlFor="otp" className="block text-center">Enter the 6-digit code</Label>
                 <div className="flex justify-center">
-                  <InputOTP
-                    maxLength={6}
-                    value={otp}
-                    onChange={setOtp}
-                  >
+                  {/* autoComplete lets a phone offer the code straight from the
+                      SMS, instead of making the visitor switch apps to read it. */}
+                  <InputOTP maxLength={6} value={otp} onChange={setOtp} autoComplete="one-time-code">
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
                       <InputOTPSlot index={1} />
@@ -480,22 +522,20 @@ export default function Login() {
                   </InputOTP>
                 </div>
               </div>
-              
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  Didn't receive the code?{" "}
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto font-semibold"
-                    onClick={handleResendOTP}
-                  >
-                    Resend OTP
-                  </Button>
-                </p>
-              </div>
 
-              <Button 
-                className="w-full bg-gradient-primary shadow-glow" 
+              <p className="text-center text-sm text-muted-foreground">
+                Didn't receive the code?{" "}
+                <Button
+                  variant="link"
+                  className="h-auto p-0 font-semibold"
+                  onClick={handleResendOTP}
+                >
+                  Resend OTP
+                </Button>
+              </p>
+
+              <Button
+                className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow"
                 onClick={handleVerifyOTP}
                 disabled={loading}
               >
@@ -507,59 +547,81 @@ export default function Login() {
             </>
           ) : step === "franchise-select" ? (
             <>
-              <p className="text-sm text-muted-foreground mb-2">You have access to multiple organisations. Choose one to continue.</p>
-              <RadioGroup value={selectedFranchiseId} onValueChange={setSelectedFranchiseId}>
-                <div className="space-y-2">
-                  {franchiseOptions.map((f) => (
-                    <div
+              <p className="text-sm text-muted-foreground">You have access to multiple organisations. Choose one to continue.</p>
+              <RadioGroup value={selectedFranchiseId} onValueChange={setSelectedFranchiseId} className="gap-2.5">
+                {franchiseOptions.map((f) => {
+                  const active = selectedFranchiseId === f.id;
+                  return (
+                    <Label
                       key={f.id}
-                      className={`flex items-center space-x-3 border rounded-lg p-3 cursor-pointer transition-all ${
-                        selectedFranchiseId === f.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                      }`}
-                      onClick={() => setSelectedFranchiseId(f.id)}
+                      htmlFor={`franchise-${f.id}`}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5 transition-all",
+                        "hover:border-primary/40 hover:bg-muted/50",
+                        active ? "border-primary bg-primary/5 shadow-sm" : "border-border",
+                      )}
                     >
                       <RadioGroupItem value={f.id} id={`franchise-${f.id}`} />
-                      <Label htmlFor={`franchise-${f.id}`} className="flex items-center gap-3 cursor-pointer flex-1">
-                        <Building2 className="h-6 w-6 text-primary flex-shrink-0" />
-                        <span className="font-medium">{f.displayName}</span>
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                      <span
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+                          active ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary",
+                        )}
+                      >
+                        <Building2 className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{f.displayName}</span>
+                    </Label>
+                  );
+                })}
               </RadioGroup>
-              <Button className="w-full bg-gradient-primary shadow-glow" onClick={handleFranchiseConfirm} disabled={loading || !selectedFranchiseId}>
+              <Button className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow" onClick={handleFranchiseConfirm} disabled={loading || !selectedFranchiseId}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {loading ? 'Please wait…' : 'Continue'}
               </Button>
             </>
           ) : step === "role-select" ? (
             <>
-              <p className="text-sm text-muted-foreground mb-2">You hold multiple roles in this organisation. Choose the role to use for this session.</p>
-              <RadioGroup value={selectedRole} onValueChange={setSelectedRole}>
-                <div className="space-y-2">
-                  {roleOptions.map((r) => (
-                    <div
+              <p className="text-sm text-muted-foreground">You hold multiple roles in this organisation. Choose the role to use for this session.</p>
+              <RadioGroup value={selectedRole} onValueChange={setSelectedRole} className="gap-2.5">
+                {roleOptions.map((r) => {
+                  const active = selectedRole === r.role;
+                  return (
+                    <Label
                       key={r.role}
-                      className={`flex items-center space-x-3 border rounded-lg p-3 cursor-pointer transition-all ${
-                        selectedRole === r.role ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                      }`}
-                      onClick={() => setSelectedRole(r.role)}
+                      htmlFor={`role-${r.role}`}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5 transition-all",
+                        "hover:border-primary/40 hover:bg-muted/50",
+                        active ? "border-primary bg-primary/5 shadow-sm" : "border-border",
+                      )}
                     >
                       <RadioGroupItem value={r.role} id={`role-${r.role}`} />
-                      <Label htmlFor={`role-${r.role}`} className="flex items-center gap-3 cursor-pointer flex-1">
-                        <Shield className="h-6 w-6 text-primary flex-shrink-0" />
-                        <span className="font-medium">{r.displayName}</span>
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                      <span
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+                          active ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary",
+                        )}
+                      >
+                        <Shield className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{r.displayName}</span>
+                    </Label>
+                  );
+                })}
               </RadioGroup>
-              <Button className="w-full bg-gradient-primary shadow-glow" onClick={handleRoleConfirm} disabled={loading || !selectedRole}>
+              <Button className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow" onClick={handleRoleConfirm} disabled={loading || !selectedRole}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {loading ? 'Logging in…' : 'Login'}
               </Button>
             </>
           ) : null}
+
+          <p className="pt-1 text-center text-xs text-muted-foreground">
+            <Link to="/" className="font-medium underline-offset-4 hover:text-foreground hover:underline">
+              Back to the website
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>
