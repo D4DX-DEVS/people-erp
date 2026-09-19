@@ -637,13 +637,3 @@ All colors MUST be HSL.
   -webkit-mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
   mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
 }
-
-/* CTA red sampled from the live site's "Click here" button. */
-.campaign-cta {
-  background-color: #e1213a;
-  color: #fff;
-}
-
-.campaign-cta:hover {
-  background-color: #c81632;
-}

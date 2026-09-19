@@ -17,9 +17,13 @@ const ADVANCE_MS = 7000;
 
 /**
  * Campaign carousel, matching the marketing site's opening band: a large
- * display headline with the organisation's mark beside it, a wide campaign
- * tile with the corner notch, and the site's red "Click here" call to action
- * riding under it.
+ * display headline with the organisation's mark beside it and a wide campaign
+ * tile with the corner notch.
+ *
+ * The tile *is* the call to action — the whole block is one button — so the red
+ * "Click here" that used to ride under it was a second control for the same
+ * destination, and the one a visitor could not act on until they had already
+ * read past the tile they wanted.
  *
  * Slides advance on a timer and stop the moment the pointer or keyboard is
  * inside the band, so nothing shifts while it is being read. Reduced motion
@@ -28,11 +32,9 @@ const ADVANCE_MS = 7000;
 export function CampaignCarousel({
   slides,
   onOpen,
-  ctaLabel = "Click here",
 }: {
   slides: CampaignSlide[];
   onOpen: (href: string) => void;
-  ctaLabel?: string;
 }) {
   const [index, setIndex] = useState(0);
   const [holding, setHolding] = useState(false);
@@ -80,6 +82,10 @@ export function CampaignCarousel({
             <button
               type="button"
               onClick={() => onOpen(s.href)}
+              // Named from the headline, because the button's own content is an
+              // image carrying alt="" and an overlay that may be empty — the
+              // visible "Click here" used to be what named it.
+              aria-label={`View ${s.headline}`}
               className="campaign-tile mt-6 block w-full overflow-hidden bg-muted text-left shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
             >
               <span className="relative block aspect-[16/9] w-full sm:aspect-[2/1]">
@@ -113,16 +119,6 @@ export function CampaignCarousel({
                 )}
               </span>
             </button>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => onOpen(s.href)}
-                className="campaign-cta rounded-xl px-6 py-3 text-[15px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              >
-                {ctaLabel}
-              </button>
-            </div>
           </article>
         ))}
       </div>
