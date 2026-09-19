@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Menu, X, Heart, HandHeart, User, LogIn, Phone, Mail, ArrowRight, ExternalLink, ChevronDown,
@@ -104,6 +104,33 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
   const [searchQuery, setSearchQuery] = useState("");
   const { data: siteData } = useSiteData();
   const { data: publicPages } = usePublicPages();
+
+  // Publish the rendered height as `--site-header-h` so the pinned hero below
+  // can offset and size itself against the space that is actually left.
+  //
+  // This is the header's own height, not a constant: it carries a utility bar
+  // and a taller logo from `lg`, and collapses to an app bar below that. The
+  // hero used to be a full viewport tall *and* start below the header, so its
+  // copy centred in a box running past the bottom of the screen — which is what
+  // left a band of nothing above the eyebrow.
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || preview) return;
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        "--site-header-h",
+        `${Math.round(el.getBoundingClientRect().height)}px`,
+      );
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--site-header-h");
+    };
+  }, [preview]);
 
   const settings = siteData?.settings;
   const donateLink = donateLinkProp ?? (settings?.donation?.paymentLink || settings?.hero?.ctaLink);
@@ -266,6 +293,7 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
 
   return (
     <header
+      ref={headerRef}
       className={cn(
         preview
           ? "relative rounded-xl border border-border/60 bg-background shadow-sm"

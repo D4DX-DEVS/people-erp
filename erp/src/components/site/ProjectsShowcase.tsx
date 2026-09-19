@@ -137,7 +137,12 @@ export function ProjectsShowcase({ projects }: { projects: PublicProject[] }) {
               key={p._id}
               href={path}
               onClick={open(path)}
-              className="group flex items-center gap-3 rounded-2xl border border-border/60 bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
+              // `min-w-0` is load-bearing: the name below is `truncate`, whose
+              // `white-space: nowrap` makes the card's min-content as wide as
+              // the whole title. As a grid item that min-content sized the
+              // single column, so on a phone the track grew to ~486px inside a
+              // 343px container and the page scrolled sideways.
+              className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border/60 bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
             >
               <img
                 src={projectImage(p)}

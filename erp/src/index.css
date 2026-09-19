@@ -314,10 +314,16 @@ All colors MUST be HSL.
    Zero JavaScript involved. */
 .site-hero {
   position: sticky;
-  top: 0;
+  /* Pinned under the sticky header rather than under the top of the window, and
+     a viewport *minus* that header. `--site-header-h` is published by
+     SiteHeader (it varies: utility bar + tall logo from `lg`, an app bar
+     below). Pinning at 0 with a full-viewport height pushed the band's copy
+     down by the header's height and ran the frame off the bottom of the
+     screen, leaving a strip of nothing above the eyebrow. */
+  top: var(--site-header-h, 0px);
   z-index: 0;
-  height: 100vh; /* fallback for browsers without svh */
-  height: 100svh;
+  height: calc(100vh - var(--site-header-h, 0px)); /* fallback for browsers without svh */
+  height: calc(100svh - var(--site-header-h, 0px));
   overflow: hidden;
   display: flex;
   flex-direction: column;
