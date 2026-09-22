@@ -25,9 +25,18 @@ const ORG_PRESETS = {
     paymentsEmail: 'payments@baithuzzakath.org',
     website: 'www.baithuzzakath.org',
     websiteUrl: 'https://baithuzzakath.org',
-    logoFilename: 'logo-baithuzzakath.png',
+    // logo.png is the wordmark lockup, which is what reads as the brand in a
+    // header; the square emblem is too dense at that size, so it serves as the
+    // tab icon instead.
+    logoFilename: 'logo-baithuzzakath-wordmark.png',
+    footerLogoFilename: 'logo-baithuzzakath-footer.png',
+    faviconFilename: 'logo-baithuzzakath.png',
     defaultTheme: 'green',
-    copyrightHolder: 'Baithuzzakath',
+    // Site palette, sampled from the logo. primary drives the header, links and
+    // the start of the hero gradient; gradient is where that gradient lands.
+    brandColors: { primary: '#15803d', gradient: '#65a30d' },
+    heroStyle: 'illustrated',
+    copyrightHolder: 'Baithuzzakath Kerala',
     emailSenderName: 'Baithuzzakath',
     erpTitle: 'Baithuzzakath ERP',
     erpSubtitle: 'ERP Solution for NGOs',
@@ -51,8 +60,14 @@ const ORG_PRESETS = {
     paymentsEmail: 'payments@peoplefoundation.org',
     website: 'www.peoplefoundation.org',
     websiteUrl: 'https://peoplefoundation.org',
-    logoFilename: 'logo-peoplefoundation.png',
+    logoFilename: 'logo-peoplefoundation.svg',
+    footerLogoFilename: 'logo-peoplefoundation-footer.svg',
+    faviconFilename: 'logo-peoplefoundation.png',
     defaultTheme: 'blue',
+    // Sampled straight out of the logo: the cyan and green arms of the mark.
+    // Its orange and red arms are already carried by --warning and --destructive.
+    brandColors: { primary: '#00B0E6', gradient: '#71C74C' },
+    heroStyle: 'slider',
     copyrightHolder: "People's Foundation",
     emailSenderName: "People's Foundation",
     erpTitle: "People's Foundation ERP",
@@ -91,6 +106,8 @@ function getOrgConfig() {
     website: process.env.ORG_WEBSITE || preset.website,
     websiteUrl: process.env.ORG_WEBSITE_URL || preset.websiteUrl,
     logoFilename: process.env.ORG_LOGO_FILENAME || preset.logoFilename,
+    footerLogoFilename: process.env.ORG_FOOTER_LOGO_FILENAME || preset.footerLogoFilename,
+    faviconFilename: process.env.ORG_FAVICON_FILENAME || preset.faviconFilename,
     defaultTheme: process.env.ORG_DEFAULT_THEME || preset.defaultTheme,
     copyrightHolder: process.env.ORG_COPYRIGHT_HOLDER || preset.copyrightHolder,
     emailSenderName: process.env.ORG_EMAIL_SENDER_NAME || preset.emailSenderName,

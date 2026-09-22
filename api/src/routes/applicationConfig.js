@@ -3,7 +3,7 @@ const router = express.Router();
 const applicationConfigController = require('../controllers/applicationConfigController');
 const { authenticate, crossFranchiseResolver, authorize } = require('../middleware/auth');
 const { hasAnyPermission } = require('../middleware/rbacMiddleware');
-const { uploadSingle } = require('../middleware/upload');
+const { uploadBrandingImage } = require('../middleware/upload');
 
 /**
  * Test route to verify public routes work
@@ -19,16 +19,29 @@ router.get('/test', (req, res) => {
 router.get('/public', applicationConfigController.getPublicConfigs);
 
 /**
- * @route   POST /api/config/logo
- * @desc    Upload organization logo (saves to assets folder)
+ * @route   POST /api/config/logo?variant=primary|footer|favicon
+ * @desc    Upload a logo for the caller's franchise (stored per franchise, so
+ *          each franchise on this deployment brands itself)
  * @access  Private (settings.write)
  */
 router.post(
   '/logo',
   authenticate, crossFranchiseResolver,
   hasAnyPermission(['config.write', 'settings.write']),
-  uploadSingle('logo'),
+  uploadBrandingImage('logo'),
   applicationConfigController.uploadLogo
+);
+
+/**
+ * @route   DELETE /api/config/logo?variant=primary|footer|favicon
+ * @desc    Remove one of the franchise's logos, reverting to the default
+ * @access  Private (settings.write)
+ */
+router.delete(
+  '/logo',
+  authenticate, crossFranchiseResolver,
+  hasAnyPermission(['config.write', 'settings.write']),
+  applicationConfigController.deleteLogo
 );
 
 /**

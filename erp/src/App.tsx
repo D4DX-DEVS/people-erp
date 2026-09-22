@@ -24,6 +24,9 @@ import GalleryListPage from "./pages/site/GalleryListPage";
 import VideosListPage from "./pages/site/VideosListPage";
 import ProjectsListPage from "./pages/site/ProjectsListPage";
 import ProjectDetailPage from "./pages/site/ProjectDetailPage";
+import SchemeDetailPage from "./pages/site/SchemeDetailPage";
+import SchemesListPage from "./pages/site/SchemesListPage";
+import DownloadsPage from "./pages/site/DownloadsPage";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import Schemes from "./pages/Schemes";
@@ -110,6 +113,8 @@ import WebsiteVolunteers from "./pages/WebsiteVolunteers";
 import WebsitePages from "./pages/WebsitePages";
 import WebsitePageBuilder from "./pages/WebsitePageBuilder";
 import WebsiteProjectPages from "./pages/WebsiteProjectPages";
+import WebsiteSchemePages from "./pages/WebsiteSchemePages";
+import WebsiteSchemePageBuilder from "./pages/WebsiteSchemePageBuilder";
 import WebsiteProjectPageBuilder from "./pages/WebsiteProjectPageBuilder";
 import FormBuilder from "./pages/FormBuilder";
 import ApplicationConsolidation from "./pages/ApplicationConsolidation";
@@ -147,12 +152,15 @@ const App = () => (
             <Route path="/videos" element={<VideosListPage />} />
             <Route path="/projects-hub" element={<ProjectsListPage />} />
             <Route path="/projects-hub/:slug" element={<ProjectDetailPage />} />
+            <Route path="/schemes" element={<SchemesListPage />} />
+            <Route path="/schemes/:slug" element={<SchemeDetailPage />} />
             <Route path="/p/:slug" element={<SitePageView />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/login" element={<Login />} />
             <Route path="/beneficiary-login" element={<BeneficiaryLogin />} />
             <Route path="/public-schemes" element={<PublicSchemes />} />
+            <Route path="/download" element={<DownloadsPage />} />
 
             {/* Beneficiary Routes */}
             <Route path="/beneficiary/profile-completion" element={<BeneficiaryAuthGuard requireVerification={false}><BeneficiaryProfileCompletion /></BeneficiaryAuthGuard>} />
@@ -253,6 +261,8 @@ const App = () => (
             <Route path="/website-pages/:id" element={<AuthGuard><Layout><WebsitePageBuilder /></Layout></AuthGuard>} />
             <Route path="/website-project-pages" element={<AuthGuard><Layout><WebsiteProjectPages /></Layout></AuthGuard>} />
             <Route path="/website-project-pages/:projectId" element={<AuthGuard><Layout><WebsiteProjectPageBuilder /></Layout></AuthGuard>} />
+            <Route path="/website-scheme-pages" element={<AuthGuard><Layout><WebsiteSchemePages /></Layout></AuthGuard>} />
+            <Route path="/website-scheme-pages/:schemeId" element={<AuthGuard><Layout><WebsiteSchemePageBuilder /></Layout></AuthGuard>} />
             <Route path="/banners" element={<AuthGuard><Layout><Banners /></Layout></AuthGuard>} />
             <Route path="/news-events" element={<AuthGuard><Layout><NewsEvents /></Layout></AuthGuard>} />
             <Route path="/brochures" element={<AuthGuard><Layout><Brochures /></Layout></AuthGuard>} />

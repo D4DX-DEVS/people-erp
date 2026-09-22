@@ -32,6 +32,7 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
     name: "",
     code: "",
     description: "",
+    imageUrl: "",
     category: "",
     priority: "medium",
     status: "active",
@@ -79,6 +80,7 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
         name: scheme.name || "",
         code: scheme.code || "",
         description: scheme.description || "",
+        imageUrl: scheme.imageUrl || "",
         category: scheme.category || "",
         priority: scheme.priority || "medium",
         status: scheme.status || "draft",
@@ -195,6 +197,7 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
         name: formData.name,
         code: formData.code.toUpperCase(),
         description: formData.description,
+        imageUrl: formData.imageUrl.trim(),
         category: formData.category,
         priority: formData.priority,
         status: formData.status,
@@ -399,6 +402,33 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Shown on the public site's scheme cards. Optional — without it
+                the card falls back to a category-tinted panel. */}
+            <div className="space-y-2">
+              <Label>Scheme Image</Label>
+              <div className="flex items-start gap-3">
+                <Input
+                  placeholder="https://… image URL for the public website"
+                  value={formData.imageUrl}
+                  onChange={(e) => handleInputChange("imageUrl", e.target.value)}
+                />
+                {formData.imageUrl && (
+                  <img
+                    src={formData.imageUrl}
+                    alt=""
+                    className="h-16 w-24 shrink-0 rounded-md border border-border object-cover"
+                    // A broken URL would otherwise render as a torn-image icon
+                    // and read as a bug rather than as "that link is wrong".
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = "block"; }}
+                  />
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Optional. Used on the website's Schemes &amp; Programs cards.
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">

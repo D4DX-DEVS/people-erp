@@ -3,8 +3,7 @@ const ResponseHelper = require('../utils/responseHelper');
 const orgConfig = require('../config/orgConfig');
 const Franchise = require('../models/Franchise');
 const franchiseCache = require('../utils/franchiseCache');
-const path = require('path');
-const fs = require('fs');
+const franchiseLogoService = require('../services/franchiseLogoService');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
 
 class ApplicationConfigController {
@@ -71,7 +70,8 @@ class ApplicationConfigController {
           let franchise = await franchiseCache.getFranchiseBranding(req.franchiseId);
           if (!franchise) {
             franchise = await Franchise.findById(req.franchiseId).select(
-              'slug displayName erpTitle erpSubtitle tagline defaultTheme customTheme settings'
+              'slug displayName erpTitle erpSubtitle tagline defaultTheme customTheme settings copyrightHolder ' +
+              'logoUrl footerLogoUrl faviconUrl'
             ).lean();
             if (franchise) await franchiseCache.getFranchiseBranding(req.franchiseId); // prime cache
           }
@@ -79,7 +79,14 @@ class ApplicationConfigController {
           if (franchise) {
             const s = franchise.settings || {};
             brandingOrg = {
-              key: franchise.slug,
+              // Franchises created without a slug would otherwise report no key
+              // at all, and the frontend then falls back to its built-in
+              // DEFAULT_ORG — silently branding the site as the wrong org.
+              // The cached branding object names this field `key` while the
+              // uncached document read names it `slug`; reading only one of
+              // them handed every cache hit the ORG_NAME env org's key, which
+              // is the wrong franchise on a multi-franchise deployment.
+              key: franchise.slug || franchise.key || orgConfig.key,
               displayName: franchise.displayName,
               erpTitle: franchise.erpTitle || franchise.displayName,
               erpSubtitle: franchise.erpSubtitle || orgConfig.erpSubtitle,
@@ -94,8 +101,22 @@ class ApplicationConfigController {
               websiteUrl: s.websiteUrl || '',
               defaultTheme: franchise.defaultTheme || 'blue',
               customTheme: franchise.customTheme || null,
-              copyrightText: `© ${new Date().getFullYear()} ${s.copyrightHolder || franchise.displayName}. All rights reserved.`,
+              // Cached branding arrives from toBrandingObject(), which has
+              // already built the line off the copyrightLine virtual; the
+              // uncached .lean() read above has not, so it is rebuilt here.
+              // copyrightHolder is the schema field the virtual uses —
+              // settings.copyrightHolder is not declared on the settings
+              // subschema, so strict mode drops it on write and it is only
+              // read here for records written before that was noticed.
+              copyrightText:
+                franchise.copyrightText ||
+                `© ${new Date().getFullYear()} ${franchise.copyrightHolder || s.copyrightHolder || franchise.displayName}. All rights reserved.`,
+              // Each franchise carries its own uploaded marks. Empty strings
+              // are sent through as-is so the frontend can fall back to its
+              // bundled asset rather than render a broken placeholder image.
               logoUrl: franchise.logoUrl || `/assets/logo-placeholder.png`,
+              footerLogoUrl: franchise.footerLogoUrl || '',
+              faviconUrl: franchise.faviconUrl || '',
               footerText: s.footerText || '',
             };
           }
@@ -123,6 +144,8 @@ class ApplicationConfigController {
           defaultTheme: orgConfig.defaultTheme,
           copyrightText: orgConfig.copyrightText,
           logoUrl: `/assets/${orgConfig.logoFilename}`,
+          footerLogoUrl: '',
+          faviconUrl: '',
           heroSubtext: orgConfig.heroSubtext,
           aboutText: orgConfig.aboutText,
           footerText: orgConfig.footerText,
@@ -425,60 +448,61 @@ class ApplicationConfigController {
   }
 
   /**
-   * Upload organization logo
-   * POST /api/config/logo
-   * Accepts a PNG/JPG/SVG file, saves to api/src/assets/ as the org's logo
+   * Upload a logo for the caller's own franchise
+   * POST /api/config/logo?variant=primary|footer|favicon
+   * Accepts a PNG/JPG/SVG/WebP file, stores it against the franchise record
+   * so every franchise on this deployment renders its own branding.
    */
   uploadLogo = async (req, res) => {
     try {
-      if (!req.file) {
-        return ResponseHelper.error(res, 'No logo file provided', 400);
-      }
+      const franchiseId = getWriteFranchiseId(req);
+      const variant = req.query.variant || req.body?.variant || 'primary';
 
-      const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
-      if (!allowedMimes.includes(req.file.mimetype)) {
-        // Clean up uploaded file
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        return ResponseHelper.error(res, 'Only PNG, JPG, SVG, and WebP images are allowed', 400);
-      }
-
-      // Max 2MB
-      if (req.file.size > 2 * 1024 * 1024) {
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        return ResponseHelper.error(res, 'Logo file must be under 2MB', 400);
-      }
-
-      const assetsDir = path.join(__dirname, '../assets');
-      const destPath = path.join(assetsDir, orgConfig.logoFilename);
-
-      // Ensure assets directory exists
-      if (!fs.existsSync(assetsDir)) {
-        fs.mkdirSync(assetsDir, { recursive: true });
-      }
-
-      // Copy uploaded file to assets directory (overwrite existing)
-      fs.copyFileSync(req.file.path, destPath);
-
-      // Clean up the multer temp file
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      const { variant: savedVariant, url } = await franchiseLogoService.setFranchiseLogo({
+        franchiseId,
+        variant,
+        file: req.file,
+      });
 
       return ResponseHelper.success(
         res,
-        { logoUrl: `/assets/${orgConfig.logoFilename}` },
-        'Logo uploaded successfully'
+        { variant: savedVariant, logoUrl: url },
+        `${franchiseLogoService.LOGO_VARIANTS[savedVariant].label} uploaded successfully`
       );
     } catch (error) {
-      console.error('Error uploading logo:', error);
-      // Clean up temp file on error
-      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+      if (error instanceof franchiseLogoService.LogoError) {
+        return ResponseHelper.error(res, error.message, error.status);
       }
-      return ResponseHelper.error(
+      console.error('Error uploading logo:', error);
+      return ResponseHelper.error(res, 'Failed to upload logo', 500, error.message);
+    }
+  }
+
+  /**
+   * Remove a logo from the caller's own franchise, reverting to the default
+   * DELETE /api/config/logo?variant=primary|footer|favicon
+   */
+  deleteLogo = async (req, res) => {
+    try {
+      const franchiseId = getWriteFranchiseId(req);
+      const variant = req.query.variant || req.body?.variant || 'primary';
+
+      const { variant: clearedVariant } = await franchiseLogoService.clearFranchiseLogo({
+        franchiseId,
+        variant,
+      });
+
+      return ResponseHelper.success(
         res,
-        'Failed to upload logo',
-        500,
-        error.message
+        { variant: clearedVariant },
+        `${franchiseLogoService.LOGO_VARIANTS[clearedVariant].label} removed`
       );
+    } catch (error) {
+      if (error instanceof franchiseLogoService.LogoError) {
+        return ResponseHelper.error(res, error.message, error.status);
+      }
+      console.error('Error removing logo:', error);
+      return ResponseHelper.error(res, 'Failed to remove logo', 500, error.message);
     }
   }
 

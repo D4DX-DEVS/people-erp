@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { config as configApi } from '@/lib/api';
+import { resolveOrgAssetUrl } from '@/hooks/useOrgLogoUrl';
 import { toast } from 'sonner';
 
 export type ColorTheme = 'blue' | 'purple' | 'green';
@@ -22,7 +23,12 @@ export interface OrgBranding {
   websiteUrl: string;
   defaultTheme: ColorTheme;
   copyrightText: string;
+  /** Header / ERP mark. Uploaded per franchise; may be absolute or API-relative. */
   logoUrl: string;
+  /** Light-on-dark lockup for the site footer. Empty → fall back to logoUrl. */
+  footerLogoUrl: string;
+  /** Browser tab icon. Empty → fall back to logoUrl. */
+  faviconUrl: string;
   heroSubtext: string;
   aboutText: string;
   footerText: string;
@@ -46,7 +52,9 @@ const DEFAULT_ORG: OrgBranding = {
   websiteUrl: 'https://peoplefoundation.org',
   defaultTheme: 'blue',
   copyrightText: `© ${new Date().getFullYear()} People's Foundation. All rights reserved.`,
-  logoUrl: '/api/assets/logo-peoplefoundation.png',
+  logoUrl: '/api/assets/logo.png',
+  footerLogoUrl: '',
+  faviconUrl: '',
   heroSubtext: 'Empowering communities through transparent welfare distribution, supporting education, healthcare, and livelihood initiatives',
   aboutText: "People's Foundation ERP is dedicated to the transparent and effective distribution of welfare funds to support underprivileged communities. We run comprehensive programs in education, healthcare, housing, and livelihood development, ensuring that assistance reaches those who need it most.",
   footerText: 'Dedicated to transparent welfare distribution and community empowerment',
@@ -89,6 +97,19 @@ export const useConfig = () => {
   return context;
 };
 
+/**
+ * Point every favicon <link> in the document head at the franchise's own icon.
+ * No-op when there is nothing to point at, so the static /favicon.ico in
+ * index.html stays as the fallback.
+ */
+const applyFavicon = (href: string) => {
+  if (!href) return;
+  ["link[rel='icon']", "link[rel='shortcut icon']", "link[rel='apple-touch-icon']"].forEach(selector => {
+    const link = document.querySelector(selector) as HTMLLinkElement | null;
+    if (link) link.href = href;
+  });
+};
+
 interface ConfigProviderProps {
   children: ReactNode;
 }
@@ -123,6 +144,9 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
           setOrg({ ...DEFAULT_ORG, ...orgData } as OrgBranding);
           // Update browser tab title dynamically
           document.title = orgData.erpTitle || DEFAULT_ORG.erpTitle;
+          // …and the tab icon, which is branding just as much as the title is.
+          // Hardcoding it at build time gave every franchise the same icon.
+          applyFavicon(resolveOrgAssetUrl(orgData.faviconUrl || orgData.logoUrl));
         }
 
         // Determine effective theme: DB setting > org default > blue

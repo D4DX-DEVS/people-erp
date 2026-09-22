@@ -13,6 +13,17 @@ export default {
       },
     },
     extend: {
+      // Public-site faces, loaded in index.html. Kept as separate families so
+      // the ERP admin keeps Tailwind's default stack: nothing here is applied
+      // globally — `.site-font` (index.css) puts Montserrat on the public site,
+      // and `font-display` / `font-malayalam` are opt-in per element.
+      fontFamily: {
+        display: ['"Clash Display"', "Montserrat", "system-ui", "sans-serif"],
+        site: ["Montserrat", "system-ui", "sans-serif"],
+        malayalam: ['"Anek Malayalam"', "Montserrat", "system-ui", "sans-serif"],
+        // News/blog card body copy only — see ContentRail.
+        "noto-malayalam": ['"Noto Sans Malayalam"', "Montserrat", "system-ui", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

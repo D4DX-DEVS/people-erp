@@ -295,7 +295,7 @@ export default function BeneficiaryProfileCompletion() {
       <Card className="w-full max-w-2xl shadow-elegant">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={orgLogoUrl} alt="Logo" className="h-16 w-16 rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+            <img src={orgLogoUrl} alt="Logo" className="h-14 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
           </div>
           <CardTitle className="text-xl font-bold">Your Profile</CardTitle>
           <CardDescription>

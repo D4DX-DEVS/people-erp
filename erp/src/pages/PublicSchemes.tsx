@@ -6,9 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ArrowRight, Calendar, IndianRupee, Users, Loader2, AlertCircle, LogIn } from "lucide-react";
-import { useConfig } from "@/contexts/ConfigContext";
-import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/logo.png";
+import { SiteShell, PageHero } from "@/components/site/SiteShell";
+import { schemePath } from "@/lib/siteSchemes";
 import { beneficiaryApi } from "@/services/beneficiaryApi";
 
 interface Scheme {
@@ -32,8 +31,6 @@ interface Scheme {
 
 export default function PublicSchemes() {
   const navigate = useNavigate();
-  const { org } = useConfig();
-  const orgLogoUrl = useOrgLogoUrl();
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +62,14 @@ export default function PublicSchemes() {
     }
   };
 
-  const handleSchemeClick = (schemeId: string) => {
+  // The card opens the scheme's public detail page; applying is its own
+  // button, so a visitor can read the eligibility rules before being asked
+  // to sign in.
+  const handleSchemeClick = (scheme: Scheme) => {
+    navigate(schemePath(scheme));
+  };
+
+  const handleApply = (schemeId: string) => {
     if (!isLoggedIn) {
       navigate("/beneficiary-login");
     } else {
@@ -73,53 +77,32 @@ export default function PublicSchemes() {
     }
   };
 
+  // Reads `benefits`, the field the Scheme model actually has. This said
+  // `beneficiaries` — which exists on neither the model nor the interface
+  // above — so every card fell through to "Amount varies".
   const formatAmount = (scheme: Scheme) => {
-    if (scheme.beneficiaries?.minAmount && scheme.beneficiaries?.maxAmount) {
-      return `₹${scheme.beneficiaries.minAmount.toLocaleString()} - ₹${scheme.beneficiaries.maxAmount.toLocaleString()}`;
+    if (scheme.benefits?.minAmount && scheme.benefits?.maxAmount) {
+      return `₹${scheme.benefits.minAmount.toLocaleString()} - ₹${scheme.benefits.maxAmount.toLocaleString()}`;
     }
-    if (scheme.beneficiaries?.amount) {
-      return `₹${scheme.beneficiaries.amount.toLocaleString()}`;
+    if (scheme.benefits?.amount) {
+      return `₹${scheme.benefits.amount.toLocaleString()}`;
     }
     return "Amount varies";
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <img src={orgLogoUrl} alt={org.erpTitle} className="h-12 w-12 rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
-            <div>
-              <h1 className="text-lg font-bold">{org.erpTitle}</h1>
-              <p className="text-xs text-muted-foreground">{org.tagline}</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate("/")}>
-              Home
-            </Button>
-            <Button onClick={() => navigate("/login")}>
-              Login
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="bg-gradient-primary py-12">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
-            Available Schemes
-          </h1>
-          <p className="text-lg text-primary-foreground/90 max-w-2xl mx-auto">
-            Browse and apply for various assistance programs designed to support our community
-          </p>
-        </div>
-      </section>
+    // Shares the public site's shell rather than its own header/hero/footer:
+    // this page is the destination of the home page's "View all schemes" CTA,
+    // and a bespoke bar here dropped visitors out of the mobile app shell —
+    // no drawer, no bottom tab bar — the moment they followed it.
+    <SiteShell>
+      <PageHero
+        title="Available Schemes"
+        subtitle="Browse and apply for various assistance programs designed to support our community"
+      />
 
       {/* Schemes Grid */}
-      <section className="py-12">
+      <section className="py-10 md:py-12">
         <div className="container mx-auto px-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -153,7 +136,7 @@ export default function PublicSchemes() {
                 <Card 
                   key={scheme._id} 
                   className="hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                  onClick={() => handleSchemeClick(scheme._id)}
+                  onClick={() => handleSchemeClick(scheme)}
                 >
                   <CardHeader>
                     <div className="flex justify-between items-start mb-2">
@@ -183,7 +166,11 @@ export default function PublicSchemes() {
                         <span>{scheme.statistics.totalBeneficiaries} Beneficiaries</span>
                       </div>
                     )}
-                    <Button className="w-full mt-4" variant="default">
+                    <Button
+                      className="w-full mt-4"
+                      variant="default"
+                      onClick={(e) => { e.stopPropagation(); handleApply(scheme._id); }}
+                    >
                       Apply Now
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
@@ -194,13 +181,6 @@ export default function PublicSchemes() {
           )}
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="bg-card border-t py-8 mt-12">
-        <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>{org.copyrightText}</p>
-        </div>
-      </footer>
-    </div>
+    </SiteShell>
   );
 }

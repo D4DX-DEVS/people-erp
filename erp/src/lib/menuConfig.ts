@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   FolderKanban,
+  HandHeart,
   FileText,
   BarChart3,
   Users,
@@ -456,6 +457,13 @@ export const menuCategories: MenuCategory[] = [
         label: "Project Pages",
         permissions: ["website.read"],
         keywords: ["project page", "project detail", "projects hub", "page builder"],
+      },
+      {
+        to: "/website-scheme-pages",
+        icon: HandHeart,
+        label: "Scheme Pages",
+        permissions: ["website.read"],
+        keywords: ["scheme page", "scheme detail", "schemes", "page builder", "learn more"],
       },
       {
         to: "/banners",

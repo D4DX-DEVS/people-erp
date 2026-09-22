@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ProjectCard } from "@/components/site/ProjectCard";
+import { ContactSection } from "@/components/site/ContactSection";
 import { getYouTubeId, videoThumb } from "@/hooks/useSiteData";
 import { cn } from "@/lib/utils";
 import { resolveIcon } from "@/lib/siteIcons";
@@ -62,19 +63,58 @@ function SectionHeading({
 
 /** Render a page's sections in their persisted `order`. */
 export function PageSections({ sections }: { sections?: PageSection[] }) {
+  const ordered = (sections || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+
   return (
     <>
-      {(sections || [])
-        .slice()
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map((section, i) => (
-          <SectionBlock key={section._id || i} section={section} />
-        ))}
+      {ordered.map((section, i) => (
+        // A call to action is a closing band rather than a peer section, so
+        // whatever it follows gives up most of its bottom padding: the two
+        // gaps stacked left a hole between the page's last content and the
+        // band. Only PageSections can know this — it is the one place that
+        // sees a section's neighbours.
+        <SectionBlock
+          key={section._id || i}
+          section={section}
+          tightBottom={ordered[i + 1]?.type === "cta"}
+        />
+      ))}
     </>
   );
 }
 
-export function SectionBlock({ section }: { section: PageSection }) {
+/**
+ * Split a plain-text body into paragraphs on blank lines.
+ *
+ * `content` is rendered as text, never as markup — so a body that arrives
+ * carrying HTML (pasted from a word processor, or seeded that way) would
+ * otherwise show its tags verbatim. Block tags become paragraph breaks and the
+ * rest are dropped; the text is still escaped by React on the way out, so this
+ * strips markup rather than trusting it.
+ */
+function toParagraphs(content: string): string[] {
+  let text = content;
+  if (/<\/?[a-z][^>]*>/i.test(text)) {
+    text = text
+      .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">");
+  }
+  return text.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+}
+
+export function SectionBlock({
+  section,
+  tightBottom = false,
+}: {
+  section: PageSection;
+  /** Drop most of this section's bottom padding — a CTA band follows it. */
+  tightBottom?: boolean;
+}) {
   const navigate = useNavigate();
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
@@ -102,7 +142,7 @@ export function SectionBlock({ section }: { section: PageSection }) {
       if (!section.content?.trim()) return null;
       body = (
         <div className="mx-auto max-w-3xl">
-          {section.content.split(/\n\s*\n/).map((para, idx) => (
+          {toParagraphs(section.content).map((para, idx) => (
             <p key={idx} className="mb-4 whitespace-pre-line leading-relaxed text-muted-foreground">{para}</p>
           ))}
         </div>
@@ -125,7 +165,7 @@ export function SectionBlock({ section }: { section: PageSection }) {
             )}
           </div>
           <div className={imageFirst ? "lg:order-2" : "lg:order-1"}>
-            {section.content?.split(/\n\s*\n/).map((para, idx) => (
+            {toParagraphs(section.content || "").map((para, idx) => (
               <p key={idx} className="mb-4 whitespace-pre-line leading-relaxed text-muted-foreground">{para}</p>
             ))}
           </div>
@@ -219,15 +259,18 @@ export function SectionBlock({ section }: { section: PageSection }) {
     case "cta": {
       if (!section.title && !section.content && !section.ctaText) return null;
       return (
-        <section className="py-14 md:py-20">
+        // Tighter than the other section types on purpose: a call to action is
+        // a closing band, usually the last thing on a page, and the roomy
+        // rhythm the content sections use left it stranded in whitespace.
+        <section className="py-3 sm:py-4 md:py-6">
           <div className="container mx-auto px-4">
-            <div className="rounded-3xl bg-gradient-hero p-8 text-center text-primary-foreground md:p-12">
+            <div className="rounded-3xl bg-gradient-hero p-6 text-center text-primary-foreground sm:p-8 md:p-10">
               {section.title && <h2 className="text-2xl font-bold md:text-4xl">{section.title}</h2>}
               {section.content && (
-                <p className="mx-auto mt-4 max-w-2xl whitespace-pre-line text-primary-foreground/90">{section.content}</p>
+                <p className="mx-auto mt-3 max-w-2xl whitespace-pre-line text-primary-foreground/90">{section.content}</p>
               )}
               {section.ctaText && section.ctaLink && (
-                <Button size="lg" variant="secondary" className="mt-6 rounded-full" onClick={() => goLink(section.ctaLink)}>
+                <Button size="lg" variant="secondary" className="mt-5 rounded-full" onClick={() => goLink(section.ctaLink)}>
                   {section.ctaText}
                 </Button>
               )}
@@ -333,6 +376,13 @@ export function SectionBlock({ section }: { section: PageSection }) {
       break;
     }
 
+    case "contact": {
+      // Always the light badge: the rows live inside white cards, so the
+      // on-dark badge the rest of the section would use is invisible there.
+      body = <ContactSection section={section} badge={iconBadgeStyle(undefined, accent)} />;
+      break;
+    }
+
     default:
       return null;
   }
@@ -356,7 +406,15 @@ export function SectionBlock({ section }: { section: PageSection }) {
   return (
     // overflow-wrap is inherited, so `anywhere` lets every descendant break a
     // long unbroken string instead of forcing the layout to scroll sideways.
-    <section className={cn("py-14 md:py-20 [overflow-wrap:anywhere]", bgClass, darkCustom && "text-white")} style={bgStyle}>
+    <section
+      className={cn(
+        "py-8 sm:py-14 md:py-20 [overflow-wrap:anywhere]",
+        tightBottom && "pb-2 sm:pb-3 md:pb-4",
+        bgClass,
+        darkCustom && "text-white",
+      )}
+      style={bgStyle}
+    >
       <div className="container mx-auto px-4">
         {section.background === "primary" ? (
           <div className="rounded-3xl bg-gradient-hero p-8 text-primary-foreground md:p-12">
@@ -593,7 +651,7 @@ function ContentGrid({
     case "projects":
       return (
         <div className={`grid gap-6 ${colsClass(columns)}`}>
-          {items.map((p) => <ProjectCard key={p._id} project={p} />)}
+          {items.map((p, i) => <ProjectCard key={p._id} project={p} index={i} />)}
         </div>
       );
 

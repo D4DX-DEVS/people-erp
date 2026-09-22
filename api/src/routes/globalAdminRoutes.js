@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const globalAdminController = require('../controllers/globalAdminController');
+const { uploadBrandingImage } = require('../middleware/upload');
 
 /**
  * Global Admin Routes — /api/global/*
@@ -28,6 +29,10 @@ router.get('/franchises/:id/stats', globalAdminController.getFranchiseStats);
 // ── Domain management (add/remove custom domains per franchise) ──────────────
 router.post('/franchises/:id/domains', globalAdminController.addDomain);
 router.delete('/franchises/:id/domains', globalAdminController.removeDomain);
+
+// ── Branding (per-franchise logos) ──────────────────────────────────────────
+router.post('/franchises/:id/logo', uploadBrandingImage('logo'), globalAdminController.uploadFranchiseLogo);
+router.delete('/franchises/:id/logo', globalAdminController.deleteFranchiseLogo);
 
 // ── Franchise admin management ────────────────────────────────────────────────
 router.get('/franchises/:id/admins', globalAdminController.listFranchiseAdmins);

@@ -2,10 +2,11 @@ import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SiteShell, PageHero } from "@/components/site/SiteShell";
+import { SiteShell, PageHero, PageBody } from "@/components/site/SiteShell";
+import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { PageSections, SectionBlock } from "@/components/site/PageSections";
 import { usePublicProjectPage } from "@/hooks/useSitePages";
-import { categoryLabel } from "@/lib/siteProjects";
+import { categoryLabel, projectImage } from "@/lib/siteProjects";
 import type { PageSection, SectionItem } from "@/types/sitePage";
 import { type PublicProjectDetail, PROJECT_STATUS_LABELS } from "@/types/projectPage";
 
@@ -103,16 +104,30 @@ export default function ProjectDetailPage() {
 
   return (
     <SiteShell>
-      <PageHero title={page.hero?.title || project.name} subtitle={page.hero?.subtitle} imageUrl={page.hero?.imageUrl || page.coverImageUrl} />
-      {overviewSections(data).map((s) => (
-        <SectionBlock key={`overview-${s.order}`} section={s} />
-      ))}
-      <PageSections sections={page.sections} />
-      <div className="container mx-auto px-4 pb-16 text-center">
-        <Button variant="outline" className="rounded-full" onClick={() => navigate("/projects-hub")}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> All projects
-        </Button>
-      </div>
+      {/* Falls through to the same artwork and summary the project's card
+          carries on the home page and the hub, so an auto-generated page is
+          not a bare gradient band where the card had a photo. */}
+      <PageHero
+        title={page.hero?.title || project.name}
+        subtitle={page.hero?.subtitle || page.summary}
+        imageUrl={page.hero?.imageUrl || page.coverImageUrl || projectImage({ ...project, coverImageUrl: page.coverImageUrl })}
+      />
+      <SiteBreadcrumbs
+        items={[{ label: "Projects", href: "/projects-hub" }, { label: page.hero?.title || project.name }]}
+      />
+      {/* flush: the section blocks carry their own padding and their own
+          full-width background bands, which have to reach the card's edges. */}
+      <PageBody flush>
+        {overviewSections(data).map((s) => (
+          <SectionBlock key={`overview-${s.order}`} section={s} />
+        ))}
+        <PageSections sections={page.sections} />
+        <div className="container mx-auto px-4 pb-10 text-center">
+          <Button variant="outline" className="rounded-full" onClick={() => navigate("/projects-hub")}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> All projects
+          </Button>
+        </div>
+      </PageBody>
     </SiteShell>
   );
 }

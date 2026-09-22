@@ -18,7 +18,8 @@ export interface SiteSettings {
   homeLayout?: HomeLayoutItem[];
   navigation?: NavigationSettings;
   aboutUs?: { title?: string; description?: string; imageUrl?: string };
-  hero?: { title?: string; subtitle?: string; ctaText?: string; ctaLink?: string; secondaryCtaText?: string; secondaryCtaLink?: string };
+  /** style picks the home page's opening band: the built-in artwork or a photo slider fed by Banners. */
+  hero?: { style?: "illustrated" | "slider"; title?: string; subtitle?: string; ctaText?: string; ctaLink?: string; secondaryCtaText?: string; secondaryCtaLink?: string };
   appearance?: { primaryColor?: string; gradientColor?: string };
   vision?: { title?: string; description?: string; icon?: string; color?: string };
   mission?: { title?: string; description?: string; icon?: string; color?: string };
@@ -29,6 +30,12 @@ export interface SiteSettings {
   donation?: {
     enabled?: boolean; heading?: string; description?: string; accountName?: string; accountNumber?: string;
     bankName?: string; ifsc?: string; upiId?: string; paymentLink?: string; qrImageUrl?: string;
+    /** Multiple payable accounts. Falls back to the single account* fields above
+     *  when absent, so settings saved before this existed still render. */
+    bankAccounts?: Array<{
+      accountName?: string; accountNumber?: string; accountType?: string;
+      bankName?: string; branch?: string; ifsc?: string;
+    }>;
   };
   seo?: { title?: string; description?: string; keywords?: string; ogImageUrl?: string };
   footer?: { description?: string; copyrightText?: string; links?: Array<{ label: string; url: string }> };
@@ -38,10 +45,18 @@ export interface SiteHomeData {
   settings: SiteSettings;
   banners: Array<{ _id: string; title?: string; description?: string; imageUrl: string; link?: string }>;
   projects: PublicProject[];
-  schemes: Array<{ _id: string; name?: string; title?: string; description?: string; category?: string }>;
+  schemes: Array<{ _id: string; name?: string; title?: string; description?: string; category?: string; imageUrl?: string }>;
   news: Array<{ _id: string; title: string; description?: string; category?: string; imageUrl?: string; publishDate?: string; featured?: boolean }>;
   blogs: Array<{ _id: string; title: string; slug: string; excerpt?: string; author?: string; coverImageUrl?: string; category?: string; publishDate?: string }>;
-  gallery: Array<{ _id: string; title: string; category?: string; coverImageUrl?: string; imageCount?: number }>;
+  gallery: Array<{
+    _id: string;
+    title: string;
+    category?: string;
+    coverImageUrl?: string;
+    imageCount?: number;
+    /** A few frames from the album, used by the home photo wall. */
+    images?: string[];
+  }>;
   videos: Array<{ _id: string; title: string; description?: string; videoUrl: string; thumbnailUrl?: string; category?: string; featured?: boolean }>;
   partners: Array<{ _id: string; name: string; logoUrl?: string; link?: string }>;
   brochures: Array<{ _id: string; title: string; description?: string; fileUrl: string; fileName?: string; category?: string }>;

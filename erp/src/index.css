@@ -51,6 +51,19 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
+    /* Brand accent family — the header pills, bottom bar and calculator chrome.
+       These are only the DEFAULT, sampled from the bundled logo (src/assets/logo.png):
+       #003830 deep green, #105030 green, #C8D840 lime, #E86020 orange.
+       A franchise that sets its own palette under Website Settings → Colours
+       overrides all of them at runtime (see themeVars in lib/siteColors.ts), so
+       each franchise's chrome follows its own logo rather than this one. */
+    --brand-green-dark: 171 90% 11%;
+    --brand-green: 150 67% 19%;
+    --brand-green-mid: 145 50% 27%;
+    --brand-lime: 66 66% 55%;
+    --brand-orange: 19 81% 52%;
+    --gradient-brand: linear-gradient(135deg, hsl(171 90% 10%) 0%, hsl(150 67% 19%) 42%, hsl(96 40% 32%) 100%);
+
     --gradient-primary: linear-gradient(135deg, hsl(199 89% 38%), hsl(199 89% 50%));
     --gradient-secondary: linear-gradient(135deg, hsl(199 60% 92%), hsl(199 70% 96%));
     --gradient-hero: linear-gradient(135deg, hsl(199 89% 42%), hsl(199 89% 48%), hsl(199 85% 55%));
@@ -211,4 +224,422 @@ All colors MUST be HSL.
   .card, [class*="Card"] {
     page-break-inside: avoid;
   }
+}
+
+/* ── Scroll reveal ───────────────────────────────────────────────────────────
+   Sections start shifted down and transparent; <Reveal> adds .is-visible when
+   the element first intersects the viewport. Motion is dropped entirely for
+   users who ask for reduced motion — the content still renders, just static. */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translate3d(0, 28px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+.reveal {
+  opacity: 0;
+}
+
+.reveal.is-visible {
+  animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/* Once the entrance has played, drop the animation completely. A finished
+   transform animation keeps resolving to an identity matrix, and ANY transform
+   makes the element a containing block for position: fixed descendants — which
+   breaks ScrollTrigger pinning inside it (the Schemes card stack). After the
+   animation is removed the transform is genuinely `none` again. */
+.reveal.is-done {
+  opacity: 1;
+  animation: none;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal.is-visible,
+  .reveal.is-done {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+}
+
+/* ── Title word reveal ───────────────────────────────────────────────────────
+   <AnimatedTitle> splits a heading into words; each one slides up from behind
+   its own mask on a stagger. Same reduced-motion escape hatch as .reveal — the
+   words render in place, just without the motion. */
+@keyframes title-word-up {
+  from { opacity: 0; transform: translate3d(0, 110%, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+.anim-title-word {
+  display: inline-block;
+  overflow: hidden;
+  /* Descenders (g, j, y) drop below the baseline, and the mask would clip them
+     once the word settles. Pad the box, then take the space straight back so
+     the heading's line box is unchanged. */
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
+}
+
+.anim-title-word > span {
+  display: inline-block;
+  opacity: 0;
+  transform: translate3d(0, 110%, 0);
+}
+
+.anim-title.is-visible .anim-title-word > span {
+  animation: title-word-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--word-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-title-word > span,
+  .anim-title.is-visible .anim-title-word > span {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+}
+
+/* ── Sticky hero covered on scroll ─────────────────────────────────────────
+   Pure-CSS "sheet pulled over a pinned background" effect for the public
+   home page (see SiteHome). DOM order must be:
+     <section class="site-hero">…</section>
+     <div class="site-page-body">…everything else…</div>
+   `sticky` pins the hero at the viewport top while the next sibling —
+   higher in stacking order with an opaque background — slides up over it.
+   Zero JavaScript involved. */
+.site-hero {
+  position: sticky;
+  /* Pinned under the sticky header rather than under the top of the window, and
+     a viewport *minus* that header. `--site-header-h` is published by
+     SiteHeader (it varies: utility bar + tall logo from `lg`, an app bar
+     below). Pinning at 0 with a full-viewport height pushed the band's copy
+     down by the header's height and ran the frame off the bottom of the
+     screen, leaving a strip of nothing above the eyebrow. */
+  top: var(--site-header-h, 0px);
+  z-index: 0;
+  height: calc(100vh - var(--site-header-h, 0px)); /* fallback for browsers without svh */
+  height: calc(100svh - var(--site-header-h, 0px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The hero band itself (IllustratedHero / HeroBannerSlider root section)
+   stretches to fill the pinned frame and centers its copy vertically, so
+   a short hero never leaves a blank strip at the bottom of the frame. */
+.site-hero > section {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* This is what does the "covering": it must sit above .site-hero in
+   stacking order AND be opaque, otherwise the pinned hero shows through. */
+.site-page-body {
+  position: relative;
+  z-index: 1;
+  background: hsl(var(--background));
+  /* Soft lifted edge so the body reads as a sheet sliding over the hero. */
+  box-shadow: 0 -16px 48px -16px rgb(0 0 0 / 0.28);
+}
+
+/* Small/mobile screens: drop the full-screen pin — a pinned 100svh hero
+   feels cramped on short viewports — and let the hero size to its content. */
+@media (max-width: 767px) {
+  .site-hero {
+    position: relative;
+    height: auto;
+    overflow: visible;
+    display: block;
+  }
+  .site-hero > section {
+    height: auto;
+    display: block;
+  }
+  .site-page-body {
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sticky positioning is not motion, so the effect itself stays; this only
+     documents the intent — no animation to disable here. */
+}
+
+/* ── Filterable project grid ("Our Projects") ──────────────────────────────
+   Card image sits in a fixed-aspect box washed with the active category's
+   soft tint, so the frame never looks broken while the photo loads (the
+   photo fades in via .loaded) or when the item has no photo at all (a
+   centred fallback icon is shown instead — a genuine "no photo" state, not
+   a loading state). Category switches show .proj-skeleton blocks, then the
+   whole grid mounts at once with .proj-card-grid. Class names are prefixed
+   (proj-) so they cannot collide with the generic ui/skeleton. */
+.proj-card-image {
+  aspect-ratio: 16 / 10;
+  background: var(--category-tint, hsl(var(--muted)));
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+.proj-card-image img {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.proj-card-image img.loaded {
+  opacity: 1;
+}
+.proj-card-image .fallback-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0.5;
+  color: var(--category-accent, currentColor);
+}
+/* Side-by-side card variant (photo left, text right): a squarer frame suits
+   the narrower image column. Declared after the base so it wins. */
+.proj-card-image-side {
+  aspect-ratio: 4 / 3;
+}
+.proj-skeleton {
+  background: hsl(var(--muted));
+  border-radius: 1rem;
+  min-height: 320px; /* match card height so the switch does not jump */
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+/* Applied once, to the grid container — the whole set appears together. */
+.proj-card-grid {
+  animation: grid-in 0.5s both;
+}
+@keyframes grid-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Static muted block, and an opacity-only entrance — no pulse, no lift. */
+  .proj-skeleton {
+    animation: none;
+  }
+  .proj-card-grid {
+    animation-name: proj-grid-fade;
+  }
+  @keyframes proj-grid-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+/* ── Ambient mark drift ────────────────────────────────────────────────────
+   Slow float for decorative marks (hero dots, silhouettes). Uses the
+   independent `translate`/`rotate` properties — never `transform` — so it
+   composes with Tailwind translate utilities instead of overriding them. */
+@keyframes mark-drift {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50%      { translate: 8px -12px; rotate: 2deg; }
+}
+
+.drift-mark {
+  animation: mark-drift 5.2s ease-in-out infinite;
+  animation-delay: var(--drift-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift-mark {
+    animation: none;
+  }
+}
+
+/* ── Associate logo marquee ────────────────────────────────────────────────
+   Two rows of partner logos drifting right to left without end. Each track
+   holds its logo list twice and translates by exactly -50%, so the second copy
+   lands precisely where the first began and the loop shows no seam. That exact
+   figure is why the spacing lives on each tile as a trailing margin rather than
+   in a flex `gap`: with a gap the two copies would be separated by one extra
+   gap that -50% does not account for, and the row would hitch on every lap.
+
+   Unlike the hero's logo strip this one is a plain CSS transform rather than
+   scripted scrollLeft. Nothing here has to agree with a manual control — there
+   are no arrows — so the compositor can own the whole animation. */
+@keyframes associate-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+.associate-track {
+  display: flex;
+  width: max-content;
+  animation: associate-drift var(--marquee-duration, 64s) linear infinite;
+  animation-delay: var(--marquee-delay, 0s);
+}
+
+/* The logos are links a visitor may want to hit, so the drift stops under the
+   pointer and while anything in the row holds focus. */
+.associate-marquee:hover .associate-track,
+.associate-marquee:focus-within .associate-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .associate-track {
+    animation: none;
+  }
+}
+
+/* ── Parallax cards ──────────────────────────────────────────────────────────
+   useParallax() writes --parallax-y onto the media node as the card travels
+   through the viewport; useTilt() writes --tilt-x/--tilt-y as the pointer moves
+   over the card. Both are plain custom properties set straight on the element,
+   so the browser only ever recomputes a transform — no React re-render, no
+   layout. Reduced motion leaves every card flat and still. */
+.parallax-media {
+  transform: translate3d(0, var(--parallax-y, 0px), 0);
+  will-change: transform;
+}
+
+/* The media is oversized so the vertical drift never uncovers the frame edge:
+   the 0.5rem of bleed on each side is the headroom useParallax() moves into. */
+.parallax-frame > .parallax-media {
+  position: absolute;
+  inset: -3.5rem 0;
+}
+
+.tilt-card {
+  transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transform-style: preserve-3d;
+  /* Long enough to smooth the pointer, short enough not to lag behind it.
+     box-shadow rides along because this rule replaces the Tailwind
+     `transition-shadow` the cards carry. */
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms ease;
+}
+
+/* Floats a child above the card face so the tilt separates it from the image. */
+.tilt-layer {
+  transform: translate3d(0, 0, 38px);
+}
+
+/* ── Hero layers follow the pointer ──────────────────────────────────────────
+   usePointerParallax() writes --pointer-x / --pointer-y (-1..1, centre = 0)
+   onto the hero section. Each layer inside declares its own --depth in pixels,
+   and the two axes are scaled differently (1 and 0.55) because the hero band is
+   far wider than it is tall — matching the axes keeps the motion feeling round
+   rather than stretched.
+
+   These layers also carry the `drift-mark` idle animation, which animates the
+   independent `translate`/`rotate` properties rather than `transform`. The two
+   compose, so the marks keep breathing while also tracking the pointer.
+
+   The transition is what turns discrete pointer samples into a glide: the
+   handler writes a fresh target every frame and the browser eases towards it,
+   so the hero reads as damped rather than snapping to the cursor. */
+.hero-layer {
+  transform: translate3d(
+    calc(var(--pointer-x, 0) * var(--depth, 0) * 1px),
+    calc(var(--pointer-y, 0) * var(--depth, 0) * 0.55px),
+    0
+  );
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* The artwork also leans, so the band has a front face instead of being a flat
+   picture that merely slides. Kept to a few degrees: past that the collage
+   stops reading as a photograph and starts reading as a skew. */
+.hero-tilt {
+  transform: perspective(1600px)
+    rotateY(calc(var(--pointer-x, 0) * 4deg))
+    rotateX(calc(var(--pointer-y, 0) * -2.6deg))
+    translate3d(
+      calc(var(--pointer-x, 0) * var(--depth, 0) * 1px),
+      calc(var(--pointer-y, 0) * var(--depth, 0) * 0.55px),
+      0
+    );
+  transform-style: preserve-3d;
+  transition: transform 450ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .parallax-media,
+  .tilt-card,
+  .tilt-layer,
+  .hero-layer,
+  .hero-tilt {
+    transform: none;
+    transition: none;
+    will-change: auto;
+  }
+
+  .parallax-frame > .parallax-media {
+    inset: 0;
+  }
+}
+
+/* ── Public-site typography ──────────────────────────────────────────────────
+   The marketing site runs a different type system from the ERP: Montserrat for
+   UI and body copy, Clash Display for section headings, Anek Malayalam for news
+   card titles — all three loaded in index.html. The `.site-font` class is put on
+   the public site's outermost wrapper only, so the admin keeps Tailwind's
+   default stack and nothing here leaks into a dashboard.
+
+   Display headings run a tight line-height and slightly negative tracking
+   because Clash Display is a display face: at its natural spacing the counters
+   look loose at these sizes. */
+.site-font {
+  font-family: "Montserrat", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.site-font h1,
+.site-font h2,
+.site-font h3,
+.site-font h4 {
+  font-family: "Clash Display", "Montserrat", system-ui, sans-serif;
+  letter-spacing: -0.028em;
+  line-height: 1.02;
+}
+
+/* Weights track the live site: page and hero headings are set at 400–500 —
+   Clash Display is drawn for display sizes and reads heavy above that — while
+   the small card headings need 500 to hold their own next to body copy. */
+.site-font h1 {
+  font-weight: 500;
+}
+
+.site-font h2 {
+  font-weight: 400;
+}
+
+.site-font h3,
+.site-font h4 {
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  line-height: 1.2;
+}
+
+/* ── Campaign tile ───────────────────────────────────────────────────────────
+   The marketing site's campaign cards are rounded rectangles with a circular
+   bite taken out of the top-right corner. It is a mask rather than a second
+   element sitting on top, so the notch reads as a hole through whatever is
+   behind it — a white patch would break the moment the band changed colour. */
+.campaign-tile {
+  border-radius: 1.5rem;
+  -webkit-mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
+  mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
 }

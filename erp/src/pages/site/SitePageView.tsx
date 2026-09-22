@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SiteShell, PageHero } from "@/components/site/SiteShell";
+import { SiteShell, PageHero, PageBody } from "@/components/site/SiteShell";
+import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { PageSections } from "@/components/site/PageSections";
 import { usePublicPage } from "@/hooks/useSitePages";
 
@@ -39,7 +40,12 @@ export default function SitePageView() {
   return (
     <SiteShell>
       <PageHero title={page.hero?.title || page.title} subtitle={page.hero?.subtitle} imageUrl={page.hero?.imageUrl} />
-      <PageSections sections={page.sections} />
+      <SiteBreadcrumbs items={[{ label: page.navLabel || page.title }]} />
+      {/* flush: the builder's sections carry their own padding and their own
+          full-width background bands, which have to reach the card's edges. */}
+      <PageBody flush>
+        <PageSections sections={page.sections} />
+      </PageBody>
     </SiteShell>
   );
 }

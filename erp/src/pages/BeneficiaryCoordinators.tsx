@@ -75,7 +75,7 @@ export default function BeneficiaryCoordinators() {
             <img
               src={orgLogoUrl}
               alt="Logo"
-              className="h-8 w-8 rounded-full"
+              className="h-8 w-auto object-contain"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = defaultLogo;
               }}

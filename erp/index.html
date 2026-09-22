@@ -2,16 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover makes env(safe-area-inset-*) resolve on notched
+         phones, which the site's fixed bottom tab bar pads itself with. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ERP System</title>
     <meta name="description" content="Comprehensive ERP solution for managing NGO projects, schemes, donors, and applications with transparency and efficiency" />
     <meta name="author" content="ERP System" />
     <meta name="keywords" content="ERP, NGO, charity, donations, project management, scheme management" />
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <link rel="shortcut icon" href="/logo.png" />
-    <link rel="apple-touch-icon" href="/logo.png" />
+    <!-- Favicon. The square emblem, not the wordmark: this is what shows in the
+         browser tab until ConfigContext swaps in the franchise's own faviconUrl,
+         and a 300x75 wordmark is unreadable at 16px. -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
 
     <meta property="og:title" content="ERP System" />
     <meta property="og:description" content="Comprehensive ERP solution for managing NGO projects, schemes, donors, and applications with transparency and efficiency" />
@@ -21,6 +25,23 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@lovable_dev" />
     <meta name="twitter:image" content="https://peoples-erp.netlify.app/logo.png" />
+
+    <!-- Public-site typography, matched to peoplesfoundation.org: Clash Display
+         for display headings, Montserrat for UI and body copy, Anek Malayalam
+         for news card titles, Noto Sans Malayalam for news/blog card body
+         copy. The ERP admin keeps the system stack — only the public site
+         carries the .site-font class. -->
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://api.fontshare.com/v2/css?f%5B%5D=clash-display@400,500,600&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Anek+Malayalam:wght@400;500;600&family=Noto+Sans+Malayalam:wght@400;500&display=swap"
+    />
   </head>
 
   <body>

@@ -171,6 +171,7 @@ const contactMessageRoutes = require('./routes/contactMessageRoutes');
 const volunteerRoutes = require('./routes/volunteerRoutes');
 const sitePageRoutes = require('./routes/sitePageRoutes');
 const projectPageRoutes = require('./routes/projectPageRoutes');
+const schemePageRoutes = require('./routes/schemePageRoutes');
 
 // Application Configuration Routes
 const applicationConfigRoutes = require('./routes/applicationConfig');
@@ -228,6 +229,7 @@ app.use('/api/contact-messages', contactMessageRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/site-pages', sitePageRoutes);
 app.use('/api/project-pages', projectPageRoutes);
+app.use('/api/scheme-pages', schemePageRoutes);
 
 // Application Configuration Routes
 app.use('/api/config', applicationConfigRoutes);

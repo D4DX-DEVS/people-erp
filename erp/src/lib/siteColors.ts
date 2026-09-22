@@ -75,6 +75,53 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } | nul
   return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
 }
 
+export function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+  const sn = s / 100;
+  const ln = l / 100;
+  const c = (1 - Math.abs(2 * ln - 1)) * sn;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = ln - c / 2;
+  const [r, g, b] =
+    h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] :
+    h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  };
+}
+
+/** WCAG relative luminance. */
+function relativeLuminance({ r, g, b }: { r: number; g: number; b: number }): number {
+  const channel = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** Contrast ratio of white text on the given colour. */
+export function contrastWithWhite(rgb: { r: number; g: number; b: number }): number {
+  return 1.05 / (relativeLuminance(rgb) + 0.05);
+}
+
+/**
+ * The darkest shade of a brand colour is not always the brand colour.
+ *
+ * The accent tokens are used as *fills under white text* — header pills, the
+ * solid donate button, the mobile bar. A light brand colour (the People's
+ * Foundation cyan, #00B0E6, is 2.4:1 against white) would put the whole
+ * navigation below AA, so the fill steps down in lightness until white text
+ * clears 4.5:1. A colour that already passes is returned untouched, which is
+ * why a darker brand like the Baithuzzakath green comes back unchanged.
+ */
+function accentLightness(h: number, s: number, l: number): number {
+  for (let candidate = l; candidate >= 12; candidate -= 1) {
+    if (contrastWithWhite(hslToRgb(h, s, candidate)) >= 4.5) return candidate;
+  }
+  return 12;
+}
+
 /** Relative luminance check — true when white text is readable on the colour. */
 export function isDarkColor(hex: string): boolean {
   const rgb = hexToRgb(hex);
@@ -133,10 +180,16 @@ export function themeVars(primaryHex?: string, gradientHex?: string): Record<str
   const { h, s, l } = p;
   const light = clamp(l + 10);
   const dark = clamp(l - 8);
-  const fg = isDarkColor(primaryHex) ? "0 0% 100%" : `${h} 60% 10%`;
+  // White text only where white text actually works. The old rule was a crude
+  // luminance threshold, which put white on a mid-bright brand colour (a cyan
+  // or a lime) at barely 2.5:1 — readable to the person who picked the colour,
+  // not to anyone else.
+  const fg = contrastWithWhite(hslToRgb(h, s, l)) >= 4.5 ? "0 0% 100%" : `${h} 60% 12%`;
   const g = gradientHex && isHex(gradientHex) ? hexToHsl(gradientHex) : null;
   const g2 = g || { h, s: clamp(s - 4), l: clamp(l + 12) };
   const hsl = `${h} ${s}% ${l}%`;
+  const accentL = accentLightness(h, s, l);
+  const accentGradientL = accentLightness(g2.h, g2.s, g2.l);
 
   return {
     "--primary": hsl,
@@ -156,9 +209,25 @@ export function themeVars(primaryHex?: string, gradientHex?: string): Record<str
     "--foreground": `${h} 50% 12%`,
     "--card-foreground": `${h} 50% 12%`,
     "--popover-foreground": `${h} 50% 12%`,
+    // Brand accent family. index.css seeds these from the bundled logo's
+    // greens; left at that default every franchise's header, bottom bar and
+    // calculator would wear one franchise's green no matter what palette it
+    // picked. Deriving them from the site's own brand colour is what makes the
+    // chrome follow the franchise rather than the build.
+    //
+    // These are fills under white text, so they take the AA-safe shade of the
+    // brand colour rather than the brand colour itself (see accentLightness).
+    "--brand-green": `${h} ${s}% ${accentL}%`,
+    "--brand-green-dark": `${h} ${s}% ${clamp(accentL - 10)}%`,
+    "--brand-green-mid": `${h} ${clamp(s - 12)}% ${clamp(accentL + 8)}%`,
+    "--brand-lime": `${g2.h} ${g2.s}% ${g2.l}%`,
+    "--gradient-brand": `linear-gradient(135deg, hsl(${h} ${s}% ${clamp(accentL - 10)}%) 0%, hsl(${h} ${s}% ${accentL}%) 45%, hsl(${g2.h} ${g2.s}% ${accentGradientL}%) 100%)`,
     "--gradient-primary": `linear-gradient(135deg, hsl(${h} ${s}% ${dark}%), hsl(${h} ${s}% ${light}%))`,
     "--gradient-secondary": `linear-gradient(135deg, hsl(${h} 60% 92%), hsl(${h} 70% 96%))`,
-    "--gradient-hero": `linear-gradient(135deg, hsl(${h} ${s}% ${dark}%), hsl(${hsl}), hsl(${g2.h} ${g2.s}% ${g2.l}%))`,
+    // The hero gradient is the footer band and the page's opening ground, both
+    // of which carry white text — so it is built from the AA-safe shades, not
+    // from the raw brand colour.
+    "--gradient-hero": `linear-gradient(135deg, hsl(${h} ${s}% ${clamp(accentL - 8)}%), hsl(${h} ${s}% ${accentL}%), hsl(${g2.h} ${g2.s}% ${accentGradientL}%))`,
     "--shadow-glow": `0 0 40px hsl(${hsl} / 0.25)`,
     "--shadow-elegant": `0 10px 30px -10px hsl(${hsl} / 0.2)`,
   };
@@ -172,6 +241,7 @@ export const themeStyle = (primaryHex?: string, gradientHex?: string): CSSProper
 const DARK_SAFE_VARS = new Set([
   "--primary", "--primary-light", "--primary-dark", "--accent", "--ring", "--info",
   "--gradient-primary", "--gradient-hero", "--shadow-glow",
+  "--brand-green", "--brand-green-dark", "--brand-green-mid", "--brand-lime", "--gradient-brand",
 ]);
 
 /** CSS text that overrides the active theme for as long as it is in the document. */

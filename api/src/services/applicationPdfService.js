@@ -23,7 +23,10 @@ const FOOTER_RESERVE = 56;     // keep clear of the page-number footer
 const PHOTO_W = 99;            // passport photo box, 35mm x 45mm
 const PHOTO_H = 127;
 const HEAD_TOP = 40;           // top edge of the page-1 header band
-const LOGO_W = 54;             // logo square on the letterhead
+// Logo box is wide rather than square: a wordmark logo (e.g. Baithuzzakath's)
+// needs room to breathe, and 'fit' scales a square mark down to match anyway.
+const LOGO_W = 110;             // header logo box width (wordmark-friendly)
+const LOGO_H = 56;              // header logo box height
 const HEAD_GAP = 12;           // header band to the first table
 const MAX_EMBED_BYTES = 4 * 1024 * 1024; // largest photo embedded in the PDF
 const PHOTO_FETCH_MS = 8000;   // give up on a slow CDN rather than stall the download
@@ -283,8 +286,10 @@ class ApplicationPdfService {
     let logoBottom = HEAD_TOP;
     try {
       if (fs.existsSync(this.logoPath)) {
-        doc.image(this.logoPath, L, HEAD_TOP, { fit: [LOGO_W, LOGO_W] });
-        logoBottom = HEAD_TOP + LOGO_W;
+        // 'fit' scales the logo proportionally inside the box, so a wide
+        // wordmark and a square mark both render undistorted.
+        doc.image(this.logoPath, L, HEAD_TOP, { fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
+        logoBottom = HEAD_TOP + LOGO_H;
       }
     } catch (e) { /* no logo */ }
 

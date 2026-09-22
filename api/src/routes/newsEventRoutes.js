@@ -13,6 +13,20 @@ const { uploadSingleMemory } = require('../middleware/upload');
 router.get('/public', newsEventController.getPublic);
 
 /**
+ * @route   GET /api/news-events/public/:id
+ * @desc    Get a single published news/event
+ * @access  Public
+ */
+// The '/:id' route below is written to be public — it only authenticates when
+// a token is supplied — but it can never be reached anonymously: app.js mounts
+// formConfigurationRoutes at bare '/api' with a blanket router.use(authenticate),
+// which gates every route registered after it. A '/public/' segment is how the
+// rest of the site's read endpoints escape that (see the allowlist in
+// middleware/auth.js), so the public news page asks for the story here.
+// getById already restricts anonymous callers to published items.
+router.get('/public/:id', newsEventController.getById);
+
+/**
  * @route   GET /api/news-events
  * @desc    Get all news/events
  * @access  Private (super_admin, state_admin, or website.read permission)

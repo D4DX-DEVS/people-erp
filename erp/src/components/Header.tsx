@@ -362,7 +362,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
           )}
           <div className="flex items-center gap-3">
-            <img src={orgLogoUrl} alt={org.erpTitle} className="h-10 w-10 rounded-2xl shadow-sm" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+            <img src={orgLogoUrl} alt={org.erpTitle} className="h-10 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
             <div className="hidden md:block">
               <h1 className="text-lg font-bold text-foreground">{org.erpTitle}</h1>
               <p className="text-xs text-muted-foreground">{org.erpSubtitle}</p>

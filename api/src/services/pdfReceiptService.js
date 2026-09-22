@@ -15,6 +15,8 @@ const INNER_R = PAGE_W - MARGIN - PAD; // right inner edge — values stop here
 const HEAD_H = 22;                   // section heading band
 const TOP_PAD = 9;                   // band bottom → first row
 const BOT_PAD = 3;                   // last row → box bottom
+const LOGO_W  = 110;                 // header logo box width (wordmark-friendly)
+const LOGO_H  = 52;                  // header logo box height
 const ROW_H = 18;                    // row height within tables
 const SEC_GAP = 10;                  // gap between sections
 
@@ -150,17 +152,19 @@ class PDFReceiptService {
   // ─── sections ───────────────────────────────────────────────────────────────
 
   _addHeader(doc) {
-    const hasLogo = (() => {
-      try { return this.logoPath && fs.existsSync(this.logoPath); }
-      catch { return false; }
-    })();
+    let hasLogo = false;
+    try {
+      if (this.logoPath && fs.existsSync(this.logoPath)) {
+        // 'fit' scales the logo proportionally inside the box, so a wide wordmark
+        // and a square mark both render undistorted. Org presets can point at an
+        // SVG wordmark, which pdfkit cannot rasterize — fall back to text-only.
+        doc.image(this.logoPath, MARGIN, 42, { fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
+        hasLogo = true;
+      }
+    } catch (e) { /* unsupported image format — header still renders without it */ }
 
-    if (hasLogo) {
-      doc.image(this.logoPath, MARGIN, 42, { width: 52, height: 52 });
-    }
-
-    const textX = hasLogo ? MARGIN + 64 : MARGIN;
-    const textW = hasLogo ? CONTENT_W - 64 : CONTENT_W;
+    const textX = hasLogo ? MARGIN + LOGO_W + 10 : MARGIN;
+    const textW  = hasLogo ? CONTENT_W - LOGO_W - 10 : CONTENT_W;
 
     doc.fontSize(15).font('Helvetica-Bold').fillColor(INK)
        .text(this.org.name, textX, 44, { width: textW, lineBreak: false, characterSpacing: 0.3 });

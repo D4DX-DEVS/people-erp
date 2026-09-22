@@ -48,7 +48,7 @@ export default function Index() {
       <header className="border-b border-border/40 bg-background/80 sticky top-0 z-50 shadow-sm backdrop-blur-xl">
         <div className="container relative mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <img src={orgLogoUrl} alt={org.erpTitle} className="h-12 w-12 rounded-2xl shadow-sm" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+            <img src={orgLogoUrl} alt={org.erpTitle} className="h-10 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
             <div>
               <h1 className="text-lg font-bold">{org.erpTitle}</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">{org.tagline}</p>
@@ -77,7 +77,7 @@ export default function Index() {
             <img 
               src={orgLogoUrl} 
               alt={org.erpTitle} 
-              className="h-24 w-24 md:h-32 md:w-32 rounded-3xl shadow-glow animate-in zoom-in duration-500"
+              className="h-20 w-auto object-contain md:h-28 animate-in zoom-in duration-500"
               onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }}
             />
             
@@ -287,7 +287,7 @@ export default function Index() {
           <div className="grid gap-8 md:grid-cols-3 mb-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <img src={orgLogoUrl} alt="Logo" className="h-10 w-10 rounded-2xl shadow-sm" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
+                <img src={orgLogoUrl} alt="Logo" className="h-10 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }} />
                 <div>
                   <h3 className="font-bold">{org.erpTitle}</h3>
                   <p className="text-xs text-muted-foreground">{org.tagline}</p>

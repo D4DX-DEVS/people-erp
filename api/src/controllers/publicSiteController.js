@@ -12,7 +12,7 @@ const Blog = require('../models/Blog');
 const MediaCoverage = require('../models/MediaCoverage');
 const SitePage = require('../models/SitePage');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
-const { attachProjectPages, PUBLIC_PROJECT_STATUSES } = require('../utils/siteContent');
+const { attachProjectPages, attachSchemePages, PUBLIC_PROJECT_STATUSES, PUBLIC_SCHEME_STATUSES } = require('../utils/siteContent');
 
 /**
  * Aggregated public home payload — one call returns every section needed
@@ -43,7 +43,7 @@ exports.getHome = async (req, res) => {
       Project.find({ status: { $in: ['active', 'approved', 'draft'] }, ...scope }).sort({ createdAt: -1 })
         .select('name description category status').lean(),
       Scheme.find({ status: 'active', ...scope }).sort({ createdAt: -1 }).limit(8)
-        .select('name title description category status').lean(),
+        .select('name title description category status imageUrl').lean(),
       NewsEvent.find({ status: 'published', ...scope }).sort({ publishDate: -1, createdAt: -1 }).limit(6)
         .select('title description category imageUrl publishDate featured').lean(),
       Blog.find({ status: 'published', ...scope }).sort({ publishDate: -1 }).limit(3)
@@ -62,8 +62,11 @@ exports.getHome = async (req, res) => {
         .select('title slug navLabel navOrder showInNav showOnHome homeOrder summary hero.imageUrl hero.title').lean()
     ]);
 
-    // Link project cards to their published detail pages (slug + cover image)
-    const projectsWithPages = await attachProjectPages(projects || [], scope);
+    // Link project and scheme cards to their detail pages (slug + cover image)
+    const [projectsWithPages, schemesWithPages] = await Promise.all([
+      attachProjectPages(projects || [], scope),
+      attachSchemePages(schemes || [], scope)
+    ]);
 
     // Trim gallery image payload to cover thumbnails for the home grid
     const gallerySummary = (gallery || []).map(a => ({
@@ -71,7 +74,11 @@ exports.getHome = async (req, res) => {
       title: a.title,
       category: a.category,
       coverImageUrl: a.coverImageUrl || (a.images && a.images[0] && a.images[0].imageUrl) || '',
-      imageCount: (a.images || []).length
+      imageCount: (a.images || []).length,
+      // A few frames from each album, so the home gallery band can lay out a
+      // wall of photographs instead of one cover per album. Capped low on
+      // purpose: this is a summary payload, not the album contents.
+      images: (a.images || []).slice(0, 4).map(i => i.imageUrl).filter(Boolean)
     }));
 
     res.json({
@@ -80,7 +87,7 @@ exports.getHome = async (req, res) => {
         settings: settings || {},
         banners: banners || [],
         projects: projectsWithPages,
-        schemes: schemes || [],
+        schemes: schemesWithPages,
         news: news || [],
         blogs: blogs || [],
         gallery: gallerySummary,
@@ -136,5 +143,44 @@ exports.getProjects = async (req, res) => {
   } catch (error) {
     console.error('Get public projects error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch projects', error: error.message });
+  }
+};
+
+/**
+ * Public, paginated scheme archive — the destination of "View all schemes".
+ *
+ * Deliberately open, unlike /public-schemes which lists what a signed-in
+ * beneficiary may apply for: a visitor has to be able to browse the programmes
+ * before deciding to register.
+ * GET /api/website/schemes
+ */
+exports.getSchemes = async (req, res) => {
+  try {
+    const scope = buildFranchiseReadFilter(req);
+    const { category } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 12, 50);
+    const skip = (page - 1) * limit;
+
+    const filter = { status: { $in: PUBLIC_SCHEME_STATUSES }, ...scope };
+    // Whitelist category — query params can arrive as objects (qs bracket
+    // notation), which must never reach the Mongo filter on a public route.
+    const SCHEME_CATEGORIES = ['education', 'healthcare', 'housing', 'livelihood', 'emergency_relief', 'infrastructure', 'social_welfare', 'other'];
+    if (typeof category === 'string' && SCHEME_CATEGORIES.includes(category)) filter.category = category;
+
+    const [schemes, total] = await Promise.all([
+      Scheme.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
+        .select('name description category status imageUrl benefits.type benefits.amount applicationSettings.endDate').lean(),
+      Scheme.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: await attachSchemePages(schemes, scope),
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
+  } catch (error) {
+    console.error('Get public schemes error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch schemes', error: error.message });
   }
 };

@@ -65,7 +65,7 @@ export const DESTINATION_GROUPS: Array<{ label: string; options: NavDestination[
       { value: "/#gallery", kind: "section", label: "Gallery section", short: "Gallery" },
       { value: "/#videos", kind: "section", label: "Videos section", short: "Videos" },
       { value: "/#faq", kind: "section", label: "FAQ section", short: "FAQ" },
-      { value: "/#contact", kind: "section", label: "Contact form section", short: "Contact" },
+      { value: "/p/contact-us", kind: "page", label: "Contact page", short: "Contact" },
     ],
   },
   {
@@ -76,7 +76,8 @@ export const DESTINATION_GROUPS: Array<{ label: string; options: NavDestination[
       { value: "/gallery", kind: "builtin", label: "Photo gallery", short: "Gallery" },
       { value: "/videos", kind: "builtin", label: "Videos", short: "Videos" },
       { value: "/blogs", kind: "builtin", label: "Blog", short: "Blog" },
-      { value: "/public-schemes", kind: "builtin", label: "Schemes", short: "Schemes" },
+      { value: "/schemes", kind: "builtin", label: "All schemes", short: "Schemes" },
+      { value: "/public-schemes", kind: "builtin", label: "Schemes (apply)", short: "Apply" },
       { value: "/privacy-policy", kind: "builtin", label: "Privacy policy", short: "Privacy Policy" },
       { value: "/login", kind: "builtin", label: "Admin login", short: "Login" },
       { value: "/beneficiary-login", kind: "builtin", label: "Beneficiary login / apply", short: "Apply" },
@@ -107,31 +108,74 @@ export function findDestination(target: string): NavDestination | undefined {
 
 type NavPage = Pick<SitePageSummary, "title" | "slug"> & Partial<Pick<SitePageSummary, "navLabel" | "navOrder" | "showInNav">>;
 
+/** Every destination a menu already points at, so nothing is offered twice. */
+function usedTargets(items: NavItem[]): Set<string> {
+  const targets = items.flatMap((i) => [i.target, ...(i.children || []).map((c) => c.target)]);
+  return new Set(targets.filter(Boolean));
+}
+
+/**
+ * The About page's label, taken from the page the franchise actually published.
+ *
+ * This entry used to read "Baithuzzakath Kerala" outright. The automatic menu
+ * is shared by every franchise — it is what they all see before they customise
+ * their header — so that put one organisation's name in another's navigation
+ * the moment a second franchise existed. The published page already carries the
+ * label its own admin chose, so the menu defers to it and falls back to a plain
+ * "About Us" only when there is no such page.
+ */
+function aboutPageLabel(pages: NavPage[]): string {
+  const page = pages.find((p) => pageTarget(p.slug) === "/p/about-us");
+  return page?.navLabel?.trim() || page?.title?.trim() || "About Us";
+}
+
 /** The automatic menu — what visitors see until the admin customizes the header. */
 export function buildDefaultNavigation(pages: NavPage[] = []): NavigationSettings {
+  const builtIn: NavItem[] = [
+    // Home leads the menu. The logo links to "/" as well, and below `lg` the
+    // bottom bar carries its own Home tab, so this is a deliberate third route
+    // to the same place — visitors look for it in the menu regardless, and a
+    // bar that opens on "About Us" reads as though it has been cut off.
+    { type: "link", label: "Home", kind: "home", target: "/", visible: true },
+    // "News" is not in the menu. The destination still exists — the footer
+    // points at /news as "Updates".
+    {
+      type: "dropdown", label: "About Us", kind: "custom", target: "", visible: true,
+      children: [
+        { label: aboutPageLabel(pages), kind: "page", target: "/p/about-us", visible: true },
+        { label: "Board of Directors", kind: "page", target: "/p/board-of-directors", visible: true },
+        { label: "Our Schemes", kind: "builtin", target: "/public-schemes", visible: true },
+      ],
+    },
+    { type: "link", label: "Projects", kind: "builtin", target: "/projects-hub", visible: true },
+    {
+      type: "dropdown", label: "Gallery", kind: "custom", target: "", visible: true,
+      children: [
+        { label: "Videos", kind: "builtin", target: "/videos", visible: true },
+        { label: "Photos", kind: "builtin", target: "/gallery", visible: true },
+      ],
+    },
+    { type: "link", label: "Download", kind: "builtin", target: "/download", visible: true },
+    { type: "link", label: "Contact Us", kind: "page", target: "/p/contact-us", visible: true },
+  ];
+
+  // Contact Us, About Us and the rest are hand-written above *and* exist as
+  // published pages, so appending every "show in menu" page listed them twice.
+  const taken = usedTargets(builtIn);
   const pageItems: NavItem[] = pages
     .filter((p) => p.showInNav)
     .slice()
     .sort((a, b) => (a.navOrder || 0) - (b.navOrder || 0))
-    .map((p) => ({ type: "link", label: p.navLabel || p.title, kind: "page", target: pageTarget(p.slug), visible: true }));
+    .map((p): NavItem => ({ type: "link", label: p.navLabel || p.title, kind: "page", target: pageTarget(p.slug), visible: true }))
+    .filter((i) => !taken.has(i.target));
 
   return {
     customized: false,
     menuAlignment: "center",
-    items: [
-      { type: "link", label: "Home", kind: "home", target: "/", visible: true },
-      { type: "link", label: "About", kind: "section", target: "/#about", visible: true },
-      { type: "link", label: "Projects", kind: "builtin", target: "/projects-hub", visible: true },
-      { type: "link", label: "News", kind: "builtin", target: "/news", visible: true },
-      { type: "link", label: "Gallery", kind: "builtin", target: "/gallery", visible: true },
-      { type: "link", label: "Videos", kind: "builtin", target: "/videos", visible: true },
-      { type: "link", label: "Blog", kind: "builtin", target: "/blogs", visible: true },
-      { type: "link", label: "Contact", kind: "section", target: "/#contact", visible: true },
-      ...pageItems,
-    ],
+    items: [...builtIn, ...pageItems],
     buttons: [
       { label: "Donate", kind: "donate", target: "", style: "primary", icon: "heart", openInNewTab: true, visible: true },
-      { label: "Login", kind: "builtin", target: "/login", style: "outline", icon: "", visible: true },
+      { label: "Login", kind: "builtin", target: "/login", style: "primary", icon: "log-in", visible: true },
     ],
   };
 }
@@ -168,11 +212,29 @@ export function resolveNavigation(stored: NavigationSettings | undefined, pages:
     ? stored
     : { ...buildDefaultNavigation(pages), menuAlignment: stored?.menuAlignment || "center" };
 
+  const seen = new Set<string>();
   const items = nav.items
     .filter((i) => i.visible !== false && i.label?.trim())
     .map((i) => (i.type === "dropdown" ? { ...i, children: (i.children || []).filter((c) => isRenderable(c, donateLink)) } : i))
-    .filter((i) => (i.type === "dropdown" ? (i.children || []).length > 0 : isRenderable(i, donateLink)));
+    .filter((i) => (i.type === "dropdown" ? (i.children || []).length > 0 : isRenderable(i, donateLink)))
+    // A menu saved with the same destination twice (an older stored header kept
+    // both the built-in Contact Us and the page of the same name) shows it once.
+    .filter((i) => {
+      if (i.type === "dropdown" || !i.target) return true;
+      const key = i.target.replace(/\/+$/, "").toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   const buttons = nav.buttons.filter((b) => isRenderable(b, donateLink));
 
   return { menuAlignment: (nav.menuAlignment || "center") as MenuAlignment, items, buttons };
+}
+
+/** Is this link where the visitor currently is? Drives the menu's active pill. */
+export function isActiveTarget(target: string | undefined, pathname: string): boolean {
+  if (!target || target.startsWith("http") || target.includes("#")) return false;
+  const clean = target.replace(/\/+$/, "") || "/";
+  const here = pathname.replace(/\/+$/, "") || "/";
+  return clean === "/" ? here === "/" : here === clean || here.startsWith(`${clean}/`);
 }
