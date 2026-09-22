@@ -45,6 +45,7 @@ interface Field {
     scoringRules: { condition: string; value: string; value2?: string; points: number }[];
   };
   autoFill?: FieldAutoFill;
+  filterable?: boolean;
 }
 
 interface Page {

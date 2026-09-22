@@ -2,6 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const {
   getApplications,
+  getApplicationFilterFields,
   getApplication,
   createApplication,
   updateApplication,
@@ -148,6 +149,13 @@ router.get('/:id/available-revert-roles',
   authenticate, crossFranchiseResolver,
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
   getAvailableRevertRoles
+);
+
+// Filterable form-builder dropdown fields for a scheme (must come before /:id)
+router.get('/filter-fields',
+  authenticate, crossFranchiseResolver,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
+  getApplicationFilterFields
 );
 
 router.get('/',

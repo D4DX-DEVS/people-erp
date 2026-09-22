@@ -117,6 +117,7 @@ export default function PendingApplications() {
     filterHook.filters.districtFilter,
     filterHook.filters.areaFilter,
     filterHook.filters.schemeFilter,
+    filterHook.filters.formFilters,
     filterHook.filters.fromDate,
     filterHook.filters.toDate,
     filterHook.filters.quickDateFilter,
@@ -131,7 +132,7 @@ export default function PendingApplications() {
       setApplicationList(response.data.applications);
       setPagination(response.data.pagination);
     }
-  }, [filterHook.filters.currentPage, filterHook.filters.searchTerm, filterHook.filters.statusFilter, filterHook.filters.projectFilter, filterHook.filters.districtFilter, filterHook.filters.areaFilter, filterHook.filters.schemeFilter, filterHook.filters.fromDate, filterHook.filters.toDate, filterHook.filters.quickDateFilter, pagination.limit]);
+  }, [filterHook.filters.currentPage, filterHook.filters.searchTerm, filterHook.filters.statusFilter, filterHook.filters.projectFilter, filterHook.filters.districtFilter, filterHook.filters.areaFilter, filterHook.filters.schemeFilter, filterHook.filters.formFilters, filterHook.filters.fromDate, filterHook.filters.toDate, filterHook.filters.quickDateFilter, pagination.limit]);
 
   if (!canViewApplications) {
     return (
@@ -283,6 +284,9 @@ export default function PendingApplications() {
         schemeFilter={filterHook.filters.schemeFilter}
         onSchemeChange={filterHook.setSchemeFilter}
         schemeOptions={filterHook.dropdownOptions.schemeOptions}
+        customFilters={filterHook.formFilterFields}
+        customFilterValues={filterHook.filters.formFilters}
+        onCustomFilterChange={filterHook.setFormFilter}
         showGenderFilter={true}
         genderFilter={filterHook.filters.genderFilter}
         onGenderChange={filterHook.setGenderFilter}

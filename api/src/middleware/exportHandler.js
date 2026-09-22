@@ -99,7 +99,7 @@ function createExportHandler(Model, options) {
       // Build query filter
       let query = {};
       if (filterBuilder && typeof filterBuilder === 'function') {
-        query = filterBuilder(filters, req);
+        query = await filterBuilder(filters, req);
       }
 
       // Tenant scope: never export rows belonging to another franchise.

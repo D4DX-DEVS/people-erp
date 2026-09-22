@@ -78,6 +78,11 @@ interface GenericFiltersProps {
   onQuickDateFilterChange?: (range: QuickDateRange) => void;
   showQuickDateFilter?: boolean;
   
+  // Scheme-specific form-builder dropdown filters (optional)
+  customFilters?: Array<{ key: string; label: string; options: string[] }>;
+  customFilterValues?: Record<string, string>;
+  onCustomFilterChange?: (key: string, value: string) => void;
+  
   // Clear filters
   onClearFilters: () => void;
   
@@ -130,6 +135,9 @@ export function GenericFilters({
   quickDateFilter,
   onQuickDateFilterChange,
   showQuickDateFilter = true,
+  customFilters,
+  customFilterValues,
+  onCustomFilterChange,
   onClearFilters,
   className,
 }: GenericFiltersProps) {
@@ -363,6 +371,22 @@ export function GenericFilters({
             </Popover>
           </div>
         )}
+
+        {onCustomFilterChange && customFilters && customFilters.map((filter) => (
+          <div key={filter.key} className="md:col-span-2">
+            <Combobox
+              value={customFilterValues?.[filter.key] || "all"}
+              onValueChange={(value) => onCustomFilterChange(filter.key, value)}
+              options={[
+                { value: "all", label: `All ${filter.label}` },
+                ...filter.options.map((option) => ({ value: option, label: option })),
+              ]}
+              placeholder={filter.label}
+              searchPlaceholder="Search..."
+              className="w-full"
+            />
+          </div>
+        ))}
 
         <div className="md:col-span-2 md:justify-self-end">
           <Button variant="outline" size="sm" onClick={onClearFilters} className="w-full md:w-auto">

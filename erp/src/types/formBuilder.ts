@@ -53,6 +53,8 @@ export interface FormField {
   };
   scoring?: FieldScoring;
   autoFill?: FieldAutoFill;
+  /** Dropdown fields only: expose options as an admin application-list filter */
+  filterable?: boolean;
 }
 
 // Row metadata for dynamic row duplication in table fields

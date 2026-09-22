@@ -5,6 +5,9 @@
  * Used by the generic export handler middleware.
  */
 
+const { buildFormDataFilter } = require('../utils/formDataFilter');
+const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
+
 // ==================== PAYMENTS ====================
 const paymentColumns = [
   { header: 'Payment Number', accessor: 'paymentNumber' },
@@ -89,7 +92,7 @@ const applicationPopulate = [
   { path: 'unit', select: 'name' }
 ];
 
-function applicationFilterBuilder(filters) {
+async function applicationFilterBuilder(filters, req) {
   const query = {};
   // Beneficiary drafts (unsubmitted) must never be exported by authorities
   if (filters.status && filters.status !== 'all' && filters.status !== 'draft') {
@@ -102,6 +105,9 @@ function applicationFilterBuilder(filters) {
   if (filters.district) query.district = filters.district;
   if (filters.area) query.area = filters.area;
   if (filters.unit) query.unit = filters.unit;
+  if (filters.scheme && filters.formFilters) {
+    Object.assign(query, await buildFormDataFilter(filters.scheme, filters.formFilters, buildFranchiseReadFilter(req)));
+  }
   if (filters.startDate || filters.endDate) {
     query.createdAt = {};
     if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);

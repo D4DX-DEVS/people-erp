@@ -10,6 +10,7 @@ const notificationService = require('../services/notificationService');
 const recurringPaymentService = require('../services/recurringPaymentService');
 const applicationPdfService = require('../services/applicationPdfService');
 const { calculateApplicationScore } = require('../utils/scoringEngine');
+const { getFilterableFields, buildFormDataFilter } = require('../utils/formDataFilter');
 const { validationResult } = require('express-validator');
 const RBACMiddleware = require('../middleware/rbacMiddleware');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
@@ -28,6 +29,27 @@ const getEffectiveUserForFilter = (req) => ({
   adminScope: req.userFranchise?.adminScope || req.user.adminScope,
   isSuperAdmin: req.user.isSuperAdmin
 });
+
+// Filterable dropdown fields for a scheme's form (used by the listing filters)
+const getApplicationFilterFields = async (req, res) => {
+  try {
+    const { scheme } = req.query;
+    if (!scheme || !mongoose.Types.ObjectId.isValid(scheme)) {
+      return res.json({ success: true, data: { fields: [] } });
+    }
+
+    const schemeDoc = await Scheme.findOne({ _id: scheme, ...buildFranchiseReadFilter(req) }).select('_id');
+    if (!schemeDoc) {
+      return res.json({ success: true, data: { fields: [] } });
+    }
+
+    const fields = await getFilterableFields(scheme, buildFranchiseReadFilter(req));
+    res.json({ success: true, data: { fields } });
+  } catch (error) {
+    console.error('❌ Get application filter fields error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch filter fields', error: error.message });
+  }
+};
 
 // Get all applications with pagination and search
 const getApplications = async (req, res) => {
@@ -50,7 +72,8 @@ const getApplications = async (req, res) => {
       area = '',
       unit = '',
       startDate = '',
-      endDate = ''
+      endDate = '',
+      formFilters = ''
     } = req.query;
 
     console.log('🔍 getApplications - Query parameters:', {
@@ -97,6 +120,12 @@ const getApplications = async (req, res) => {
     if (district) filter.district = district;
     if (area) filter.area = area;
     if (unit) filter.unit = unit;
+
+    // Scheme-specific dropdown filters (form-builder fields marked filterable).
+    // Only meaningful when a scheme is selected, since field keys are per form.
+    if (scheme && formFilters) {
+      Object.assign(filter, await buildFormDataFilter(scheme, formFilters, buildFranchiseReadFilter(req)));
+    }
 
     // Date range filter (must match the same createdAt window used by the
     // consolidation stats endpoint, otherwise drill-down counts diverge from
@@ -3551,6 +3580,7 @@ const markFundDistributed = async (req, res) => {
 
 module.exports = {
   getApplications,
+  getApplicationFilterFields,
   getApplication,
   createApplication,
   updateApplication,

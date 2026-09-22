@@ -106,6 +106,7 @@ export default function FieldVerificationApplications() {
     filterHook.filters.districtFilter,
     filterHook.filters.areaFilter,
     filterHook.filters.schemeFilter,
+    filterHook.filters.formFilters,
     filterHook.filters.fromDate,
     filterHook.filters.toDate,
     filterHook.filters.quickDateFilter,
@@ -220,6 +221,9 @@ export default function FieldVerificationApplications() {
         schemeFilter={filterHook.filters.schemeFilter}
         onSchemeChange={filterHook.setSchemeFilter}
         schemeOptions={filterHook.dropdownOptions.schemeOptions}
+        customFilters={filterHook.formFilterFields}
+        customFilterValues={filterHook.filters.formFilters}
+        onCustomFilterChange={filterHook.setFormFilter}
         showGenderFilter={true}
         genderFilter={filterHook.filters.genderFilter}
         onGenderChange={filterHook.setGenderFilter}

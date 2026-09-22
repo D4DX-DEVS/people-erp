@@ -1164,6 +1164,7 @@ class ExtendedApiClient extends ApiClient {
     district?: string;
     area?: string;
     unit?: string;
+    formFilters?: string;
   }): Promise<ApiResponse<{
     applications: any[];
     pagination: {
@@ -1250,6 +1251,14 @@ export const beneficiaries = {
   verify: (id: string) => extendedApiClient.verifyBeneficiary(id),
   export: (params?: any) => extendedApiClient.request(buildExportUrl('/beneficiaries/export', params)),
 };
+
+// Form-builder dropdown field exposed as an application-list filter
+export interface ApplicationFilterField {
+  id: number;
+  key: string;
+  label: string;
+  options: string[];
+}
 
 export const applications = {
   getAll: (params?: any) => extendedApiClient.getApplications(params),
@@ -1418,6 +1427,8 @@ export const applications = {
       body: JSON.stringify(data),
     }),
   export: (params?: any) => extendedApiClient.request(buildExportUrl('/applications/export', params)),
+  getFilterFields: (scheme: string) =>
+    extendedApiClient.request<{ fields: ApplicationFilterField[] }>(`/applications/filter-fields?scheme=${encodeURIComponent(scheme)}`),
   downloadPdf: async (id: string): Promise<Blob> => {
     const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
     const token = localStorage.getItem('token');
