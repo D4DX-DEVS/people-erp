@@ -63,50 +63,33 @@ function Tile({
 }
 
 /**
- * Two rows of partner logos, drifting end to end on their own.
- *
- * Two rows rather than one, and at different tile widths, is the live site's
- * arrangement: matching widths on both rows read as a single grid that had
- * failed to line up, whereas the wider second row reads as a deliberate
- * counterweight. The rows also run at different speeds and start at different
- * points in the list, so they never fall into lockstep.
+ * A single row of partner logos, drifting end to end on its own.
  */
 export function AssociatesMarquee({ logos }: { logos: AssociateLogo[] }) {
   if (logos.length === 0) return null;
 
-  // Row two opens three logos further into the list, which keeps the same logo
-  // from sitting directly above itself on the first pass.
-  const shifted = [...logos.slice(3), ...logos.slice(0, 3)];
-
-  const rows = [
-    { items: logos, width: "w-[200px] sm:w-[246px]", duration: "64s", delay: "0s" },
-    { items: shifted, width: "w-[250px] sm:w-[334px]", duration: "82s", delay: "-18s" },
-  ];
+  const width = "w-[200px] sm:w-[246px]";
 
   return (
-    <div className="space-y-4 sm:space-y-5">
-      {rows.map((row, rowIndex) => (
-        <div key={rowIndex} className="associate-marquee overflow-hidden">
-          <div
-            className="associate-track"
-            style={
-              {
-                "--marquee-duration": row.duration,
-                "--marquee-delay": row.delay,
-              } as CSSProperties
-            }
-          >
-            {[...row.items, ...row.items].map((logo, i) => (
-              <Tile
-                key={`${rowIndex}-${logo.name}-${i}`}
-                logo={logo}
-                width={row.width}
-                duplicate={i >= row.items.length}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+    <div className="associate-marquee overflow-hidden">
+      <div
+        className="associate-track"
+        style={
+          {
+            "--marquee-duration": "64s",
+            "--marquee-delay": "0s",
+          } as CSSProperties
+        }
+      >
+        {[...logos, ...logos].map((logo, i) => (
+          <Tile
+            key={`${logo.name}-${i}`}
+            logo={logo}
+            width={width}
+            duplicate={i >= logos.length}
+          />
+        ))}
+      </div>
     </div>
   );
 }

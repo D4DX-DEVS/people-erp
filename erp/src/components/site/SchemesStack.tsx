@@ -61,7 +61,7 @@ export function SchemesStack({
         // of scrolling away under them. That also sidesteps `position: sticky`
         // entirely — the section carries `overflow: hidden`, and sticky never
         // engages inside an overflow-clipped ancestor.
-        gsap.set(pin, { height: "100svh" });
+        //
         // Capped so the card keeps a sane shape in a narrow column; without the
         // cap a 400px-wide stage at tablet width produced a 700px-tall card.
         //
@@ -70,11 +70,27 @@ export function SchemesStack({
         // the stage — visible, in every frame, as though the last scheme had
         // already been reached.
         gsap.set(stage, { position: "relative", overflow: "hidden", height: "min(calc(100svh - 3rem), 36rem)" });
+        // The pinned row used to be forced to a flat 100svh. `items-start`
+        // never stretches the grid's children to fill that, so on most
+        // viewports the intro column and the now-capped stage (well under
+        // 100svh) both sat well short of it — leaving a blank band under
+        // whichever column was shorter for the *entire* pinned scroll, which
+        // is what read as a huge empty gap before the next section. The row
+        // is sized to its own tallest child instead, with a floor so a very
+        // short intro/stage pair still pins as a real full-height curtain
+        // rather than a sliver.
+        const naturalHeight = pin.getBoundingClientRect().height;
+        gsap.set(pin, { height: Math.max(naturalHeight, window.innerHeight * 0.6) });
         // Cards stop 4% short of the stage floor. A parked card then starts at
         // the clip line rather than inside it, and the leftover strip gives the
         // card's drop shadow somewhere to fall.
         gsap.set(cards, { position: "absolute", top: 0, left: 0, width: "100%", height: "96%" });
-        cards.forEach((card, i) => gsap.set(card, { yPercent: i === 0 ? 0 : 100, scale: 1, filter: "brightness(1)" }));
+        // `yPercent` shifts a card by a share of its OWN box, and that box is
+        // only 96% of the stage — so `yPercent: 100` lands its top edge at 96%
+        // down the stage, still inside the clip, leaking a sliver of the next
+        // card at rest. 106% clears the stage floor with a small margin.
+        const PARKED_Y = 106;
+        cards.forEach((card, i) => gsap.set(card, { yPercent: i === 0 ? 0 : PARKED_Y, scale: 1, filter: "brightness(1)" }));
 
         // One timeline step per handover; scrubbed across a pin long enough
         // for every card to take its turn up front.
@@ -98,7 +114,7 @@ export function SchemesStack({
           const at = (i - 1) * step;
           // Cards arrive from below with a whisper of rotation, so the
           // handover reads as a physical card landing on the pile.
-          tl.fromTo(card, { yPercent: 100, rotate: 1.1 }, { yPercent: 0, rotate: 0, duration: step }, at);
+          tl.fromTo(card, { yPercent: PARKED_Y, rotate: 1.1 }, { yPercent: 0, rotate: 0, duration: step }, at);
           tl.to(
             cards[i - 1],
             {
@@ -152,7 +168,7 @@ export function SchemesStack({
       {/* Two columns from `md`, matching the breakpoint the ScrollTrigger block
           uses. They were `lg` before, so a window between 768 and 1023px got
           the pinned cards next to a full-width wall of scrolling intro text. */}
-      <div ref={pinRef} className="grid items-center gap-10 md:grid-cols-[0.85fr_1.15fr] md:gap-12">
+      <div ref={pinRef} className="grid items-start gap-10 md:grid-cols-[0.85fr_1.15fr] md:gap-12">
         {/* Intro — held still by the row's pin, not by sticky. */}
         <div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">

@@ -11,6 +11,8 @@ export interface ContentRailItem {
   meta?: string;
   /** Attribution line under the headline. */
   byline?: string;
+  /** Short summary shown under the byline, clamped to a few lines. */
+  excerpt?: string;
 }
 
 /**
@@ -81,7 +83,7 @@ export function ContentRail({
             <button
               type="button"
               onClick={() => onOpen(item._id)}
-              className="group flex h-full w-full flex-col rounded-[20px] border border-border/70 bg-card p-3 text-left shadow-sm transition-shadow duration-300 hover:shadow-lg"
+              className="group flex h-full w-full flex-col rounded-[20px] border border-border/70 bg-card p-3 pb-2.5 text-left shadow-sm transition-shadow duration-300 hover:shadow-lg"
             >
               <span className="block overflow-hidden rounded-[14px] bg-muted">
                 {item.imageUrl ? (
@@ -97,22 +99,28 @@ export function ContentRail({
                 )}
               </span>
 
-              <span className="flex flex-1 flex-col px-1 pb-1 pt-4">
-                {(item.eyebrow || item.meta) && (
-                  <span className="flex items-baseline justify-between gap-3 text-[15px] leading-6 text-muted-foreground">
-                    <span className="capitalize">{item.eyebrow}</span>
-                    <span className="shrink-0">{item.meta}</span>
-                  </span>
-                )}
+              <span className="flex flex-1 flex-col px-1 pt-3">
+                {/* Category and author are dropped from the card front — the
+                    date is the only thing readers need at a glance here. */}
+                {item.meta && <span className="text-[15px] leading-6 text-muted-foreground">{item.meta}</span>}
                 <span className="mt-2 font-malayalam text-[19px] leading-[1.2] text-foreground sm:text-[20px]">
                   {item.title}
                 </span>
-                {item.byline && (
-                  <span className="mt-3 text-[15px] leading-6 text-muted-foreground">{item.byline}</span>
+                {item.excerpt && (
+                  <span className="mt-2 line-clamp-2 font-noto-malayalam text-[16px] leading-relaxed text-muted-foreground">
+                    {item.excerpt}
+                  </span>
                 )}
 
-                <span className="mt-auto flex justify-end pt-4">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition-colors duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
+                {/* `mt-auto` used to pin this row to the card's bottom edge,
+                    leaving a variable, often large, blank gap above it
+                    whenever the excerpt ran short. A fixed gap keeps "Read
+                    more" right under the content instead. */}
+                <span className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-primary transition-colors duration-300 group-hover:underline">
+                    Read more
+                  </span>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-foreground transition-colors duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
                     <ArrowUpRight className="h-4 w-4" />
                   </span>
                 </span>

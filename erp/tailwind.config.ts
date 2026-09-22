@@ -21,6 +21,8 @@ export default {
         display: ['"Clash Display"', "Montserrat", "system-ui", "sans-serif"],
         site: ["Montserrat", "system-ui", "sans-serif"],
         malayalam: ['"Anek Malayalam"', "Montserrat", "system-ui", "sans-serif"],
+        // News/blog card body copy only — see ContentRail.
+        "noto-malayalam": ['"Noto Sans Malayalam"', "Montserrat", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

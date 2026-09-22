@@ -54,7 +54,7 @@ export function SiteFooter({ settings }: SiteFooterProps) {
         rel="noopener noreferrer"
         className={cn("font-medium underline-offset-4 transition-colors hover:underline", linkClassName)}
       >
-        D4DX Innovations
+        d4dx.co
       </a>
     </>
   );
@@ -190,6 +190,16 @@ export function SiteFooter({ settings }: SiteFooterProps) {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* The build credit closes the footer on the right. Its own line
+                rather than a third item in the row above: that row is the
+                copyright set against the socials, and slotting the credit in
+                beside the icons made it read as one more social link. */}
+            <div className="flex w-full justify-end">
+              <span className="text-sm text-[#9D9B9B]">
+                {poweredBy("text-white/90 hover:text-white")}
+              </span>
             </div>
           </div>
         </div>

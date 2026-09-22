@@ -34,8 +34,6 @@ import { iconBadgeStyle } from "@/lib/siteColors";
 import { resolveHomeLayout, isHomeSectionVisible, type HomeSectionKey } from "@/types/siteHome";
 import { usesFloatingZakatButton } from "@/config/orgFeatures";
 import { schemePath } from "@/lib/siteSchemes";
-import { categoryLabel, projectImage, projectPath } from "@/lib/siteProjects";
-import { CampaignCarousel } from "@/components/site/CampaignCarousel";
 import { cn } from "@/lib/utils";
 
 const iconFor = (name?: string) => resolveIcon(name);
@@ -219,28 +217,6 @@ export default function SiteHome() {
           </div>
         </section>
       ),
-    // Lead campaigns, laid out like the organisation's marketing site: a large
-    // display headline over a wide campaign tile with the corner notch and the
-    // red call to action. Slides come from the newest projects, so the band is
-    // maintained from the same records as the projects section rather than a
-    // second copy of the same content.
-    campaigns: () => projects.length > 0 && (
-      <section id="campaigns" className="scroll-mt-20 py-8 sm:py-12">
-        <div className="container mx-auto px-4">
-          <CampaignCarousel
-            slides={projects.slice(0, 3).map((p) => ({
-              _id: p._id,
-              headline: p.name,
-              kicker: categoryLabel(p.category),
-              detail: p.description,
-              imageUrl: projectImage(p),
-              href: projectPath(p),
-            }))}
-            onOpen={(href) => navigate(href)}
-          />
-        </div>
-      </section>
-    ),
     about: () => (
       <section id="about" className="scroll-mt-20 py-6">
         {/* The band used to carry four jobs at once — lead copy, artwork, the
@@ -374,7 +350,7 @@ export default function SiteHome() {
         </section>
       ),
     schemes: () => schemes.length > 0 && (
-        <section id="schemes" className="relative scroll-mt-20 overflow-hidden bg-[hsl(var(--secondary)/0.12)] py-10 sm:py-14">
+        <section id="schemes" className="relative scroll-mt-20 overflow-hidden bg-[hsl(var(--secondary)/0.12)] py-5">
           <div className="container relative mx-auto px-4">
             <SchemesStack
               schemes={schemes}
@@ -398,7 +374,7 @@ export default function SiteHome() {
       </section>
     ),
     news: () => news.length > 0 && (
-        <section id="news" className="scroll-mt-20 py-8 sm:py-10">
+        <section id="news" className="scroll-mt-20 py-5">
           <div className="container mx-auto px-4">
             {/* Copy and layout follow the organisation's own marketing site. */}
             <ContentRail
@@ -413,6 +389,7 @@ export default function SiteHome() {
                   ? new Date(n.publishDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
                   : "",
                 byline: `By ${org.displayName || "People's Foundation"}`,
+                excerpt: n.description,
               }))}
             />
             <div className="mt-8 text-center">

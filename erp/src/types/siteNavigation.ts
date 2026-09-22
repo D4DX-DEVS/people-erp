@@ -132,11 +132,13 @@ function aboutPageLabel(pages: NavPage[]): string {
 /** The automatic menu — what visitors see until the admin customizes the header. */
 export function buildDefaultNavigation(pages: NavPage[] = []): NavigationSettings {
   const builtIn: NavItem[] = [
-    // No "Home" entry: the header logo already links to "/", and below `lg` the
-    // Home tab sits in the bottom bar, so the item spent a menu slot on a link
-    // the visitor is usually already standing on.
-    // "News" is gone from the menu too. Both destinations still exist — the
-    // footer points at /news as "Updates".
+    // Home leads the menu. The logo links to "/" as well, and below `lg` the
+    // bottom bar carries its own Home tab, so this is a deliberate third route
+    // to the same place — visitors look for it in the menu regardless, and a
+    // bar that opens on "About Us" reads as though it has been cut off.
+    { type: "link", label: "Home", kind: "home", target: "/", visible: true },
+    // "News" is not in the menu. The destination still exists — the footer
+    // points at /news as "Updates".
     {
       type: "dropdown", label: "About Us", kind: "custom", target: "", visible: true,
       children: [

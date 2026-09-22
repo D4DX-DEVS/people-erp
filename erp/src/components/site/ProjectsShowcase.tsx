@@ -100,10 +100,12 @@ export function ProjectsShowcase({ projects }: { projects: PublicProject[] }) {
                 {p.name}
               </span>
 
-              {/* Open state: the reading panel. */}
+              {/* Open state: the reading panel. Its own scrim sits under the
+                  text so the copy stays legible no matter how bright the
+                  photo behind it is, independent of the panel-wide overlay. */}
               <span
                 className={cn(
-                  "pointer-events-none absolute inset-x-0 bottom-0 block p-5 transition-opacity duration-500 sm:p-6",
+                  "pointer-events-none absolute inset-x-0 bottom-0 block bg-gradient-to-t from-black/95 via-black/75 to-transparent p-5 pt-14 transition-opacity duration-500 sm:p-6 sm:pt-20",
                   isActive ? "opacity-100 delay-200" : "opacity-0",
                 )}
               >
@@ -114,12 +116,12 @@ export function ProjectsShowcase({ projects }: { projects: PublicProject[] }) {
                   {p.name}
                 </span>
                 {p.description && (
-                  <span className="mt-1.5 line-clamp-2 block max-w-md text-sm leading-relaxed text-white/80">
+                  <span className="mt-1.5 line-clamp-4 max-w-md text-sm leading-relaxed text-white/80">
                     {p.description}
                   </span>
                 )}
-                <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-white">
-                  Learn more
+                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/40 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors duration-300 group-hover:bg-white group-hover:text-foreground">
+                  Read more
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </span>
               </span>
@@ -157,7 +159,7 @@ export function ProjectsShowcase({ projects }: { projects: PublicProject[] }) {
                 </span>
                 <span className="block truncate text-sm font-semibold">{p.name}</span>
                 {p.description && (
-                  <span className="line-clamp-1 block text-xs text-muted-foreground">{p.description}</span>
+                  <span className="line-clamp-1 text-xs text-muted-foreground">{p.description}</span>
                 )}
               </span>
               <ArrowRight className="h-4 w-4 shrink-0 text-primary transition-transform duration-300 group-hover:translate-x-0.5" />
