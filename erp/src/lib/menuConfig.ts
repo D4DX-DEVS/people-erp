@@ -87,7 +87,7 @@ export const menuCategories: MenuCategory[] = [
         keywords: ["project", "kanban"],
       },
       {
-        to: "/schemes",
+        to: "/scheme-management",
         icon: FileText,
         label: "Schemes",
         permissions: ["schemes.read.all", "schemes.read.assigned"],

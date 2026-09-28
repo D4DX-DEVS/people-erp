@@ -422,7 +422,7 @@ export default function FormBuilder() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           {schemeId && (
-            <Button variant="ghost" size="sm" onClick={() => navigate('/schemes')} className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/scheme-management')} className="flex items-center gap-2">
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Back to Schemes</span>
             </Button>
@@ -604,7 +604,7 @@ export default function FormBuilder() {
                 <Button 
                   variant="link" 
                   size="sm" 
-                  onClick={() => navigate('/schemes')}
+                  onClick={() => navigate('/scheme-management')}
                   className="text-amber-800 underline p-0 ml-1 h-auto"
                 >
                   Go to Schemes

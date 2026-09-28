@@ -292,7 +292,7 @@ export const useRoleNavigation = () => {
       '/beneficiaries': ['beneficiaries.read.regional'],
       '/applications': ['applications.read.regional'],
       '/projects': ['projects.read.assigned'],
-      '/schemes': ['schemes.read.assigned'],
+      '/scheme-management': ['schemes.read.assigned'],
       '/reports': ['reports.read.regional'],
       '/finances': ['finances.read.regional']
     };
