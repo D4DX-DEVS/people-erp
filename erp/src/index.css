@@ -8,6 +8,16 @@
   100% { transform: scaleY(1); }
 }
 
+/* ── Footer panel ────────────────────────────────────────────────────────
+   A dark tint of the site's own brand colour rather than flat black, so the
+   footer still reads as part of this franchise's palette — darker than any
+   button or accent on the page, but never plain black. Tracks --primary
+   directly, so it follows a franchise's custom colour (Website Settings →
+   Colours & Appearance) with no separate setting of its own. */
+.site-footer-panel {
+  background-color: color-mix(in srgb, hsl(var(--primary)) 35%, black);
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
@@ -467,39 +477,34 @@ All colors MUST be HSL.
 }
 
 /* ── Associate logo marquee ────────────────────────────────────────────────
-   Two rows of partner logos drifting right to left without end. Each track
-   holds its logo list twice and translates by exactly -50%, so the second copy
-   lands precisely where the first began and the loop shows no seam. That exact
-   figure is why the spacing lives on each tile as a trailing margin rather than
-   in a flex `gap`: with a gap the two copies would be separated by one extra
-   gap that -50% does not account for, and the row would hitch on every lap.
+   A row of partner logos drifting right to left without end, which the
+   visitor can also grab and drag (mouse or touch). AssociatesMarquee.tsx
+   keeps one position along the track and applies it as a transform, wrapping
+   by exactly one copy's width: the track holds its logo list twice, so the
+   second copy lands precisely where the first began and the loop shows no
+   seam. That exact figure is why the spacing lives on each tile as a trailing
+   margin rather than in a flex `gap`: with a gap the two copies would be
+   separated by one extra gap that half the width does not account for, and
+   the row would hitch on every lap.
 
-   Unlike the hero's logo strip this one is a plain CSS transform rather than
-   scripted scrollLeft. Nothing here has to agree with a manual control — there
-   are no arrows — so the compositor can own the whole animation. */
-@keyframes associate-drift {
-  from { transform: translate3d(0, 0, 0); }
-  to   { transform: translate3d(-50%, 0, 0); }
+   Pausing (hover, focus, reduced motion) and the mobile/desktop speeds live
+   in the component's frame loop, not here. */
+.associate-marquee {
+  cursor: grab;
+  /* Let the browser pass vertical page-scroll gestures through untouched;
+     horizontal movement is claimed by the pointer handlers. */
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.associate-marquee--grabbing {
+  cursor: grabbing;
 }
 
 .associate-track {
   display: flex;
   width: max-content;
-  animation: associate-drift var(--marquee-duration, 64s) linear infinite;
-  animation-delay: var(--marquee-delay, 0s);
-}
-
-/* The logos are links a visitor may want to hit, so the drift stops under the
-   pointer and while anything in the row holds focus. */
-.associate-marquee:hover .associate-track,
-.associate-marquee:focus-within .associate-track {
-  animation-play-state: paused;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .associate-track {
-    animation: none;
-  }
+  will-change: transform;
 }
 
 /* ── Parallax cards ──────────────────────────────────────────────────────────

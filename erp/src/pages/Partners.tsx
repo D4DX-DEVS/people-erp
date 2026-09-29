@@ -1,17 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { website } from "@/lib/api";
-import { Loader2, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink } from "lucide-react";
+import { website, sitePages } from "@/lib/api";
+import { Loader2, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink, FileText } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { useExport } from "@/hooks/useExport";
 import ExportButton from "@/components/common/ExportButton";
 import { partnerExportColumns } from "@/utils/exportColumns";
+import { pageTarget } from "@/types/siteNavigation";
+
+/** An internal path starts with "/" (e.g. "/p/about-us"); anything else is external. */
+const isInternalLink = (link: string) => link.startsWith("/");
 
 interface Partner {
   _id: string;
@@ -53,6 +60,20 @@ export default function Partners() {
   const [status, setStatus] = useState("active");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
+
+  // Published pages this partner's logo can link to, so a click can land on
+  // the partner's own detail page inside the site instead of only an
+  // external URL.
+  const { data: sitePagesList = [] } = useQuery({
+    queryKey: ["site-pages-admin-partners"],
+    queryFn: async () => {
+      const res: any = await sitePages.getAll();
+      return (res?.data || []) as Array<{ _id: string; title: string; slug: string; status: string }>;
+    },
+    staleTime: 60_000,
+  });
+  const publishedPages = useMemo(() => sitePagesList.filter((p) => p.status === "published"), [sitePagesList]);
+  const linkedPageSlug = isInternalLink(link) ? link.replace(/^\/p\//, "") : "";
 
   useEffect(() => {
     loadPartners();
@@ -265,15 +286,25 @@ export default function Partners() {
                 </div>
                 <CardTitle className="text-lg mb-2">{item.name}</CardTitle>
                 {item.link && (
-                  <a 
-                    href={item.link} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    Visit website
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  isInternalLink(item.link) ? (
+                    <Link
+                      to={item.link}
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      View page
+                      <FileText className="h-3 w-3" />
+                    </Link>
+                  ) : (
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      Visit website
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )
                 )}
                 <div className="flex gap-2 mt-4">
                   {canEdit && (
@@ -328,6 +359,32 @@ export default function Partners() {
                 onChange={(e) => setLink(e.target.value)}
                 placeholder="https://partner-website.com"
               />
+              <p className="text-xs text-muted-foreground">
+                Clicking the logo opens this. Use a full https:// URL for the partner's own website, or pick one
+                of this site's own pages below to link to their profile/detail page instead.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Or link to a page on this site</Label>
+              <Select
+                value={linkedPageSlug}
+                onValueChange={(slug) => setLink(pageTarget(slug))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a page..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {publishedPages.map((p) => (
+                    <SelectItem key={p._id} value={p.slug}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isInternalLink(link) && (
+                <p className="flex items-center gap-1 text-xs text-primary">
+                  <FileText className="h-3 w-3" /> Linked to a page on this site — clear the field above to use an external URL instead.
+                </p>
+              )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -371,8 +428,8 @@ export default function Partners() {
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
-                Transparent PNG, about 240 × 80 px. Displayed 48px tall and scaled to fit (never cropped), in
-                greyscale until hovered — so any aspect ratio works. Max 5MB.
+                Transparent PNG, about 240 × 80 px. Displayed up to 60px tall and scaled to fit (never cropped),
+                in full colour and greyed while hovered — so any aspect ratio works. Max 5MB.
               </p>
             </div>
           </div>

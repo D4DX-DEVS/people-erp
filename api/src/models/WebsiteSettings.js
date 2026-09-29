@@ -33,9 +33,19 @@ const HOME_SECTION_KEYS = [
   'counters', 'about', 'projects', 'schemes', 'calculator', 'news', 'gallery',
   'videos', 'blogs', 'media', 'donation', 'faq', 'associates'
 ];
+// Heading overrides are all optional: '' means "use the built-in copy/colour".
+// Colours are swatch names or hex (see erp/src/lib/siteColors.ts).
 const homeLayoutItemSchema = new mongoose.Schema({
   key: { type: String, enum: HOME_SECTION_KEYS, required: true },
-  visible: { type: Boolean, default: true }
+  visible: { type: Boolean, default: true },
+  eyebrow: { type: String, default: '', maxlength: 80 },
+  title: { type: String, default: '', maxlength: 160 },
+  subtitle: { type: String, default: '', maxlength: 300 },
+  eyebrowColor: { type: String, default: '', maxlength: 32 },
+  titleColor: { type: String, default: '', maxlength: 32 },      // the title's leading words
+  accentColor: { type: String, default: '', maxlength: 32 },     // the title's last, accented word
+  subtitleColor: { type: String, default: '', maxlength: 32 },
+  dividerColor: { type: String, default: '', maxlength: 32 }     // the short rule under the heading
 }, { _id: false });
 
 const websiteSettingsSchema = new mongoose.Schema({
@@ -112,6 +122,16 @@ const websiteSettingsSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: false },
     heading: { type: String, default: '' },
     description: { type: String, default: '' },
+    // The two columns of the home page's Volunteer + Donate band. Colours are
+    // swatch names or hex; '' falls back to the built-in look.
+    donateEyebrow: { type: String, default: '' },
+    donateBackgroundColor: { type: String, default: '' },
+    donateTextColor: { type: String, default: '' },
+    volunteerEyebrow: { type: String, default: '' },
+    volunteerTitle: { type: String, default: '' },
+    volunteerDescription: { type: String, default: '' },
+    volunteerBackgroundColor: { type: String, default: '' },
+    volunteerTextColor: { type: String, default: '' },
     accountName: { type: String, default: '' },
     accountNumber: { type: String, default: '' },
     bankName: { type: String, default: '' },

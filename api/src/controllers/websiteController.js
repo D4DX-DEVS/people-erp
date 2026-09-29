@@ -47,14 +47,20 @@ const sanitizeNavigation = (nav) => {
 
 const HOME_SECTION_KEYS = WebsiteSettings.HOME_SECTION_KEYS;
 // Known keys only, no duplicates, and every section present so nothing silently disappears.
+const HOME_HEADING_FIELDS = ['eyebrow', 'title', 'subtitle', 'eyebrowColor', 'titleColor', 'accentColor', 'subtitleColor', 'dividerColor'];
 const sanitizeHomeLayout = (layout) => {
   const seen = new Set();
   const out = [];
   (Array.isArray(layout) ? layout : []).forEach((item) => {
-    const key = item && typeof item === 'object' ? item.key : item;
+    const isObj = item && typeof item === 'object';
+    const key = isObj ? item.key : item;
     if (!HOME_SECTION_KEYS.includes(key) || seen.has(key)) return;
     seen.add(key);
-    out.push({ key, visible: !(item && typeof item === 'object' && item.visible === false) });
+    const entry = { key, visible: !(isObj && item.visible === false) };
+    HOME_HEADING_FIELDS.forEach((field) => {
+      entry[field] = isObj && typeof item[field] === 'string' ? item[field].trim() : '';
+    });
+    out.push(entry);
   });
   HOME_SECTION_KEYS.forEach((key) => { if (!seen.has(key)) out.push({ key, visible: true }); });
   return out;

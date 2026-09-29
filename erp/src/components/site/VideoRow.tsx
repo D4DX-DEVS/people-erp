@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Play, Share2, Youtube } from "lucide-react";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
 
@@ -24,11 +25,16 @@ const ROW_SIZE = 2;
 export function VideoRow({
   videos,
   channelName,
+  heading = "Videos",
+  headingStyle,
   onPlay,
   onExplore,
 }: {
   videos: VideoRowItem[];
   channelName: string;
+  heading?: string;
+  /** Admin-chosen heading colour; unset keeps the page's default text colour. */
+  headingStyle?: CSSProperties;
   onPlay: (url: string) => void;
   onExplore: () => void;
 }) {
@@ -39,7 +45,7 @@ export function VideoRow({
   return (
     <>
       <div className="mb-6 flex items-center justify-between gap-4 sm:mb-8">
-        <h2 className="text-[28px] sm:text-[34px] lg:text-[38px]">Videos</h2>
+        <h2 className="text-[28px] sm:text-[34px] lg:text-[38px]" style={headingStyle}>{heading}</h2>
         <button
           type="button"
           onClick={onExplore}

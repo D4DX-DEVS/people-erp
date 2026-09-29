@@ -11,6 +11,7 @@ const sectionItemSchema = new mongoose.Schema({
   imageKey: { type: String, default: '' },
   icon: { type: String, default: '' },           // lucide icon name (stats/cards)
   color: { type: String, default: '' },          // icon colour: swatch name or hex ('' = section accent)
+  backgroundColor: { type: String, default: '' },// card container background: swatch name or hex ('' = default card surface)
   link: { type: String, default: '' },
   value: { type: String, default: '' },          // stat value / timeline year
   order: { type: Number, default: 0 }
@@ -28,6 +29,8 @@ const sectionSchema = new mongoose.Schema({
   icon: { type: String, default: '' },           // lucide icon shown above the heading
   accentColor: { type: String, default: '' },    // swatch name or hex used for icons/highlights ('' = brand)
   backgroundColor: { type: String, default: '' },// hex, used when background === 'custom'
+  titleColor: { type: String, default: '' },     // swatch name or hex for the section title ('' = default foreground)
+  textColor: { type: String, default: '' },      // swatch name or hex for body/subtitle text ('' = default muted foreground)
   content: { type: String, default: '' },        // richtext / image-text body
   imageUrl: { type: String, default: '' },       // image-text image
   imageKey: { type: String, default: '' },

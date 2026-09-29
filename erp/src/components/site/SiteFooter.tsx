@@ -102,11 +102,13 @@ export function SiteFooter({ settings }: SiteFooterProps) {
           BackToTop measures whichever of the two the current width renders, so
           it parks above the copyright line at every size. */}
       <footer data-site-footer className="hidden lg:block">
-        {/* A full-bleed black card that only rounds its top corners, so the page
+        {/* A full-bleed card that only rounds its top corners, so the page
             background shows through the notches. Ported from the live
             foundation site: 62px radius, 10px inset either side, and a 1300px
-            content cap that only starts to bite on wide desktop. */}
-        <div className="rounded-t-[62px] bg-black px-2.5 font-site">
+            content cap that only starts to bite on wide desktop. The
+            background itself is a dark tint of the brand colour rather than
+            flat black — see .site-footer-panel in index.css. */}
+        <div className="site-footer-panel rounded-t-[62px] px-2.5 font-site">
           <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-5 pt-[60px] pb-[50px]">
             {/* Column widths are the live site's 30 / 15 / 25 / 30 split. The
                 first navigation column carries the extra left padding that
