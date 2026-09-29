@@ -114,6 +114,22 @@ export function SiteFooter({ settings }: SiteFooterProps) {
             <div className="flex w-full items-start">
               <div className="w-[30%] shrink-0 p-2.5">
                 <BrandMark variant="footer" className="h-[69px] w-auto object-contain" />
+                {socials.length > 0 && (
+                  <div className="mt-5 flex flex-wrap items-center gap-[22px]">
+                    {socials.map(({ url, Icon, label }) => (
+                      <a
+                        key={label}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={label}
+                        className="text-white transition-opacity hover:opacity-70"
+                      >
+                        <Icon className="h-[22px] w-[22px]" />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="w-[15%] shrink-0 p-2.5 pl-10">
@@ -168,28 +184,11 @@ export function SiteFooter({ settings }: SiteFooterProps) {
               </div>
             </div>
 
-            {/* Copyright and socials, split to the two edges with no rule
-                between this row and the columns above — the live site separates
-                them with spacing alone. */}
-            <div className="flex w-full items-center justify-between gap-5 pt-2.5">
+            {/* Copyright. Socials moved under the logo column, so this row
+                carries no rule between it and the columns above — the live
+                site separates them with spacing alone. */}
+            <div className="flex w-full items-center pt-2.5">
               <span className="text-base text-[#9D9B9B]">{copyright}</span>
-
-              {socials.length > 0 && (
-                <div className="flex shrink-0 items-center gap-[26px]">
-                  {socials.map(({ url, Icon, label }) => (
-                    <a
-                      key={label}
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={label}
-                      className="text-white transition-opacity hover:opacity-70"
-                    >
-                      <Icon className="h-[25px] w-[25px]" />
-                    </a>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* The build credit closes the footer on the right. Its own line

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { beneficiaryApi, type BeneficiaryCoordinator } from "@/services/beneficiaryApi";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/logo.png";
+import defaultLogo from "@/assets/ppls-logo.png";
 import { toast } from "@/hooks/use-toast";
 import { useCompactUI } from "@/hooks/useCompactUI";
 

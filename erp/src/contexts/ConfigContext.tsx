@@ -52,7 +52,7 @@ const DEFAULT_ORG: OrgBranding = {
   websiteUrl: 'https://peoplefoundation.org',
   defaultTheme: 'blue',
   copyrightText: `© ${new Date().getFullYear()} People's Foundation. All rights reserved.`,
-  logoUrl: '/api/assets/logo.png',
+  logoUrl: '/api/assets/logo-peoplefoundation-wordmark.png',
   footerLogoUrl: '',
   faviconUrl: '',
   heroSubtext: 'Empowering communities through transparent welfare distribution, supporting education, healthcare, and livelihood initiatives',

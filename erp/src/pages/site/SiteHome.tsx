@@ -175,10 +175,10 @@ export default function SiteHome() {
   // Home sections, rendered in the order chosen in Website Settings → Home Page Layout.
   const renderers: Record<HomeSectionKey, () => ReactNode> = {
     counters: () => counts.length > 0 && (
-        <section className="relative z-10 -mt-8 px-3 pb-10 sm:-mt-14 sm:px-4 sm:pb-14">
+        <section className="px-3 py-10 sm:px-4 sm:py-14">
           {/* Brand-green gradient plate — colours sampled from the org logo
-              (see --gradient-brand in index.css) — so the stats band reads as a
-              deliberate break between the hero and the sections below it. */}
+              (see --gradient-brand in index.css) — sits as its own band near
+              the foot of the page, just above the associates strip/footer. */}
           <div className="container relative mx-auto overflow-hidden rounded-3xl border border-white/10 bg-[image:var(--gradient-brand)] p-4 shadow-2xl sm:p-8">
             {/* Colour blooms behind the cards. They exist so the cards'
                 backdrop-blur has something to refract — blurring a flat

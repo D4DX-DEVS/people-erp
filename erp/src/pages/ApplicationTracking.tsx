@@ -7,7 +7,7 @@ import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Loader2, IndianRupee,
 import { toast } from "@/hooks/use-toast";
 import { beneficiaryApi } from "@/services/beneficiaryApi";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/logo.png";
+import defaultLogo from "@/assets/ppls-logo.png";
 import ApplicationFormDataView from "@/components/ApplicationFormDataView";
 import { useCompactUI } from "@/hooks/useCompactUI";
 

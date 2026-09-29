@@ -239,19 +239,38 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
     );
   };
 
-  /** Desktop-bar action button. The mobile bar renders its own icon-only pair. */
+  /**
+   * Desktop-bar action button. The mobile bar renders its own icon-only pair.
+   *
+   * Donate renders as a round icon button beside Search rather than a
+   * labelled pill — it no longer competes with the menu links for space, and
+   * the warning-coloured circle still reads as "give" on its own.
+   */
   const renderButton = (b: NavButton, i: number) => {
     const isDonate = b.kind === "donate";
-    const Icon = BUTTON_ICONS[b.icon] || fallbackButtonIcon(b);
+    const Icon = BUTTON_ICONS[b.icon] || fallbackButtonIcon(b) || HandHeart;
+    if (isDonate) {
+      return (
+        <button
+          key={b._id || i}
+          type="button"
+          onClick={() => go(b)}
+          aria-label={b.label || "Donate"}
+          title={b.label || "Donate"}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--warning))] text-white shadow-glow transition hover:bg-[hsl(var(--warning))]/90"
+        >
+          <Icon className="h-5 w-5" />
+        </button>
+      );
+    }
     return (
       <Button
         key={b._id || i}
         variant={b.style === "outline" ? "outline" : "default"}
         className={cn(
           "inline-flex rounded-full",
-          isDonate && "bg-[hsl(var(--warning))] text-white shadow-glow hover:bg-[hsl(var(--warning))]/90",
-          !isDonate && b.style === "outline" && BRAND_OUTLINE_CLASS,
-          !isDonate && b.style !== "outline" && BRAND_SOLID_CLASS,
+          b.style === "outline" && BRAND_OUTLINE_CLASS,
+          b.style !== "outline" && BRAND_SOLID_CLASS,
         )}
         onClick={() => go(b)}
       >

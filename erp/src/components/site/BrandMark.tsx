@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useOrgLogos } from "@/hooks/useOrgLogoUrl";
-import bundledLogo from "@/assets/logo.png";
+import bundledLogo from "@/assets/ppls-logo.png";
 import bundledFooterLogo from "@/assets/footer-logo.png";
 
 type BrandVariant = "primary" | "footer";

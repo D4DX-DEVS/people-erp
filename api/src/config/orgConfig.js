@@ -60,7 +60,7 @@ const ORG_PRESETS = {
     paymentsEmail: 'payments@peoplefoundation.org',
     website: 'www.peoplefoundation.org',
     websiteUrl: 'https://peoplefoundation.org',
-    logoFilename: 'logo-peoplefoundation.svg',
+    logoFilename: 'logo-peoplefoundation-wordmark.png',
     footerLogoFilename: 'logo-peoplefoundation-footer.svg',
     faviconFilename: 'logo-peoplefoundation.png',
     defaultTheme: 'blue',
