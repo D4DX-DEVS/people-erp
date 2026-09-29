@@ -46,6 +46,7 @@ interface Field {
     scoringRules: ScoringRule[];
   };
   autoFill?: FieldAutoFill;
+  filterable?: boolean;
 }
 
 interface FieldEditorProps {
@@ -181,6 +182,22 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                   className="text-sm"
                   rows={3}
                 />
+              )}
+
+              {field.type === "select" && (
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <Label className="text-xs">Use as application filter</Label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Admins can filter the application list by this field's options when the scheme is selected
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!field.filterable}
+                    onCheckedChange={(filterable) => onUpdate({ ...field, filterable })}
+                    className="scale-75"
+                  />
+                </div>
               )}
 
               {field.type === "row" && (
@@ -638,6 +655,7 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                   {needsValue ? (
                                     <Input
                                       type={['number', 'date', 'datetime'].includes(field.type) && !['contains', 'equals'].includes(rule.condition) ? (field.type === 'number' ? 'number' : 'date') : 'text'}
+                                      step={field.type === 'number' ? 'any' : undefined}
                                       value={rule.value || ''}
                                       onChange={(e) => {
                                         const scoring = { ...field.scoring! };
@@ -654,6 +672,7 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                   {isBetween && (
                                     <Input
                                       type={field.type === 'number' ? 'number' : 'date'}
+                                      step={field.type === 'number' ? 'any' : undefined}
                                       value={rule.value2 || ''}
                                       onChange={(e) => {
                                         const scoring = { ...field.scoring! };

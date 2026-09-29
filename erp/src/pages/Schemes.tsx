@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { schemes as schemesApi, type Scheme } from "@/lib/api";
+import { schemes as schemesApi, projects as projectsApi, type Scheme } from "@/lib/api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { SchemeModal } from "@/components/modals/SchemeModal";
 import { SchemeDetailsModal } from "@/components/modals/SchemeDetailsModal";
@@ -82,6 +83,8 @@ export default function Schemes() {
   const [targetsModalOpen, setTargetsModalOpen] = useState(false);
   const [progressModalOpen, setProgressModalOpen] = useState(false);
   const [expandedSchemes, setExpandedSchemes] = useState<Set<string>>(new Set());
+  const [projectList, setProjectList] = useState<{ id?: string; _id?: string; name: string }[]>([]);
+  const [projectFilter, setProjectFilter] = useState("all");
 
   const { exportCSV, exportPDF, printData, exporting } = useExport({
     apiCall: (params) => schemesApi.export(params),
@@ -101,6 +104,15 @@ export default function Schemes() {
     if (canViewSchemes) {
       loadSchemes();
     }
+  }, [canViewSchemes, projectFilter]);
+
+  useEffect(() => {
+    if (!canViewSchemes) return;
+    projectsApi.getAll({ limit: 100 })
+      .then((res) => {
+        if (res.success && Array.isArray(res.data?.projects)) setProjectList(res.data.projects);
+      })
+      .catch(() => {});
   }, [canViewSchemes]);
 
   if (!canViewSchemes) {
@@ -121,7 +133,7 @@ export default function Schemes() {
     try {
       setLoading(true);
       setError(null);
-      const response = await schemesApi.getAll();
+      const response = await schemesApi.getAll(projectFilter !== "all" ? { project: projectFilter } : undefined);
       
       if (response.success && response.data) {
         const safeSchemes = Array.isArray(response.data.schemes)
@@ -249,6 +261,17 @@ export default function Schemes() {
           <p className="text-muted-foreground mt-1">Manage welfare schemes and programs</p>
         </div>
         <div className="flex gap-2">
+          <Select value={projectFilter} onValueChange={setProjectFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All projects</SelectItem>
+              {projectList.map((p) => (
+                <SelectItem key={p._id || p.id} value={(p._id || p.id)!}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <ExportButton
             onExportCSV={() => exportCSV()}
             onExportPDF={() => exportPDF()}
@@ -280,7 +303,9 @@ export default function Schemes() {
       ) : schemeList.length === 0 ? (
         <Card className="p-12 text-center">
           <CardContent>
-            <p className="text-muted-foreground">No schemes found. Create your first scheme to get started.</p>
+            <p className="text-muted-foreground">
+              {projectFilter !== "all" ? "No schemes found for this project." : "No schemes found. Create your first scheme to get started."}
+            </p>
             <Button onClick={handleCreateScheme} className="mt-4 bg-gradient-primary shadow-glow">
               <Plus className="mr-2 h-4 w-4" />
               Create First Scheme

@@ -1,6 +1,69 @@
 const { FormConfiguration, Scheme } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
+const Application = require('../models/Application');
+const { calculateApplicationScore } = require('../utils/scoringEngine');
+
+/**
+ * Fingerprint of everything that affects scoring: the form-level config plus each
+ * field's rules. Used to skip re-scoring when a save only touched labels, layout
+ * or other non-scoring parts of the form.
+ */
+function scoringSignature(config) {
+  if (!config) return null;
+  return JSON.stringify({
+    scoringConfig: config.scoringConfig || null,
+    fields: (config.pages || []).flatMap(page =>
+      (page.fields || []).map(field => ({ id: field.id, type: field.type, scoring: field.scoring || null }))
+    )
+  });
+}
+
+/**
+ * Re-score every application of a scheme against the saved form configuration.
+ *
+ * Stored eligibility scores are snapshots taken at submission time, so changing
+ * the scoring rules would otherwise leave existing applications on their old
+ * score. Status is never touched: a rule correction is an admin action, not a
+ * fresh submission, so auto-reject does not apply here.
+ *
+ * Applications carry base64 uploads in formData, so this streams a cursor and
+ * writes in batches rather than loading every document at once.
+ */
+async function rescoreApplicationsForScheme(scheme, formConfig) {
+  const filter = { scheme: scheme._id, formData: { $exists: true, $ne: null } };
+  // A scheme belongs to one franchise, so this is already tenant-scoped; name the
+  // franchise anyway to satisfy franchisePlugin, and bypass only if it has none.
+  if (scheme.franchise) filter.franchise = scheme.franchise;
+
+  const cursor = Application
+    .find(filter, { formData: 1 })
+    .setOptions({ bypassFranchise: !scheme.franchise })
+    .lean()
+    .cursor({ batchSize: 25 });
+
+  let operations = [];
+  let rescored = 0;
+
+  const flush = async () => {
+    if (operations.length === 0) return;
+    await Application.bulkWrite(operations);
+    rescored += operations.length;
+    operations = [];
+  };
+
+  for (let application = await cursor.next(); application; application = await cursor.next()) {
+    const score = calculateApplicationScore(application.formData, formConfig);
+    operations.push({
+      updateOne: { filter: { _id: application._id }, update: { $set: { eligibilityScore: score } } }
+    });
+    if (operations.length >= 50) await flush();
+  }
+  await flush();
+
+  return rescored;
+}
+
 
 class FormConfigurationController {
   /**
@@ -166,6 +229,8 @@ class FormConfigurationController {
       // Try to find existing form configuration (non-renewal)
       let formConfig = await FormConfiguration.findOne({ scheme: schemeId, isRenewalForm: { $ne: true } });
 
+      const previousScoringSignature = scoringSignature(formConfig);
+
       if (formConfig) {
         // Update existing configuration
         Object.assign(formConfig, {
@@ -189,13 +254,27 @@ class FormConfigurationController {
 
       await formConfig.save();
 
+      // Scoring rules changed, so every stored eligibility score for this scheme is
+      // now stale. Re-score them here, since nothing else revisits past applications.
+      let rescoredApplications = null;
+      const scoringChanged = scoringSignature(formConfig) !== previousScoringSignature;
+      if (scoringChanged && formConfig.enabled && formConfig.scoringConfig?.enabled) {
+        try {
+          rescoredApplications = await rescoreApplicationsForScheme(scheme, formConfig);
+        } catch (rescoreError) {
+          // The form itself saved fine — don't fail the request over the backfill.
+          console.error('⚠️ Re-scoring applications failed (non-blocking):', rescoreError.message);
+        }
+      }
+
       // Populate user references for response
       await formConfig.populate('createdBy', 'name email');
       await formConfig.populate('updatedBy', 'name email');
 
       return ResponseHelper.success(res, { 
         message: 'Form configuration saved successfully',
-        formConfiguration: formConfig 
+        formConfiguration: formConfig,
+        rescoredApplications
       });
     } catch (error) {
       console.error('❌ Update Form Configuration Error:', error);

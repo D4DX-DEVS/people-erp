@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { X, FileText, Calendar, User, MapPin, IndianRupee, Download, Eye, CheckCircle, XCircle, Loader2, Plus, Trash2, AlertTriangle, AlertCircle, CheckCircle2, Repeat, MessageSquare, Upload, RotateCcw, ArrowRightLeft, Pencil, Check } from 'lucide-react';
+import { X, FileText, Calendar, User, MapPin, IndianRupee, Download, Eye, CheckCircle, XCircle, Loader2, Plus, Trash2, AlertTriangle, AlertCircle, CheckCircle2, Repeat, MessageSquare, Upload, RotateCcw, ArrowRightLeft, Pencil, Check, Paperclip } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { canTransferApplication } from '@/utils/transferEligibility';
 import { TransferApplicationModal } from './TransferApplicationModal';
+import { ApplicationEditModal } from './ApplicationEditModal';
 
 // Button that auto-syncs application top-level status based on current stage states
 const SyncStatusButton: React.FC<{ applicationId: string; onSynced: () => void }> = ({ applicationId, onSynced }) => {
@@ -55,6 +56,24 @@ const ROLE_LEVELS: Record<string, number> = {
   super_admin: 5
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  unit_admin: 'Unit Admin',
+  area_president: 'Area President',
+  area_admin: 'Area Admin',
+  district_admin: 'District Admin',
+  scheme_coordinator: 'Scheme Coordinator',
+  project_coordinator: 'Project Coordinator',
+  state_admin: 'State Admin',
+  super_admin: 'Super Admin'
+};
+
+const formatBytes = (bytes?: number) => {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 // Separate component for stage item to avoid hooks in map
 const StageItem: React.FC<{
   stage: any;
@@ -62,8 +81,9 @@ const StageItem: React.FC<{
   showAction: boolean;
   onUpdate: () => void;
   userRole?: string;
+  userId?: string;
   isApplicationRejected?: boolean;
-}> = ({ stage, applicationId, showAction, onUpdate, userRole, isApplicationRejected = false }) => {
+}> = ({ stage, applicationId, showAction, onUpdate, userRole, userId, isApplicationRejected = false }) => {
   const { toast } = useToast();
   const [updating, setUpdating] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
@@ -73,6 +93,9 @@ const StageItem: React.FC<{
   const [addingComment, setAddingComment] = useState<string | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [removingAttachment, setRemovingAttachment] = useState<string | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   
   const isFieldVerification = stage.name?.toLowerCase().includes('field verification') || 
                              stage.name?.toLowerCase().includes('verification');
@@ -187,11 +210,62 @@ const StageItem: React.FC<{
     }
   };
   
+  const handleAttachmentUpload = async (file: File) => {
+    setUploadingAttachment(true);
+    try {
+      await applicationsApi.uploadStageAttachment(applicationId, stage._id, file);
+      toast({
+        title: "Success",
+        description: `${file.name} attached to "${stage.name}"`,
+      });
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to attach file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const handleAttachmentDelete = async (attachmentId: string) => {
+    setRemovingAttachment(attachmentId);
+    try {
+      await applicationsApi.deleteStageAttachment(applicationId, stage._id, attachmentId);
+      toast({
+        title: "Removed",
+        description: "Attachment removed",
+      });
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove attachment",
+        variant: "destructive",
+      });
+    } finally {
+      setRemovingAttachment(null);
+    }
+  };
+
   // Comment config helpers
   const commentConfig = stage.commentConfig || {};
   const comments = stage.comments || {};
   const hasAnyCommentConfig = commentConfig.unitAdmin?.enabled || commentConfig.areaPresident?.enabled || commentConfig.areaAdmin?.enabled || commentConfig.districtAdmin?.enabled;
   const requiredDocs = stage.requiredDocuments || [];
+
+  // Optional supporting files. Anyone who can act on or comment on the stage may
+  // attach; everyone who can open the application sees what was attached.
+  const attachments: any[] = stage.attachments || [];
+  const canAttach = !showAction && !isApplicationRejected && canCommentOnStage;
+  const canRemoveAttachment = (att: any) => {
+    if (showAction || isApplicationRejected || !userRole) return false;
+    if (userRole === 'super_admin' || userRole === 'state_admin') return true;
+    const uploaderId = att.uploadedBy?._id || att.uploadedBy;
+    return !!userId && !!uploaderId && String(uploaderId) === String(userId);
+  };
 
   return (
     <div className={showWarning ? 'bg-orange-50/50' : isReverted ? 'bg-purple-50/50' : ''}>
@@ -407,6 +481,81 @@ const StageItem: React.FC<{
             </div>
           )}
           
+          {/* Attachments — optional supporting files, visible up the hierarchy */}
+          {(attachments.length > 0 || canAttach) && (
+            <div className="mt-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1 text-xs font-medium">
+                  <Paperclip className="h-3 w-3 text-muted-foreground" />
+                  Attachments
+                  <span className="text-[10px] font-normal text-muted-foreground">(optional)</span>
+                </div>
+                {canAttach && (
+                  <>
+                    <input
+                      type="file"
+                      ref={attachmentInputRef}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleAttachmentUpload(file);
+                        e.target.value = '';
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      disabled={uploadingAttachment}
+                      className="text-xs h-6 px-2"
+                    >
+                      {uploadingAttachment ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
+                      Attach file
+                    </Button>
+                  </>
+                )}
+              </div>
+              {attachments.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No files attached</p>
+              ) : (
+                attachments.map((att: any) => (
+                  <div key={att._id} className="p-2 rounded border text-xs bg-muted/20 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <a
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <FileText className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{att.name || 'Attachment'}</span>
+                      </a>
+                      <p className="text-muted-foreground mt-0.5 text-[10px]">
+                        {att.uploadedBy?.name || 'User'}
+                        {att.uploadedByRole && ` (${ROLE_LABELS[att.uploadedByRole] || att.uploadedByRole})`}
+                        {att.uploadedAt && ` · ${new Date(att.uploadedAt).toLocaleDateString()}`}
+                        {att.size ? ` · ${formatBytes(att.size)}` : ''}
+                      </p>
+                      {att.note && <p className="text-muted-foreground mt-0.5">{att.note}</p>}
+                    </div>
+                    {canRemoveAttachment(att) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleAttachmentDelete(att._id)}
+                        disabled={removingAttachment === att._id}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                        title="Remove attachment"
+                      >
+                        {removingAttachment === att._id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      </Button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {/* Update Stage Form - Compact (hidden if user role not allowed on this stage) */}
           {(stage.status === 'pending' || stage.status === 'in_progress') && !showAction && canActOnStage && !isApplicationRejected && (
             <div className="mt-2">
@@ -522,6 +671,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
   // Transfer application state
   const [showTransferModal, setShowTransferModal] = useState(false);
 
+  // Full edit of the submitted form (state / super admin only)
+  const [showEditModal, setShowEditModal] = useState(false);
+
   // Duplicate check state
   const [recheckingDuplicates, setRecheckingDuplicates] = useState(false);
 
@@ -608,6 +760,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
 
   // Only the roles the API's PUT /applications/:id accepts may edit the amount
   const canEditRequestedAmount = !!user && ['super_admin', 'state_admin', 'district_admin'].includes(user.role);
+
+  // Editing submitted answers and documents is reserved for state / super admins
+  const canEditApplication = !!user && ['super_admin', 'state_admin'].includes(user.role);
 
   const startEditingRequestedAmount = () => {
     setRequestedAmountDraft(String(application?.requestedAmount ?? 0));
@@ -1433,6 +1588,12 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {application && canEditApplication && !showAction && (
+              <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)} disabled={loading}>
+                <Pencil className="h-4 w-4 mr-1" />
+                Edit Application
+              </Button>
+            )}
             {application && (
               <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloadingPdf}>
                 {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
@@ -2380,6 +2541,7 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                                 showAction={!!showAction}
                                 onUpdate={fetchApplicationDetails}
                                 userRole={user?.role}
+                                userId={user?.id}
                                 isApplicationRejected={application.status === 'rejected'}
                               />
                               
@@ -2835,6 +2997,13 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
       onClose={() => setShowTransferModal(false)}
       application={application}
       onTransferred={() => { setShowTransferModal(false); fetchApplicationDetails(); }}
+    />
+    <ApplicationEditModal
+      isOpen={showEditModal}
+      onClose={() => setShowEditModal(false)}
+      application={application}
+      formConfig={formConfig}
+      onSaved={() => { fetchApplicationDetails(); onActionComplete?.(); }}
     />
     </>
   , document.body);

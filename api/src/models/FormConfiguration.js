@@ -38,6 +38,12 @@ const fieldSchema = new mongoose.Schema({
     type: String,
     maxlength: [200, 'Option text cannot exceed 200 characters']
   }],
+  // Dropdown fields only: expose this field's options as a filter on the
+  // admin application listing when the scheme is selected.
+  filterable: {
+    type: Boolean,
+    default: false
+  },
   validation: {
     pattern: String,
     minLength: Number,

@@ -1164,6 +1164,7 @@ class ExtendedApiClient extends ApiClient {
     district?: string;
     area?: string;
     unit?: string;
+    formFilters?: string;
   }): Promise<ApiResponse<{
     applications: any[];
     pagination: {
@@ -1251,6 +1252,14 @@ export const beneficiaries = {
   export: (params?: any) => extendedApiClient.request(buildExportUrl('/beneficiaries/export', params)),
 };
 
+// Form-builder dropdown field exposed as an application-list filter
+export interface ApplicationFilterField {
+  id: number;
+  key: string;
+  label: string;
+  options: string[];
+}
+
 export const applications = {
   getAll: (params?: any) => extendedApiClient.getApplications(params),
   getById: (id: string) => extendedApiClient.getApplication(id),
@@ -1312,6 +1321,52 @@ export const applications = {
     }
     return response.json();
   },
+  // Optional supporting file on a verification stage
+  uploadStageAttachment: async (id: string, stageId: string, file: File, note?: string) => {
+    const formData = new FormData();
+    formData.append('document', file);
+    if (note) formData.append('note', note);
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+    const slug = getFranchiseSlug();
+    if (slug) headers['X-Franchise-Slug'] = slug;
+    const response = await fetch(`${baseUrl}/applications/${id}/stages/${stageId}/attachments`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to upload attachment');
+    }
+    return response.json();
+  },
+  deleteStageAttachment: (id: string, stageId: string, attachmentId: string) =>
+    extendedApiClient.request(`/applications/${id}/stages/${stageId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    }),
+  // Admin-side replacement of a form file field (returns the stored file's public URL)
+  uploadFormFile: async (file: File, folder: string): Promise<{ url: string; originalName?: string; mimetype?: string; size?: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+    const slug = getFranchiseSlug();
+    if (slug) headers['X-Franchise-Slug'] = slug;
+    const response = await fetch(`${baseUrl}/upload/single`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success || !data.data?.file?.url) {
+      throw new Error(data.message || 'File upload failed');
+    }
+    return data.data.file;
+  },
   syncStatus: (id: string) =>
     extendedApiClient.request(`/applications/${id}/sync-status`, {
       method: 'POST',
@@ -1352,7 +1407,28 @@ export const applications = {
     }
     return extendedApiClient.request(`/applications/receipts${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
   },
+  getDistributions: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, (value as string).toString());
+        }
+      });
+    }
+    return extendedApiClient.request(`/applications/distributions${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+  },
+  markDistributed: (
+    applicationId: string,
+    data: { paymentId?: string | null; distributedAt: string; method: string; referenceNumber?: string; notes?: string }
+  ) =>
+    extendedApiClient.request(`/applications/${applicationId}/distribute`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   export: (params?: any) => extendedApiClient.request(buildExportUrl('/applications/export', params)),
+  getFilterFields: (scheme: string) =>
+    extendedApiClient.request<{ fields: ApplicationFilterField[] }>(`/applications/filter-fields?scheme=${encodeURIComponent(scheme)}`),
   downloadPdf: async (id: string): Promise<Blob> => {
     const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
     const token = localStorage.getItem('token');

@@ -10,6 +10,7 @@ const notificationService = require('../services/notificationService');
 const recurringPaymentService = require('../services/recurringPaymentService');
 const applicationPdfService = require('../services/applicationPdfService');
 const { calculateApplicationScore } = require('../utils/scoringEngine');
+const { getFilterableFields, buildFormDataFilter } = require('../utils/formDataFilter');
 const { validationResult } = require('express-validator');
 const RBACMiddleware = require('../middleware/rbacMiddleware');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
@@ -28,6 +29,27 @@ const getEffectiveUserForFilter = (req) => ({
   adminScope: req.userFranchise?.adminScope || req.user.adminScope,
   isSuperAdmin: req.user.isSuperAdmin
 });
+
+// Filterable dropdown fields for a scheme's form (used by the listing filters)
+const getApplicationFilterFields = async (req, res) => {
+  try {
+    const { scheme } = req.query;
+    if (!scheme || !mongoose.Types.ObjectId.isValid(scheme)) {
+      return res.json({ success: true, data: { fields: [] } });
+    }
+
+    const schemeDoc = await Scheme.findOne({ _id: scheme, ...buildFranchiseReadFilter(req) }).select('_id');
+    if (!schemeDoc) {
+      return res.json({ success: true, data: { fields: [] } });
+    }
+
+    const fields = await getFilterableFields(scheme, buildFranchiseReadFilter(req));
+    res.json({ success: true, data: { fields } });
+  } catch (error) {
+    console.error('❌ Get application filter fields error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch filter fields', error: error.message });
+  }
+};
 
 // Get all applications with pagination and search
 const getApplications = async (req, res) => {
@@ -50,7 +72,8 @@ const getApplications = async (req, res) => {
       area = '',
       unit = '',
       startDate = '',
-      endDate = ''
+      endDate = '',
+      formFilters = ''
     } = req.query;
 
     console.log('🔍 getApplications - Query parameters:', {
@@ -97,6 +120,12 @@ const getApplications = async (req, res) => {
     if (district) filter.district = district;
     if (area) filter.area = area;
     if (unit) filter.unit = unit;
+
+    // Scheme-specific dropdown filters (form-builder fields marked filterable).
+    // Only meaningful when a scheme is selected, since field keys are per form.
+    if (scheme && formFilters) {
+      Object.assign(filter, await buildFormDataFilter(scheme, formFilters, buildFranchiseReadFilter(req)));
+    }
 
     // Date range filter (must match the same createdAt window used by the
     // consolidation stats endpoint, otherwise drill-down counts diverge from
@@ -221,6 +250,7 @@ const getApplication = async (req, res) => {
       .populate('locationChangeHistory.newArea', 'name code')
       .populate('locationChangeHistory.newUnit', 'name code')
       .populate('locationChangeHistory.changedBy', 'name role')
+      .populate('applicationStages.attachments.uploadedBy', 'name role')
       .populate('createdBy', 'name')
       .populate('reviewedBy', 'name')
       .populate('approvedBy', 'name');
@@ -486,13 +516,24 @@ const updateApplication = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { requestedAmount, documents, status } = req.body;
+    const { requestedAmount, documents, status, formData } = req.body;
 
     // Only allow certain status transitions
     if (status && !isValidStatusTransition(application.status, status)) {
       return res.status(400).json({ 
         message: `Cannot change status from ${application.status} to ${status}` 
       });
+    }
+
+    // Editing the submitted form (answers + uploaded documents) is reserved for
+    // state / super admins — district admins may only touch the amount.
+    if (formData !== undefined) {
+      if (!['super_admin', 'state_admin'].includes(req.user.role)) {
+        return res.status(403).json({ message: 'Only state admins can edit submitted application data' });
+      }
+      if (!formData || typeof formData !== 'object' || Array.isArray(formData)) {
+        return res.status(400).json({ message: 'formData must be an object' });
+      }
     }
 
     // Update fields
@@ -509,10 +550,52 @@ const updateApplication = async (req, res) => {
     
     if (documents) application.documents = documents;
     if (status) application.status = status;
+
+    let changedFields = [];
+    if (formData !== undefined) {
+      const previous = application.formData || {};
+      const keys = new Set([...Object.keys(previous), ...Object.keys(formData)]);
+      changedFields = [...keys].filter(k => JSON.stringify(previous[k]) !== JSON.stringify(formData[k]));
+
+      application.formData = formData;
+      application.markModified('formData');
+
+      // Answers changed, so the eligibility score is stale. Recalculate without
+      // auto-rejecting — an admin edit is a deliberate correction, not a submission.
+      const scoringConfig = await FormConfiguration.findOne({
+        scheme: application.scheme,
+        enabled: true,
+        'scoringConfig.enabled': true
+      });
+      if (scoringConfig) {
+        application.eligibilityScore = calculateApplicationScore(formData, scoringConfig);
+      }
+    }
     
     application.updatedBy = req.user.id;
 
     await application.save();
+
+    if (changedFields.length > 0) {
+      try {
+        const ActivityLogService = require('../services/activityLogService');
+        await ActivityLogService.logActivity({
+          userId: req.user._id,
+          action: 'application_updated',
+          resource: 'application',
+          resourceId: application._id,
+          description: `${req.user.name || 'An admin'} edited application ${application.applicationNumber || application._id} (${changedFields.length} field(s))`,
+          details: {
+            applicationNumber: application.applicationNumber || null,
+            changedFields
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+      } catch (logError) {
+        console.error('Failed to log application edit:', logError);
+      }
+    }
 
     const updatedApplication = await Application.findOne({ _id: application._id, franchise: req.franchiseId })
       .populate('beneficiary', 'name phone')
@@ -716,7 +799,7 @@ const approveApplication = async (req, res) => {
               notes: `Direct approval. ${comments || ''}`.trim()
             },
             initiatedBy: req.user.id,
-            franchiseId: req.franchiseId || application.franchiseId,
+            franchise: req.franchiseId || application.franchise,
             location: {
               state: application.location?.state,
               district: application.location?.district,
@@ -759,7 +842,7 @@ const approveApplication = async (req, res) => {
             notes: `Direct approval. ${comments || ''}`.trim()
           },
           initiatedBy: req.user.id,
-          franchiseId: req.franchiseId || application.franchiseId,
+          franchise: req.franchiseId || application.franchise,
           location: {
             state: application.location?.state,
             district: application.location?.district,
@@ -2139,6 +2222,141 @@ const uploadStageDocument = async (req, res) => {
   }
 };
 
+// Multer writes the upload to disk before the controller runs; drop it when
+// the request is refused so rejected uploads do not pile up.
+const discardTempFile = (file) => {
+  if (file?.path) {
+    require('fs').unlink(file.path, () => {});
+  }
+};
+
+// Attach an optional supporting file to a stage. Any admin who may act on or
+// comment on the stage can attach; every superior sees the attachment.
+const uploadStageAttachment = async (req, res) => {
+  try {
+    const { id, stageId } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const application = await Application.findOne({ _id: id, franchise: req.franchiseId });
+    if (!application) {
+      discardTempFile(req.file);
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    if (!hasAccessToApplication(getEffectiveUserForFilter(req), application)) {
+      discardTempFile(req.file);
+      return res.status(403).json({ success: false, message: 'You do not have access to this application' });
+    }
+
+    const stage = application.applicationStages.id(stageId);
+    if (!stage) {
+      discardTempFile(req.file);
+      return res.status(404).json({ success: false, message: 'Stage not found' });
+    }
+
+    if (!canRoleActOnStage(req.user.role, stage) && !canRoleCommentOnStage(req.user.role, stage)) {
+      discardTempFile(req.file);
+      return res.status(403).json({
+        success: false,
+        message: `Your role (${req.user.role}) is not permitted to attach files on stage "${stage.name}"`
+      });
+    }
+
+    if (['rejected', 'cancelled'].includes(application.status)) {
+      discardTempFile(req.file);
+      return res.status(400).json({ success: false, message: `Cannot attach files to a ${application.status} application` });
+    }
+
+    const fileUploadService = require('../services/fileUploadService');
+    const uploaded = await fileUploadService.uploadFile(
+      req.file,
+      `applications/${application._id}/stages/${stage._id}`
+    );
+
+    stage.attachments.push({
+      name: (req.body.name || uploaded.originalName || '').slice(0, 200),
+      url: uploaded.url,
+      key: uploaded.key,
+      mimeType: uploaded.mimetype,
+      size: uploaded.size,
+      note: req.body.note ? String(req.body.note).slice(0, 500) : undefined,
+      uploadedBy: req.user._id,
+      uploadedByRole: req.user.role,
+      uploadedAt: new Date()
+    });
+
+    await application.save();
+    await application.populate('applicationStages.attachments.uploadedBy', 'name role');
+
+    res.json({
+      success: true,
+      message: 'Attachment uploaded successfully',
+      data: { attachments: stage.attachments }
+    });
+  } catch (error) {
+    console.error('Error uploading stage attachment:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to upload attachment' });
+  }
+};
+
+// Remove a stage attachment. The uploader or a state / super admin may remove it.
+const deleteStageAttachment = async (req, res) => {
+  try {
+    const { id, stageId, attachmentId } = req.params;
+
+    const application = await Application.findOne({ _id: id, franchise: req.franchiseId });
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    if (!hasAccessToApplication(getEffectiveUserForFilter(req), application)) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this application' });
+    }
+
+    const stage = application.applicationStages.id(stageId);
+    if (!stage) {
+      return res.status(404).json({ success: false, message: 'Stage not found' });
+    }
+
+    const attachment = stage.attachments.id(attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: 'Attachment not found' });
+    }
+
+    const isUploader = attachment.uploadedBy && attachment.uploadedBy.toString() === req.user._id.toString();
+    const isSeniorAdmin = ['super_admin', 'state_admin'].includes(req.user.role);
+    if (!isUploader && !isSeniorAdmin) {
+      return res.status(403).json({ success: false, message: 'Only the uploader or a state admin can remove this attachment' });
+    }
+
+    const storageKey = attachment.key;
+    attachment.deleteOne();
+    await application.save();
+
+    if (storageKey) {
+      // Best effort — the record is already gone; a stale object in storage is harmless
+      try {
+        const fileUploadService = require('../services/fileUploadService');
+        await fileUploadService.deleteFile(storageKey);
+      } catch (storageError) {
+        console.error('Failed to delete attachment from storage:', storageError.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Attachment removed',
+      data: { attachments: stage.attachments }
+    });
+  } catch (error) {
+    console.error('Error deleting stage attachment:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to remove attachment' });
+  }
+};
+
 // Get applications due for renewal (admin)
 const getRenewalDueApplications = async (req, res) => {
   try {
@@ -2996,16 +3214,8 @@ const getApplicationReceipts = async (req, res) => {
       ];
     }
 
-    // Fetch eligible applications with populated fields for fallback receipt entries
-    const eligibleApps = await Application.find(approvedAppQuery)
-      .select('-formData')
-      .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code')
-      .populate('project', 'name code')
-      .populate('district', 'name')
-      .populate('area', 'name')
-      .populate('unit', 'name')
-      .lean();
+    // Only the ids are needed — receipts are built from the completed payments
+    const eligibleApps = await Application.find(approvedAppQuery).select('_id').lean();
     const eligibleAppIds = eligibleApps.map(a => a._id);
 
     // Also filter by beneficiary name/phone when searching
@@ -3020,9 +3230,12 @@ const getApplicationReceipts = async (req, res) => {
       searchBeneficiaryIds = matchedBeneficiaries.map(b => b._id);
     }
 
+    // A receipt exists only once the money has actually been handed over —
+    // admins record that on the Fund Distribution page.
     const paymentFilter = {
       application: { $in: eligibleAppIds },
-      amount: { $gt: 0 }
+      amount: { $gt: 0 },
+      status: 'completed'
       // No additional franchise filter — applications are already franchise-scoped above
     };
 
@@ -3062,41 +3275,18 @@ const getApplicationReceipts = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Build payment-based receipt entries
-    const paymentReceipts = payments.map(p => ({
+    const allReceipts = payments.map(p => ({
       paymentId: p._id,
       applicationId: p.application?._id || '',
       applicationNumber: p.application?.applicationNumber || '',
       beneficiaryName: p.beneficiary?.name || '',
       schemeName: p.scheme?.name || '',
       amount: p.amount || 0,
-      paidAt: p.timeline?.completedAt || p.timeline?.approvedAt || p.createdAt || '',
+      paidAt: p.timeline?.completedAt || p.createdAt || '',
       district: p.application?.district?.name || '',
       area: p.application?.area?.name || '',
       unit: p.application?.unit?.name || '',
-    }));
-
-    // For applications with NO payment records, create fallback receipt entries from application data
-    const appsWithPayments = new Set(payments.map(p => (p.application?._id || p.application)?.toString()));
-    const appsWithoutPayments = eligibleApps.filter(a => !appsWithPayments.has(a._id.toString()));
-
-    const appFallbackReceipts = appsWithoutPayments.map(a => ({
-      paymentId: null,
-      applicationId: a._id,
-      applicationNumber: a.applicationNumber || '',
-      beneficiaryName: a.beneficiary?.name || '',
-      schemeName: a.scheme?.name || '',
-      amount: a.approvedAmount || 0,
-      paidAt: a.approvedAt || a.updatedAt || '',
-      district: a.district?.name || '',
-      area: a.area?.name || '',
-      unit: a.unit?.name || '',
-    }));
-
-    // Merge: payment-based entries first, then fallback entries; sort by date descending
-    const allReceipts = [...paymentReceipts, ...appFallbackReceipts].sort(
-      (a, b) => new Date(b.paidAt || 0) - new Date(a.paidAt || 0)
-    );
+    })).sort((a, b) => new Date(b.paidAt || 0) - new Date(a.paidAt || 0));
 
     const total = allReceipts.length;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -3118,8 +3308,279 @@ const getApplicationReceipts = async (req, res) => {
   }
 };
 
+// ── Fund Distribution ──────────────────────────────────────────────────────
+// Money is handed over outside the software, so an approved application sits in
+// "pending distribution" until an admin records that it actually went out. Only
+// then does it become a receipt.
+const getFundDistributions = async (req, res) => {
+  try {
+    const Payment = require('../models/Payment');
+    const {
+      search = '',
+      status = 'pending', // 'pending' | 'distributed'
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    const appQuery = {
+      status: { $in: ['approved', 'completed', 'disbursed'] },
+      approvedAmount: { $gt: 0 },
+      ...buildFranchiseReadFilter(req)
+    };
+
+    const effectiveUser = getEffectiveUserForFilter(req);
+    if (effectiveUser.role !== 'super_admin' && effectiveUser.role !== 'state_admin') {
+      const regionFilter = getUserRegionalFilter(effectiveUser);
+      if (Object.keys(regionFilter).length > 0) {
+        applyScopeFilter(appQuery, regionFilter);
+      }
+    }
+
+    // Search matches the application number or the beneficiary's name/phone
+    if (search) {
+      const matchedBeneficiaries = await Beneficiary.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { phone: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id').lean();
+
+      appQuery.$and = [
+        ...(appQuery.$and || []),
+        {
+          $or: [
+            { applicationNumber: { $regex: search, $options: 'i' } },
+            { beneficiary: { $in: matchedBeneficiaries.map(b => b._id) } }
+          ]
+        }
+      ];
+    }
+
+    const eligibleApps = await Application.find(appQuery)
+      .select('-formData')
+      .populate('beneficiary', 'name phone')
+      .populate('scheme', 'name code')
+      .populate('project', 'name code')
+      .populate('district', 'name')
+      .populate('area', 'name')
+      .populate('unit', 'name')
+      .lean();
+
+    const appIds = eligibleApps.map(a => a._id);
+    const appById = new Map(eligibleApps.map(a => [a._id.toString(), a]));
+
+    const payments = await Payment.find({ application: { $in: appIds }, amount: { $gt: 0 } })
+      .select('application amount status type method installment timeline metadata bankTransfer cheque')
+      .sort({ 'installment.number': 1, createdAt: 1 })
+      .lean();
+
+    const PENDING_STATUSES = ['pending', 'approved', 'processing'];
+
+    const toRow = (app, payment) => ({
+      paymentId: payment ? payment._id : null,
+      applicationId: app._id,
+      applicationNumber: app.applicationNumber || '',
+      beneficiaryName: app.beneficiary?.name || '',
+      beneficiaryPhone: app.beneficiary?.phone || '',
+      schemeName: app.scheme?.name || '',
+      projectName: app.project?.name || '',
+      amount: payment ? payment.amount : (app.approvedAmount || 0),
+      approvedAmount: app.approvedAmount || 0,
+      approvedAt: app.committeeApprovedAt || app.approvedAt || app.updatedAt || '',
+      installmentLabel: payment?.installment?.totalInstallments > 1
+        ? `${payment.installment.description || 'Installment'} (${payment.installment.number}/${payment.installment.totalInstallments})`
+        : (payment?.installment?.description || 'Full payment'),
+      expectedDate: payment?.timeline?.expectedCompletionDate || '',
+      distributedAt: payment?.timeline?.completedAt || '',
+      method: payment?.method || '',
+      reference: payment?.bankTransfer?.transactionId || payment?.bankTransfer?.utrNumber || payment?.cheque?.chequeNumber || '',
+      district: app.district?.name || '',
+      area: app.area?.name || '',
+      unit: app.unit?.name || ''
+    });
+
+    const pendingRows = [];
+    const distributedRows = [];
+    const appsWithPayments = new Set();
+
+    payments.forEach(p => {
+      const app = appById.get((p.application?._id || p.application).toString());
+      if (!app) return;
+      appsWithPayments.add(app._id.toString());
+      if (p.status === 'completed') {
+        distributedRows.push(toRow(app, p));
+      } else if (PENDING_STATUSES.includes(p.status)) {
+        pendingRows.push(toRow(app, p));
+      }
+    });
+
+    // Older approvals were made before payment records existed. Show them so the
+    // money can still be recorded as distributed. Recurring approvals are skipped —
+    // their cycles live on the Recurring Payments schedule.
+    eligibleApps
+      .filter(a => !appsWithPayments.has(a._id.toString()) && a.isRecurring !== true)
+      .forEach(a => pendingRows.push(toRow(a, null)));
+
+    const rows = status === 'distributed' ? distributedRows : pendingRows;
+    rows.sort((a, b) => status === 'distributed'
+      ? new Date(b.distributedAt || 0) - new Date(a.distributedAt || 0)
+      : new Date(a.expectedDate || a.approvedAt || 0) - new Date(b.expectedDate || b.approvedAt || 0));
+
+    const total = rows.length;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const paginated = rows.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    res.json({
+      success: true,
+      data: paginated,
+      summary: {
+        pendingCount: pendingRows.length,
+        pendingAmount: pendingRows.reduce((sum, r) => sum + (r.amount || 0), 0),
+        distributedCount: distributedRows.length,
+        distributedAmount: distributedRows.reduce((sum, r) => sum + (r.amount || 0), 0)
+      },
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
+        totalCount: total,
+        limit: limitNum
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching fund distributions:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch fund distributions' });
+  }
+};
+
+// Record that an approved amount has actually been handed to the beneficiary.
+const markFundDistributed = async (req, res) => {
+  try {
+    const Payment = require('../models/Payment');
+    const { id } = req.params;
+    const { paymentId, distributedAt, method = 'bank_transfer', referenceNumber, notes } = req.body;
+
+    const application = await Application.findOne({ _id: id, ...buildFranchiseReadFilter(req) })
+      .select('-formData');
+
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    if (!['approved', 'completed', 'disbursed'].includes(application.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only approved applications can be marked as distributed'
+      });
+    }
+
+    let payment;
+
+    if (paymentId) {
+      payment = await Payment.findOne({ _id: paymentId, application: application._id });
+      if (!payment) {
+        return res.status(404).json({ success: false, message: 'Payment record not found for this application' });
+      }
+      if (payment.status === 'completed') {
+        return res.status(400).json({ success: false, message: 'This payment is already marked as distributed' });
+      }
+      if (!['pending', 'approved', 'processing'].includes(payment.status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot distribute a payment with status "${payment.status}"`
+        });
+      }
+    } else {
+      // Approval made before payment records existed — create one for the full amount
+      if (!application.project) {
+        return res.status(400).json({
+          success: false,
+          message: 'This application has no project linked, so a payment record cannot be created'
+        });
+      }
+      payment = new Payment({
+        application: application._id,
+        beneficiary: application.beneficiary,
+        project: application.project,
+        scheme: application.scheme,
+        amount: application.approvedAmount,
+        type: 'full_payment',
+        method,
+        initiatedBy: req.user._id,
+        franchise: getWriteFranchiseId(req) || application.franchise,
+        location: {
+          state: application.location?.state,
+          district: application.location?.district,
+          area: application.location?.area,
+          unit: application.location?.unit
+        }
+      });
+    }
+
+    payment.status = 'completed';
+    payment.method = method;
+    if (!payment.timeline) payment.timeline = {};
+    payment.timeline.completedAt = distributedAt ? new Date(distributedAt) : new Date();
+    payment.timeline.processedAt = new Date();
+    payment.processedBy = req.user._id;
+
+    if (referenceNumber) {
+      if (method === 'cheque') {
+        if (!payment.cheque) payment.cheque = {};
+        payment.cheque.chequeNumber = referenceNumber;
+      } else if (method !== 'cash') {
+        if (!payment.bankTransfer) payment.bankTransfer = {};
+        payment.bankTransfer.transactionId = referenceNumber;
+      }
+    }
+
+    if (notes) {
+      if (!payment.metadata) payment.metadata = {};
+      payment.metadata.notes = notes;
+    }
+
+    await payment.save();
+
+    // An application is complete once nothing is left to hand over
+    const remaining = await Payment.countDocuments({
+      application: application._id,
+      status: { $in: ['pending', 'approved', 'processing'] }
+    });
+
+    const newStatus = remaining === 0
+      ? 'completed'
+      : (application.status === 'approved' ? 'disbursed' : application.status);
+
+    if (newStatus !== application.status) {
+      application.status = newStatus;
+      application.updatedBy = req.user._id;
+      application.statusHistory = application.statusHistory || [];
+      application.statusHistory.push({
+        status: newStatus,
+        timestamp: new Date(),
+        updatedBy: req.user._id,
+        comment: remaining === 0
+          ? 'All approved funds distributed'
+          : `Funds distributed — ${remaining} payment(s) pending`
+      });
+      await application.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Distribution recorded successfully',
+      data: { paymentId: payment._id, applicationStatus: application.status }
+    });
+  } catch (error) {
+    console.error('Error marking fund as distributed:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to record distribution' });
+  }
+};
+
+
 module.exports = {
   getApplications,
+  getApplicationFilterFields,
   getApplication,
   createApplication,
   updateApplication,
@@ -3136,6 +3597,8 @@ module.exports = {
   updateApplicationStage,
   addStageComment,
   uploadStageDocument,
+  uploadStageAttachment,
+  deleteStageAttachment,
   getRenewalDueApplications,
   getRenewalHistory,
   recalculateScore,
@@ -3145,5 +3608,7 @@ module.exports = {
   getApplicationConsolidation,
   getApplicationDuplicates,
   updateApplicationLocation,
-  getApplicationReceipts
+  getApplicationReceipts,
+  getFundDistributions,
+  markFundDistributed
 };

@@ -45,6 +45,7 @@ interface Field {
     scoringRules: { condition: string; value: string; value2?: string; points: number }[];
   };
   autoFill?: FieldAutoFill;
+  filterable?: boolean;
 }
 
 interface Page {
@@ -306,10 +307,12 @@ export default function FormBuilder() {
         instructions: formInstructions
       };
 
+      let rescoredApplications: number | null = null;
       if (isRenewalForm) {
         await schemesApi.updateRenewalFormConfig(schemeId, formData);
       } else {
-        await api.updateFormConfiguration(schemeId, formData);
+        const response: any = await api.updateFormConfiguration(schemeId, formData);
+        rescoredApplications = response?.data?.rescoredApplications ?? null;
       }
       
       setLastSaved(new Date());
@@ -318,7 +321,9 @@ export default function FormBuilder() {
       
       toast({
         title: "Form saved successfully!",
-        description: "Form configuration has been saved for this scheme."
+        description: rescoredApplications
+          ? `Form configuration saved. Scoring rules changed, so ${rescoredApplications} existing application(s) were re-scored.`
+          : "Form configuration has been saved for this scheme."
       });
     } catch (error: any) {
       console.error('Failed to save form configuration:', error);
@@ -417,7 +422,7 @@ export default function FormBuilder() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           {schemeId && (
-            <Button variant="ghost" size="sm" onClick={() => navigate('/schemes')} className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/scheme-management')} className="flex items-center gap-2">
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Back to Schemes</span>
             </Button>
@@ -599,7 +604,7 @@ export default function FormBuilder() {
                 <Button 
                   variant="link" 
                   size="sm" 
-                  onClick={() => navigate('/schemes')}
+                  onClick={() => navigate('/scheme-management')}
                   className="text-amber-800 underline p-0 ml-1 h-auto"
                 >
                   Go to Schemes

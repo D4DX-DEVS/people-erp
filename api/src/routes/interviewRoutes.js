@@ -965,7 +965,8 @@ router.patch('/:id/complete',
                 metadata: {
                   notes: `Approved after interview. ${notes || ''}`.trim()
                 },
-                initiatedBy: req.user._id
+                initiatedBy: req.user._id,
+                franchise: req.franchiseId || application.franchise
               });
 
               await payment.save();
@@ -1001,7 +1002,8 @@ router.patch('/:id/complete',
               metadata: {
                 notes: `Approved after interview. ${notes || ''}`.trim()
               },
-              initiatedBy: req.user._id
+              initiatedBy: req.user._id,
+              franchise: req.franchiseId || application.franchise
             });
 
             await payment.save();
@@ -1295,7 +1297,8 @@ router.patch('/interview/:interviewId/complete',
                 metadata: {
                   notes: `Approved after interview. ${notes || ''}`.trim()
                 },
-                initiatedBy: req.user._id
+                initiatedBy: req.user._id,
+                franchise: req.franchiseId || application.franchise
               });
 
               await payment.save();
@@ -1331,7 +1334,8 @@ router.patch('/interview/:interviewId/complete',
               metadata: {
                 notes: `Approved after interview. ${notes || ''}`.trim()
               },
-              initiatedBy: req.user._id
+              initiatedBy: req.user._id,
+              franchise: req.franchiseId || application.franchise
             });
 
             await payment.save();

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { QuickDateRange, getDateRangeFromQuickFilter } from "@/components/filters/QuickDateFilter";
-import { projects, schemes, locations } from "@/lib/api";
+import { projects, schemes, locations, applications, type ApplicationFilterField } from "@/lib/api";
 
 export interface ApplicationFilterState {
   searchTerm: string;
@@ -11,6 +11,8 @@ export interface ApplicationFilterState {
   unitFilter: string;
   schemeFilter: string;
   genderFilter: string;
+  /** Scheme-specific form-builder dropdown filters: field key -> selected option */
+  formFilters: Record<string, string>;
   fromDate?: Date;
   toDate?: Date;
   quickDateFilter: QuickDateRange;
@@ -35,6 +37,8 @@ export function useApplicationFilters(defaultStatus?: string) {
   const [unitFilter, setUnitFilter] = useState("all");
   const [schemeFilter, setSchemeFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
+  const [formFilters, setFormFilters] = useState<Record<string, string>>({});
+  const [formFilterFields, setFormFilterFields] = useState<ApplicationFilterField[]>([]);
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
   const [quickDateFilter, setQuickDateFilter] = useState<QuickDateRange>(null);
@@ -110,6 +114,47 @@ export function useApplicationFilters(defaultStatus?: string) {
     loadDropdownData();
   }, [loadDropdownData]);
 
+  // Scheme-specific filters: the form builder can mark dropdown fields as
+  // filterable. Their keys are per form, so selections reset on scheme change.
+  useEffect(() => {
+    let cancelled = false;
+    // Keep the same object when already empty so dependent effects don't refetch
+    setFormFilters((prev) => (Object.keys(prev).length > 0 ? {} : prev));
+    if (schemeFilter === "all") {
+      setFormFilterFields([]);
+      return;
+    }
+    applications.getFilterFields(schemeFilter)
+      .then((response) => {
+        if (cancelled) return;
+        setFormFilterFields(response.success && Array.isArray(response.data?.fields) ? response.data.fields : []);
+      })
+      .catch((error) => {
+        console.error('❌ [FILTERS] Error loading form filter fields:', error);
+        if (!cancelled) setFormFilterFields([]);
+      });
+    return () => { cancelled = true; };
+  }, [schemeFilter]);
+
+  const setFormFilter = useCallback((key: string, value: string) => {
+    setFormFilters((prev) => {
+      const next = { ...prev };
+      if (!value || value === "all") delete next[key];
+      else next[key] = value;
+      return next;
+    });
+    setCurrentPage(1);
+  }, []);
+
+  // Only send selections for fields the current scheme actually exposes
+  const buildFormFiltersParam = useCallback(() => {
+    const active: Record<string, string> = {};
+    formFilterFields.forEach((field) => {
+      if (formFilters[field.key]) active[field.key] = formFilters[field.key];
+    });
+    return Object.keys(active).length > 0 ? JSON.stringify(active) : undefined;
+  }, [formFilters, formFilterFields]);
+
   // Handle quick date filter change
   const handleQuickDateFilterChange = useCallback((range: QuickDateRange) => {
     setQuickDateFilter(range);
@@ -153,6 +198,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     setUnitFilter("all");
     setSchemeFilter("all");
     setGenderFilter("all");
+    setFormFilters({});
     setFromDate(undefined);
     setToDate(undefined);
     setQuickDateFilter(null);
@@ -174,6 +220,10 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (unitFilter !== "all") params.unit = unitFilter;
     if (schemeFilter !== "all") params.scheme = schemeFilter;
     if (genderFilter !== "all") params.gender = genderFilter;
+    if (schemeFilter !== "all") {
+      const formFiltersParam = buildFormFiltersParam();
+      if (formFiltersParam) params.formFilters = formFiltersParam;
+    }
     if (fromDate) params.fromDate = fromDate.toISOString();
     if (toDate) params.toDate = toDate.toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;
@@ -207,6 +257,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     unitFilter,
     schemeFilter,
     genderFilter,
+    buildFormFiltersParam,
     fromDate,
     toDate,
     quickDateFilter
@@ -224,6 +275,10 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (unitFilter !== "all") params.unit = unitFilter;
     if (schemeFilter !== "all") params.scheme = schemeFilter;
     if (genderFilter !== "all") params.gender = genderFilter;
+    if (schemeFilter !== "all") {
+      const formFiltersParam = buildFormFiltersParam();
+      if (formFiltersParam) params.formFilters = formFiltersParam;
+    }
     if (fromDate) params.fromDate = fromDate.toISOString();
     if (toDate) params.toDate = toDate.toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;
@@ -238,6 +293,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     unitFilter,
     schemeFilter,
     genderFilter,
+    buildFormFiltersParam,
     fromDate,
     toDate,
     quickDateFilter
@@ -280,6 +336,7 @@ export function useApplicationFilters(defaultStatus?: string) {
       unitFilter,
       schemeFilter,
       genderFilter,
+      formFilters,
       fromDate,
       toDate,
       quickDateFilter,
@@ -295,6 +352,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     setUnitFilter: (value: string) => { setUnitFilter(value); setCurrentPage(1); },
     setSchemeFilter: (value: string) => { setSchemeFilter(value); setCurrentPage(1); },
     setGenderFilter: (value: string) => { setGenderFilter(value); setCurrentPage(1); },
+    setFormFilter,
     setFromDate: handleFromDateChange,
     setToDate: handleToDateChange,
     setQuickDateFilter: handleQuickDateFilterChange,
@@ -317,6 +375,9 @@ export function useApplicationFilters(defaultStatus?: string) {
       unitOptions,
       schemeOptions,
     },
+
+    // Scheme-specific form-builder dropdown filters (empty unless a scheme is selected)
+    formFilterFields,
     
     // Helper functions
     clearAllFilters,

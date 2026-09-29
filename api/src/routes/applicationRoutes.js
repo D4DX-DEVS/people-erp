@@ -2,6 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const {
   getApplications,
+  getApplicationFilterFields,
   getApplication,
   createApplication,
   updateApplication,
@@ -14,6 +15,8 @@ const {
   updateApplicationStage,
   addStageComment,
   uploadStageDocument,
+  uploadStageAttachment,
+  deleteStageAttachment,
   getRenewalDueApplications,
   getRenewalHistory,
   recalculateScore,
@@ -22,7 +25,9 @@ const {
   getApplicationConsolidation,
   getApplicationDuplicates,
   updateApplicationLocation,
-  getApplicationReceipts
+  getApplicationReceipts,
+  getFundDistributions,
+  markFundDistributed
 } = require('../controllers/applicationController');
 const { authenticate, crossFranchiseResolver, authorize } = require('../middleware/auth');
 const { syncApplicationStages } = require('../middleware/syncStages');
@@ -65,6 +70,10 @@ const updateApplicationValidation = [
     .optional()
     .isArray()
     .withMessage('Documents must be an array'),
+  body('formData')
+    .optional()
+    .isObject()
+    .withMessage('formData must be an object'),
   body('status')
     .optional()
     .isIn(['pending', 'under_review', 'approved', 'rejected', 'completed'])
@@ -115,6 +124,13 @@ router.get('/receipts',
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
   getApplicationReceipts
 );
+// Fund distribution — approved amounts waiting to be handed over (must be before /:id)
+router.get('/distributions',
+  authenticate, crossFranchiseResolver,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
+  getFundDistributions
+);
+
 // Renewal management routes (must come before /:id routes)
 router.get('/renewal-due',
   authenticate, crossFranchiseResolver,
@@ -133,6 +149,13 @@ router.get('/:id/available-revert-roles',
   authenticate, crossFranchiseResolver,
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
   getAvailableRevertRoles
+);
+
+// Filterable form-builder dropdown fields for a scheme (must come before /:id)
+router.get('/filter-fields',
+  authenticate, crossFranchiseResolver,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'),
+  getApplicationFilterFields
 );
 
 router.get('/',
@@ -263,6 +286,20 @@ router.post('/:id/stages/:stageId/documents/:docIndex',
   uploadStageDocument
 );
 
+// Optional supporting file on a stage (unit / field verification evidence etc.)
+router.post('/:id/stages/:stageId/attachments', 
+  authenticate, crossFranchiseResolver, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'), 
+  uploadSingle('document'),
+  uploadStageAttachment
+);
+
+router.delete('/:id/stages/:stageId/attachments/:attachmentId', 
+  authenticate, crossFranchiseResolver, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president', 'project_coordinator', 'scheme_coordinator'), 
+  deleteStageAttachment
+);
+
 // Recalculate eligibility score for an application
 router.post('/:id/recalculate-score',
   authenticate, crossFranchiseResolver,
@@ -324,6 +361,7 @@ router.get('/committee/pending',
 
       const total = await Application.countDocuments(filter);
       const applications = await Application.find(filter)
+        .select('-formData')
         .populate('beneficiary', 'name phone email location')
         .populate('scheme', 'name category')
         .populate('project', 'name')
@@ -351,6 +389,20 @@ router.get('/committee/pending',
       });
     }
   }
+);
+
+// Record that an approved amount has been distributed (money moves outside the system)
+router.patch('/:id/distribute',
+  authenticate, crossFranchiseResolver,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin'),
+  [
+    body('paymentId').optional().isMongoId().withMessage('Valid payment ID is required'),
+    body('distributedAt').optional().isISO8601().withMessage('Valid distribution date is required'),
+    body('method').optional().isIn(['bank_transfer', 'cheque', 'cash', 'digital_wallet', 'upi']).withMessage('Invalid payment method'),
+    body('referenceNumber').optional().trim().isLength({ max: 100 }).withMessage('Reference must be less than 100 characters'),
+    body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be less than 500 characters')
+  ],
+  markFundDistributed
 );
 
 // Committee decision on application
@@ -478,6 +530,7 @@ router.patch('/:id/committee-decision',
               },
               status: 'pending',
               initiatedBy: req.user._id,
+              franchise: req.franchiseId || application.franchise,
               location: {
                 state: application.location?.state,
                 district: application.location?.district,

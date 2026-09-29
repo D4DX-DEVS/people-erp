@@ -49,6 +49,7 @@ import UpcomingPayments from "./pages/payments/UpcomingPayments";
 import ProcessingPayments from "./pages/payments/ProcessingPayments";
 import CompletedPayments from "./pages/payments/CompletedPayments";
 import Receipts from "./pages/receipts/Receipts";
+import FundDistribution from "./pages/FundDistribution";
 import RecurringPaymentsDashboard from "./pages/recurring-payments/RecurringPaymentsDashboard";
 import ScheduleOverview from "./pages/recurring-payments/ScheduleOverview";
 import PaymentScheduleView from "./pages/recurring-payments/PaymentScheduleView";
@@ -178,7 +179,7 @@ const App = () => (
             <Route path="/area-president-dashboard" element={<AuthGuard><Layout><AreaPresidentDashboard /></Layout></AuthGuard>} />
             <Route path="/admin-hierarchy" element={<AuthGuard><Layout><AdminHierarchy /></Layout></AuthGuard>} />
             <Route path="/projects" element={<AuthGuard><Layout><Projects /></Layout></AuthGuard>} />
-            <Route path="/schemes" element={<AuthGuard><Layout><Schemes /></Layout></AuthGuard>} />
+            <Route path="/scheme-management" element={<AuthGuard><Layout><Schemes /></Layout></AuthGuard>} />
             <Route path="/applications" element={<AuthGuard><Layout><Applications /></Layout></AuthGuard>} />
             <Route path="/applications/consolidation" element={<AuthGuard><Layout><ApplicationConsolidation /></Layout></AuthGuard>} />
             <Route path="/reports/consolidated" element={<AuthGuard><Layout><ConsolidatedReports /></Layout></AuthGuard>} />
@@ -207,6 +208,7 @@ const App = () => (
             <Route path="/payment-tracking/completed" element={<AuthGuard><Layout><CompletedPayments /></Layout></AuthGuard>} />
 
             {/* Receipts */}
+            <Route path="/fund-distribution" element={<AuthGuard><Layout><FundDistribution /></Layout></AuthGuard>} />
             <Route path="/receipts" element={<AuthGuard><Layout><Receipts /></Layout></AuthGuard>} />
             
             {/* Recurring Payments Routes */}
