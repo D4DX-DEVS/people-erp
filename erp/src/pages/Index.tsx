@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/logo.png";
+import defaultLogo from "@/assets/ppls-logo.png";
 import { useNavigate } from "react-router-dom";
 
 const featuredSchemes = [

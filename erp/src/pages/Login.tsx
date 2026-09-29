@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useAuth, type FranchiseOption, type RoleOption } from "@/hooks/useAuth";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/logo.png";
+import defaultLogo from "@/assets/ppls-logo.png";
 
 /** Route to navigate to after a successful admin login, based on role. */
 function getAdminRoute(role: string, fallback: string): string {

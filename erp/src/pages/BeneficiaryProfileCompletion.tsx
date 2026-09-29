@@ -10,7 +10,7 @@ import { Loader2, User, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { beneficiaryApi } from "@/services/beneficiaryApi";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/logo.png";
+import defaultLogo from "@/assets/ppls-logo.png";
 import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
 import { useCompactUI } from "@/hooks/useCompactUI";
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Calculator, Home, Info, Sprout, type LucideIcon } from "lucide-react";
+import { Calculator, Home, Images, Info, Mail, Sprout, type LucideIcon } from "lucide-react";
 import { anchorOf, goToSiteTarget } from "@/lib/siteNav";
 import { useSiteData } from "@/hooks/useSiteData";
 import { isHomeSectionVisible } from "@/types/siteHome";
@@ -18,6 +18,8 @@ const BASE_TABS: Tab[] = [
   // teaser whose own "Learn More" goes here anyway.
   { label: "About Us", icon: Info, target: "/p/about-us" },
   { label: "Projects", icon: Sprout, target: "/projects-hub" },
+  { label: "Gallery", icon: Images, target: "/gallery" },
+  { label: "Contact Us", icon: Mail, target: "/p/contact-us" },
 ];
 
 /** Only offered by franchises that run the calculator section (see isHomeSectionVisible). */
@@ -101,7 +103,12 @@ export function MobileBottomNav() {
         aria-label="Primary"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_24px_-12px_rgba(0,0,0,0.35)] backdrop-blur lg:hidden"
       >
-        <ul className="grid grid-cols-4">
+        <ul
+          className={cn(
+            "grid",
+            tabs.length === 5 ? "grid-cols-5" : tabs.length === 6 ? "grid-cols-6" : "grid-cols-4",
+          )}
+        >
           {tabs.map((tab) => {
             const active = isActive(tab);
             const Icon = tab.icon;
@@ -118,7 +125,7 @@ export function MobileBottomNav() {
                 >
                   <span
                     className={cn(
-                      "flex h-8 w-14 items-center justify-center rounded-full transition-colors",
+                      "flex h-8 w-12 items-center justify-center rounded-full transition-colors",
                       active && "bg-[hsl(var(--brand-green))]/10",
                     )}
                   >

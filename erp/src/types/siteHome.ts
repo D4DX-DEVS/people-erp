@@ -30,7 +30,6 @@ export interface HomeLayoutItem {
 
 /** Default order, matching how the home page rendered before layouts were configurable. */
 export const HOME_SECTIONS: HomeSectionDef[] = [
-  { key: "counters", label: "Impact counters", description: "The statistics counters set up in Website Settings." },
   { key: "about", label: "About us", description: "About text and image, vision, mission and core values." },
   { key: "projects", label: "Projects", description: "The latest six projects." },
   { key: "schemes", label: "Schemes & programs", description: "Active schemes people can apply for." },
@@ -43,6 +42,7 @@ export const HOME_SECTIONS: HomeSectionDef[] = [
   { key: "donation", label: "Volunteer & donation CTA", description: "Become a Volunteer + Support Our Mission banner. Bank/UPI details show only when enabled in the Donation section." },
   { key: "faq", label: "FAQ", description: "Frequently asked questions." },
   { key: "associates", label: "Associates & partners", description: "Sliding strip of the logos entered under Partners, shown just above the footer." },
+  { key: "counters", label: "Impact counters", description: "The statistics counters set up in Website Settings." },
 ];
 
 const KNOWN = new Set<string>(HOME_SECTIONS.map((s) => s.key));

@@ -34,7 +34,7 @@ import { toast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/logo.png";
+import defaultLogo from "@/assets/ppls-logo.png";
 
 interface HeaderProps {
   onMenuClick?: () => void;

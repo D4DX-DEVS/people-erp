@@ -248,4 +248,4 @@ secrets/
 # Application specific
 uploads/
 storage/
-public/uploads/
+public/uploads/.DS_Store
