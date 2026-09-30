@@ -33,9 +33,19 @@ const HOME_SECTION_KEYS = [
   'counters', 'about', 'projects', 'schemes', 'calculator', 'news', 'gallery',
   'videos', 'blogs', 'media', 'donation', 'faq', 'associates'
 ];
+// Heading overrides are all optional: '' means "use the built-in copy/colour".
+// Colours are swatch names or hex (see erp/src/lib/siteColors.ts).
 const homeLayoutItemSchema = new mongoose.Schema({
   key: { type: String, enum: HOME_SECTION_KEYS, required: true },
-  visible: { type: Boolean, default: true }
+  visible: { type: Boolean, default: true },
+  eyebrow: { type: String, default: '', maxlength: 80 },
+  title: { type: String, default: '', maxlength: 160 },
+  subtitle: { type: String, default: '', maxlength: 300 },
+  eyebrowColor: { type: String, default: '', maxlength: 32 },
+  titleColor: { type: String, default: '', maxlength: 32 },      // the title's leading words
+  accentColor: { type: String, default: '', maxlength: 32 },     // the title's last, accented word
+  subtitleColor: { type: String, default: '', maxlength: 32 },
+  dividerColor: { type: String, default: '', maxlength: 32 }     // the short rule under the heading
 }, { _id: false });
 
 const websiteSettingsSchema = new mongoose.Schema({
@@ -112,6 +122,16 @@ const websiteSettingsSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: false },
     heading: { type: String, default: '' },
     description: { type: String, default: '' },
+    // The two columns of the home page's Volunteer + Donate band. Colours are
+    // swatch names or hex; '' falls back to the built-in look.
+    donateEyebrow: { type: String, default: '' },
+    donateBackgroundColor: { type: String, default: '' },
+    donateTextColor: { type: String, default: '' },
+    volunteerEyebrow: { type: String, default: '' },
+    volunteerTitle: { type: String, default: '' },
+    volunteerDescription: { type: String, default: '' },
+    volunteerBackgroundColor: { type: String, default: '' },
+    volunteerTextColor: { type: String, default: '' },
     accountName: { type: String, default: '' },
     accountNumber: { type: String, default: '' },
     bankName: { type: String, default: '' },
@@ -120,6 +140,23 @@ const websiteSettingsSchema = new mongoose.Schema({
     paymentLink: { type: String, default: '' },
     qrImageUrl: { type: String, default: '' },
     qrImageKey: { type: String, default: '' }
+  },
+
+  // Welcome popup shown when the site opens. Every field is optional.
+  popup: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: '', maxlength: 200 },
+    subtitle: { type: String, default: '', maxlength: 300 },
+    description: { type: String, default: '', maxlength: 2000 },
+    content: { type: String, default: '', maxlength: 20000 },
+    backgroundColor: { type: String, default: '', maxlength: 32 },
+    textColor: { type: String, default: '', maxlength: 32 },
+    buttonText: { type: String, default: '', maxlength: 60 },
+    buttonLink: { type: String, default: '', maxlength: 500 },
+    buttonColor: { type: String, default: '', maxlength: 32 },
+    buttonTextColor: { type: String, default: '', maxlength: 32 },
+    imageUrl: { type: String, default: '' },
+    imageKey: { type: String, default: '' }
   },
 
   // SEO metadata for the public site

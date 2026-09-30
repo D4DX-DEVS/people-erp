@@ -47,14 +47,20 @@ const sanitizeNavigation = (nav) => {
 
 const HOME_SECTION_KEYS = WebsiteSettings.HOME_SECTION_KEYS;
 // Known keys only, no duplicates, and every section present so nothing silently disappears.
+const HOME_HEADING_FIELDS = ['eyebrow', 'title', 'subtitle', 'eyebrowColor', 'titleColor', 'accentColor', 'subtitleColor', 'dividerColor'];
 const sanitizeHomeLayout = (layout) => {
   const seen = new Set();
   const out = [];
   (Array.isArray(layout) ? layout : []).forEach((item) => {
-    const key = item && typeof item === 'object' ? item.key : item;
+    const isObj = item && typeof item === 'object';
+    const key = isObj ? item.key : item;
     if (!HOME_SECTION_KEYS.includes(key) || seen.has(key)) return;
     seen.add(key);
-    out.push({ key, visible: !(item && typeof item === 'object' && item.visible === false) });
+    const entry = { key, visible: !(isObj && item.visible === false) };
+    HOME_HEADING_FIELDS.forEach((field) => {
+      entry[field] = isObj && typeof item[field] === 'string' ? item[field].trim() : '';
+    });
+    out.push(entry);
   });
   HOME_SECTION_KEYS.forEach((key) => { if (!seen.has(key)) out.push({ key, visible: true }); });
   return out;
@@ -125,7 +131,7 @@ class WebsiteController {
    */
   async updateSettings(req, res) {
     try {
-      let { aboutUs, counts, contactDetails, socialMedia, hero, vision, mission, values, donation, seo, footer, navigation, appearance, homeLayout } = req.body;
+      let { aboutUs, counts, contactDetails, socialMedia, hero, vision, mission, values, donation, seo, footer, navigation, appearance, homeLayout, popup } = req.body;
       const userId = req.user._id;
 
       // Parse JSON strings if they come from FormData
@@ -144,6 +150,7 @@ class WebsiteController {
       navigation = parseMaybe(navigation);
       appearance = parseMaybe(appearance);
       homeLayout = parseMaybe(homeLayout);
+      popup = parseMaybe(popup);
 
       // Normalize seo.keywords to an array (accept array or comma-separated string)
       if (seo && seo.keywords !== undefined) {
@@ -172,6 +179,26 @@ class WebsiteController {
       if (mission) settings.mission = mission;
       if (values) settings.values = values;
       if (donation) settings.donation = donation;
+      if (popup) {
+        const existing = settings.popup?.toObject ? settings.popup.toObject() : (settings.popup || {});
+        const imageUrl = String(popup.imageUrl || '');
+        if (!imageUrl && existing.imageKey) await deleteFromSpaces(existing.imageKey).catch(() => {});
+        settings.popup = {
+          enabled: !!popup.enabled,
+          title: String(popup.title || ''),
+          subtitle: String(popup.subtitle || ''),
+          description: String(popup.description || ''),
+          content: String(popup.content || ''),
+          backgroundColor: String(popup.backgroundColor || ''),
+          textColor: String(popup.textColor || ''),
+          buttonText: String(popup.buttonText || ''),
+          buttonLink: String(popup.buttonLink || ''),
+          buttonColor: String(popup.buttonColor || ''),
+          buttonTextColor: String(popup.buttonTextColor || ''),
+          imageUrl,
+          imageKey: imageUrl ? (existing.imageKey || '') : ''
+        };
+      }
       if (seo) settings.seo = seo;
       if (footer) settings.footer = footer;
       if (navigation) settings.navigation = sanitizeNavigation(navigation);
@@ -289,6 +316,29 @@ class WebsiteController {
       return ResponseHelper.error(res, error.message, 500);
     }
   }
+  /**
+   * Upload welcome popup image
+   * PUT /api/website/settings/popup-image
+   */
+  async uploadPopupImage(req, res) {
+    try {
+      if (!req.file) return ResponseHelper.error(res, 'Image file is required', 400);
+      let settings = await WebsiteSettings.findOne({ franchise: req.franchiseId });
+      if (!settings) settings = new WebsiteSettings({ franchise: req.franchiseId || null });
+      if (settings.popup?.imageKey) await deleteFromSpaces(settings.popup.imageKey).catch(() => {});
+      const uploadResult = await uploadToSpaces(req.file, 'website/popup');
+      if (!uploadResult.success) return ResponseHelper.error(res, 'Failed to upload image to storage', 500);
+      const existing = settings.popup?.toObject ? settings.popup.toObject() : (settings.popup || {});
+      settings.popup = { ...existing, imageUrl: uploadResult.fileUrl, imageKey: uploadResult.key };
+      settings.updatedBy = req.user._id;
+      await settings.save();
+      return ResponseHelper.success(res, { imageUrl: uploadResult.fileUrl, imageKey: uploadResult.key }, 'Popup image updated successfully');
+    } catch (error) {
+      console.error('❌ Upload Popup Image Error:', error);
+      return ResponseHelper.error(res, error.message, 500);
+    }
+  }
+
   /**
    * Upload About Us image
    * PUT /api/website/settings/about-image

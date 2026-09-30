@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { sitePages } from '@/lib/api';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 import { IconPicker } from '@/components/site/IconPicker';
 import { ColorPicker } from '@/components/site/ColorPicker';
 import { mapEmbedSrc, isUnframeableMapLink } from '@/lib/mapEmbed';
@@ -157,7 +158,7 @@ function MapEmbedField({
 // ── generic items editor (cards / stats / timeline / team / faq) ─────────
 
 interface ItemFieldDef {
-  key: 'title' | 'subtitle' | 'description' | 'value' | 'icon' | 'color' | 'link' | 'image';
+  key: 'title' | 'subtitle' | 'description' | 'value' | 'icon' | 'color' | 'backgroundColor' | 'link' | 'image';
   label: string;
   type?: 'text' | 'textarea';
 }
@@ -169,6 +170,7 @@ const ITEM_FIELDS: Partial<Record<SectionType, ItemFieldDef[]>> = {
     { key: 'image', label: 'Image' },
     { key: 'icon', label: 'Icon (shown when there is no image)' },
     { key: 'color', label: 'Icon colour' },
+    { key: 'backgroundColor', label: 'Card background colour' },
     { key: 'link', label: 'Link URL', type: 'text' },
   ],
   stats: [
@@ -269,6 +271,11 @@ function ItemsEditor({
                   <Label className="text-xs">{f.label}</Label>
                   <ColorPicker value={item.color} defaultLabel="Section colour" disabled={disabled} onChange={(v) => update(i, { color: v })} />
                 </div>
+              ) : f.key === 'backgroundColor' ? (
+                <div key={f.key}>
+                  <Label className="text-xs">{f.label}</Label>
+                  <ColorPicker value={item.backgroundColor} defaultLabel="Default card surface" disabled={disabled} onChange={(v) => update(i, { backgroundColor: v })} />
+                </div>
               ) : f.type === 'textarea' ? (
                 <div key={f.key} className="sm:col-span-2">
                   <Label className="text-xs">{f.label}</Label>
@@ -367,13 +374,22 @@ function SectionCard({
               <ColorPicker value={section.accentColor} defaultLabel="Brand colour" disabled={disabled} onChange={(v) => onUpdate({ accentColor: v })} />
               <p className="text-xs text-muted-foreground mt-1">Used for the section icon, item icons and highlights unless an item picks its own colour.</p>
             </div>
+            <div>
+              <Label className="text-xs">Title colour</Label>
+              <ColorPicker value={section.titleColor} defaultLabel="Default" disabled={disabled} onChange={(v) => onUpdate({ titleColor: v })} />
+              <p className="text-xs text-muted-foreground mt-1">Colour of the section heading.</p>
+            </div>
+            <div>
+              <Label className="text-xs">Content text colour</Label>
+              <ColorPicker value={section.textColor} defaultLabel="Default" disabled={disabled} onChange={(v) => onUpdate({ textColor: v })} />
+              <p className="text-xs text-muted-foreground mt-1">Colour of the subtitle and body text.</p>
+            </div>
           </div>
 
           {section.type === 'richtext' && (
             <div>
               <Label className="text-xs">Content</Label>
-              <Textarea rows={8} disabled={disabled} value={section.content || ''} onChange={(e) => onUpdate({ content: e.target.value })} />
-              <p className="text-xs text-muted-foreground mt-1">Plain text; blank line = new paragraph</p>
+              <RichTextEditor minHeight={200} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
             </div>
           )}
 
@@ -381,7 +397,7 @@ function SectionCard({
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">Content</Label>
-                <Textarea rows={6} disabled={disabled} value={section.content || ''} onChange={(e) => onUpdate({ content: e.target.value })} />
+                <RichTextEditor minHeight={160} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
               </div>
               <div>
                 <Label className="text-xs">Image</Label>

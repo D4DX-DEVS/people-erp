@@ -35,6 +35,8 @@ export interface SectionItem {
   icon?: string;
   /** Icon colour: swatch name or hex. Empty = the section's accent colour. */
   color?: string;
+  /** Card container background: swatch name or hex. Empty = default card surface. */
+  backgroundColor?: string;
   link?: string;
   value?: string;
   order?: number;
@@ -59,6 +61,10 @@ export interface PageSection {
   accentColor?: string;
   /** Hex used when `background` is "custom". */
   backgroundColor?: string;
+  /** Swatch name or hex for the section title. Empty = default foreground. */
+  titleColor?: string;
+  /** Swatch name or hex for body/subtitle text. Empty = default muted foreground. */
+  textColor?: string;
   content?: string;
   imageUrl?: string;
   imageKey?: string;
@@ -183,6 +189,8 @@ export function emptySection(type: SectionType, order: number): PageSection {
     icon: "",
     accentColor: "",
     backgroundColor: "",
+    titleColor: "",
+    textColor: "",
     content: "",
     imageUrl: "",
     imageKey: "",

@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowRight, Heart, HandHeart, ShieldCheck, Sprout, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { colorValue } from "@/lib/siteColors";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -16,16 +17,37 @@ const TRUST_POINTS = [
   { Icon: Users, label: "Together for a\nStronger Kerala" },
 ];
 
+/** Admin overrides for one column of the band. Empty = the built-in look. */
+export interface BandColumn {
+  eyebrow?: string;
+  title?: string;
+  description?: string;
+  /** Swatch name or hex. */
+  backgroundColor?: string;
+  /** Swatch name or hex. */
+  textColor?: string;
+}
+
 interface VolunteerDonateBandProps {
   heading?: string;
   description?: string;
   paymentLink?: string;
   onVolunteer: () => void;
+  volunteer?: BandColumn;
+  donate?: BandColumn;
 }
 
 const formatINR = (n: number) => `₹ ${n.toLocaleString("en-IN")}`;
 
-export function VolunteerDonateBand({ heading, description, paymentLink, onVolunteer }: VolunteerDonateBandProps) {
+/** Inline colours for a column: only what the admin actually set. */
+function columnStyle(col?: BandColumn): CSSProperties | undefined {
+  const style: CSSProperties = {};
+  if (col?.backgroundColor) style.backgroundColor = colorValue(col.backgroundColor);
+  if (col?.textColor) style.color = colorValue(col.textColor);
+  return Object.keys(style).length ? style : undefined;
+}
+
+export function VolunteerDonateBand({ heading, description, paymentLink, onVolunteer, volunteer, donate }: VolunteerDonateBandProps) {
   const bandRef = useRef<HTMLDivElement>(null);
 
   // Scroll-linked widen: the band arrives slightly narrowed and expands to
@@ -66,16 +88,39 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
     setCustom("");
   };
 
-  const donate = () => {
+  const donateNow = () => {
     if (paymentLink) window.open(paymentLink, "_blank", "noopener,noreferrer");
     else document.getElementById("donate")?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // When the admin sets a text colour the children inherit it (with opacity
+  // for the secondary lines) instead of the fixed brand classes.
+  const vCustomText = !!volunteer?.textColor;
+  const dCustomText = !!donate?.textColor;
+
+  const volunteerTitle = (volunteer?.title || "Become a Volunteer").trim();
+  const vWords = volunteerTitle.split(/\s+/);
+  const vLead = vWords.slice(0, -1).join(" ");
+  const vLast = vWords[vWords.length - 1];
+
   return (
     <div ref={bandRef} className="grid gap-5 will-change-transform lg:grid-cols-2">
       {/* ── Become a Volunteer ─────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-[hsl(var(--secondary))] p-5 text-primary shadow-lg sm:p-7 md:p-10">
-        <p aria-hidden className="pointer-events-none absolute right-6 top-6 hidden text-right font-serif text-lg italic leading-snug text-primary/70 sm:block">
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-3xl p-5 shadow-lg sm:p-7 md:p-10",
+          !volunteer?.backgroundColor && "bg-[hsl(var(--secondary))]",
+          !vCustomText && "text-primary",
+        )}
+        style={columnStyle(volunteer)}
+      >
+        <p
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute right-6 top-6 hidden text-right font-serif text-lg italic leading-snug sm:block",
+            vCustomText ? "opacity-70" : "text-primary/70",
+          )}
+        >
           Together<br />for a Brighter<br />Tomorrow
           <span className="mt-1 block h-0.5 w-24 rounded-full bg-[hsl(var(--warning))]/70" />
         </p>
@@ -85,16 +130,18 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
         </div>
 
         <span className="mt-5 inline-block rounded-full bg-white/50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">
-          Get Involved
+          {volunteer?.eyebrow || "Get Involved"}
         </span>
 
+        {/* The last word carries the warm accent, as the built-in "Become a
+            Volunteer" does — unless the whole title has been given a colour. */}
         <h2 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl">
-          Become a<br />
-          <span className="text-[hsl(var(--warning))]">Volunteer</span>
+          {vLead && <>{vLead}<br /></>}
+          <span className={cn(!vCustomText && "text-[hsl(var(--warning))]")}>{vLast}</span>
         </h2>
 
-        <p className="mt-3 max-w-md text-sm leading-relaxed text-primary/80">
-          Join hands with us to make a difference in the community. Your time and skills can bring real change.
+        <p className={cn("mt-3 max-w-md text-sm leading-relaxed", vCustomText ? "opacity-80" : "text-primary/80")}>
+          {volunteer?.description || "Join hands with us to make a difference in the community. Your time and skills can bring real change."}
         </p>
 
         <Button
@@ -107,15 +154,22 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
       </div>
 
       {/* ── Support our mission ────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-hero p-5 text-primary-foreground shadow-lg sm:p-7 md:p-10">
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-3xl p-5 shadow-lg sm:p-7 md:p-10",
+          !donate?.backgroundColor && "bg-gradient-hero",
+          !dCustomText && "text-primary-foreground",
+        )}
+        style={columnStyle(donate)}
+      >
         <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">
-          Support Our Mission
+          {donate?.eyebrow || "Support Our Mission"}
         </span>
 
         <h2 className="mt-3 text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">
           {heading || "Your Zakat Can Transform Lives"}
         </h2>
-        <p className="mt-2 text-sm text-primary-foreground/85">
+        <p className={cn("mt-2 text-sm", dCustomText ? "opacity-80" : "text-primary-foreground/85")}>
           {description || "Be a part of this noble cause. Give Zakat. Earn Rewards."}
         </p>
 
@@ -143,7 +197,11 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
             aria-controls="custom-amount"
             className={cn(
               "min-w-[110px] flex-1 rounded-xl border px-4 py-2.5 text-sm font-bold transition",
-              customOpen ? "border-transparent bg-white text-primary" : "border-white/50 text-white hover:bg-white/10",
+              customOpen
+                ? "border-transparent bg-white text-primary"
+                : dCustomText
+                  ? "border-current/50 text-inherit hover:bg-white/10"
+                  : "border-white/50 text-white hover:bg-white/10",
             )}
           >
             More Amount
@@ -161,7 +219,7 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
         >
           <div className="overflow-hidden">
             <label className="block rounded-xl bg-white/10 p-3">
-              <span className="mb-1.5 block text-xs font-semibold text-primary-foreground/80">
+              <span className={cn("mb-1.5 block text-xs font-semibold", dCustomText ? "opacity-80" : "text-primary-foreground/80")}>
                 Enter your own amount
               </span>
               <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-primary">
@@ -182,7 +240,7 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
 
         <Button
           size="lg"
-          onClick={donate}
+          onClick={donateNow}
           className="mt-4 w-full rounded-xl bg-[hsl(var(--warning))] py-6 text-base font-bold text-white hover:bg-[hsl(var(--warning))]/90"
         >
           <Heart className="mr-2 h-5 w-5" />
@@ -197,7 +255,8 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
             <li
               key={label}
               className={cn(
-                "flex items-center gap-2 text-[11px] leading-tight text-primary-foreground/85 sm:text-xs",
+                "flex items-center gap-2 text-[11px] leading-tight sm:text-xs",
+                dCustomText ? "opacity-80" : "text-primary-foreground/85",
                 i > 0 && "sm:border-l sm:border-white/15 sm:pl-3",
               )}
             >

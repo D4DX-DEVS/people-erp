@@ -61,7 +61,8 @@ export const DESTINATION_GROUPS: Array<{ label: string; options: NavDestination[
       { value: "/#about", kind: "section", label: "About us section", short: "About" },
       { value: "/#pages", kind: "section", label: "Our pages overview section", short: "Explore" },
       { value: "/#projects", kind: "section", label: "Projects section", short: "Projects" },
-      { value: "/#news", kind: "section", label: "News section", short: "News" },
+      { value: "/#associates", kind: "section", label: "Associates section", short: "Our Associates" },
+      { value: "/#donate", kind: "section", label: "Volunteer & donate section", short: "Get Involved" },
       { value: "/#gallery", kind: "section", label: "Gallery section", short: "Gallery" },
       { value: "/#videos", kind: "section", label: "Videos section", short: "Videos" },
       { value: "/#faq", kind: "section", label: "FAQ section", short: "FAQ" },
@@ -76,6 +77,7 @@ export const DESTINATION_GROUPS: Array<{ label: string; options: NavDestination[
       { value: "/gallery", kind: "builtin", label: "Photo gallery", short: "Gallery" },
       { value: "/videos", kind: "builtin", label: "Videos", short: "Videos" },
       { value: "/blogs", kind: "builtin", label: "Blog", short: "Blog" },
+      { value: "/media", kind: "builtin", label: "Media coverage", short: "Media coverage" },
       { value: "/schemes", kind: "builtin", label: "All schemes", short: "Schemes" },
       { value: "/public-schemes", kind: "builtin", label: "Schemes (apply)", short: "Apply" },
       { value: "/privacy-policy", kind: "builtin", label: "Privacy policy", short: "Privacy Policy" },
@@ -137,26 +139,24 @@ export function buildDefaultNavigation(pages: NavPage[] = []): NavigationSetting
     // to the same place — visitors look for it in the menu regardless, and a
     // bar that opens on "About Us" reads as though it has been cut off.
     { type: "link", label: "Home", kind: "home", target: "/", visible: true },
-    // "News" is not in the menu. The destination still exists — the footer
-    // points at /news as "Updates".
+    { type: "link", label: "Who We Are", kind: "page", target: "/p/about-us", visible: true },
+    { type: "link", label: "What We Do", kind: "builtin", target: "/projects-hub", visible: true },
     {
-      type: "dropdown", label: "About Us", kind: "custom", target: "", visible: true,
+      type: "dropdown", label: "Media", kind: "custom", target: "", visible: true,
       children: [
-        { label: aboutPageLabel(pages), kind: "page", target: "/p/about-us", visible: true },
-        { label: "Board of Directors", kind: "page", target: "/p/board-of-directors", visible: true },
-        { label: "Our Schemes", kind: "builtin", target: "/public-schemes", visible: true },
+        { label: "Blog", kind: "builtin", target: "/blogs", visible: true },
+        { label: "Media coverage", kind: "builtin", target: "/media", visible: true },
       ],
     },
-    { type: "link", label: "Projects", kind: "builtin", target: "/projects-hub", visible: true },
     {
       type: "dropdown", label: "Gallery", kind: "custom", target: "", visible: true,
       children: [
-        { label: "Videos", kind: "builtin", target: "/videos", visible: true },
         { label: "Photos", kind: "builtin", target: "/gallery", visible: true },
+        { label: "Videos", kind: "builtin", target: "/videos", visible: true },
       ],
     },
-    { type: "link", label: "Download", kind: "builtin", target: "/download", visible: true },
-    { type: "link", label: "Contact Us", kind: "page", target: "/p/contact-us", visible: true },
+    { type: "link", label: "Our Associates", kind: "section", target: "/#associates", visible: true },
+    { type: "link", label: "Get Involved", kind: "section", target: "/#donate", visible: true },
   ];
 
   // Contact Us, About Us and the rest are hand-written above *and* exist as

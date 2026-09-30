@@ -56,7 +56,7 @@ exports.getHome = async (req, res) => {
       Brochure.find({ status: 'active', ...scope }).sort({ createdAt: -1 }).limit(8)
         .select('title description fileUrl fileName category').lean(),
       FAQ.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).select('question answer category').lean(),
-      MediaCoverage.find({ status: 'active', ...scope }).sort({ order: 1, publishDate: -1 }).limit(8)
+      MediaCoverage.find({ status: 'active', ...scope }).sort({ createdAt: -1 }).limit(8)
         .select('title source link imageUrl publishDate').lean(),
       SitePage.find({ status: 'published', ...scope }).sort({ navOrder: 1, homeOrder: 1, createdAt: 1 })
         .select('title slug navLabel navOrder showInNav showOnHome homeOrder summary hero.imageUrl hero.title').lean()

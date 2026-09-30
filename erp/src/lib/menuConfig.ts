@@ -445,6 +445,13 @@ export const menuCategories: MenuCategory[] = [
         keywords: ["website", "site", "web"],
       },
       {
+        to: "/website-popup",
+        icon: MessageSquare,
+        label: "Welcome Popup",
+        permissions: ["website.read", "settings.read"],
+        keywords: ["popup", "announcement", "welcome", "modal", "notice"],
+      },
+      {
         to: "/website-pages",
         icon: PanelsTopLeft,
         label: "Website Pages",

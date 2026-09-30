@@ -2172,6 +2172,11 @@ export const website = {
     method: 'PUT',
     body: JSON.stringify(data)
   }),
+  uploadPopupImage: (formData: FormData) => apiClient.request('/website/settings/popup-image', {
+    method: 'PUT',
+    body: formData,
+    headers: {}
+  }),
   uploadAboutImage: (formData: FormData) => apiClient.request('/website/settings/about-image', {
     method: 'PUT',
     body: formData,

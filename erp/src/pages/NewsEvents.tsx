@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import VoiceTextarea from "@/components/ui/VoiceTextarea";
+import RichTextEditor from "@/components/ui/RichTextEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -418,11 +418,11 @@ export default function NewsEvents() {
 
             <div className="space-y-2">
               <Label>Description *</Label>
-              <VoiceTextarea
+              <RichTextEditor
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 placeholder="Enter description..."
-                rows={5}
+                minHeight={200}
               />
             </div>
 

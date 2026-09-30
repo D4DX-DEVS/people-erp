@@ -6,7 +6,7 @@ exports.getPublic = async (req, res) => {
   try {
     const filter = { status: 'active', ...buildFranchiseReadFilter(req) };
     const items = await MediaCoverage.find(filter)
-      .sort({ order: 1, publishDate: -1 })
+      .sort({ createdAt: -1 })
       .select('-createdBy -updatedBy');
     res.json({ success: true, data: items });
   } catch (error) {

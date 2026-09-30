@@ -60,7 +60,7 @@ export default function BlogListPage() {
                   )}
                   <CardContent className="space-y-2 p-6">
                     <div className="text-xs text-muted-foreground">{b.author}{b.publishDate ? ` · ${new Date(b.publishDate).toLocaleDateString()}` : ""}</div>
-                    <h3 className="text-lg font-semibold">{b.title}</h3>
+                    <h3 className="font-malayalam text-[19px] font-normal leading-[1.2] sm:text-[20px]">{b.title}</h3>
                     <p className="line-clamp-3 text-sm text-muted-foreground">{b.excerpt}</p>
                     <span className="inline-flex items-center text-sm font-medium text-primary">Read more <ReadMoreIcon className="h-4 w-4" /></span>
                   </CardContent>

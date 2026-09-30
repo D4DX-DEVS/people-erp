@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { SiteShell, PageHero, PageBody } from "@/components/site/SiteShell";
 import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { website } from "@/lib/api";
+import { stripHtml } from "@/lib/richText";
 
 const CATEGORIES = ["news", "event", "announcement", "success_story"];
 
@@ -88,7 +89,7 @@ export default function NewsListPage() {
                       {n.publishDate && <span>{new Date(n.publishDate).toLocaleDateString()}</span>}
                     </div>
                     <h3 className="text-lg font-semibold">{n.title}</h3>
-                    <p className="line-clamp-3 text-sm text-muted-foreground">{n.description}</p>
+                    <p className="line-clamp-3 text-sm text-muted-foreground">{stripHtml(n.description)}</p>
                   </CardContent>
                 </Card>
               ))}

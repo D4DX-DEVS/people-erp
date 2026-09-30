@@ -20,18 +20,20 @@ import { HeroSlider } from "@/components/site/HeroSlider";
 import { useSiteData, getYouTubeId, videoThumb } from "@/hooks/useSiteData";
 import { resolveIcon } from "@/lib/siteIcons";
 import { ProjectsShowcase } from "@/components/site/ProjectsShowcase";
+import { SitePopup } from "@/components/site/SitePopup";
 import { ContentRail } from "@/components/site/ContentRail";
 import { VideoRow } from "@/components/site/VideoRow";
 import { ZakatCalculator } from "@/components/site/ZakatCalculator";
 import { AnimatedCounter } from "@/components/site/AnimatedCounter";
 import { Reveal } from "@/components/site/Reveal";
+import { SectionHeading, textStyle, eyebrowStyle } from "@/components/site/SectionHeading";
 import { AnimatedTitle } from "@/components/site/AnimatedTitle";
 import { SchemesStack } from "@/components/site/SchemesStack";
 import { AssociatesMarquee } from "@/components/site/AssociatesMarquee";
 import { VolunteerDonateBand } from "@/components/site/VolunteerDonateBand";
 import { resolveDonationDefaults } from "@/config/donationDefaults";
-import { iconBadgeStyle } from "@/lib/siteColors";
-import { resolveHomeLayout, isHomeSectionVisible, type HomeSectionKey } from "@/types/siteHome";
+import { iconBadgeStyle, colorValue, colorTint } from "@/lib/siteColors";
+import { resolveHomeLayout, resolveHomeHeading, isHomeSectionVisible, type HomeSectionKey, type HomeHeadingStyle } from "@/types/siteHome";
 import { usesFloatingZakatButton } from "@/config/orgFeatures";
 import { schemePath } from "@/lib/siteSchemes";
 import { cn } from "@/lib/utils";
@@ -40,53 +42,6 @@ const iconFor = (name?: string) => resolveIcon(name);
 
 // Scheme category → icon and colour now live in config/schemeThemes.ts, keyed
 // by category so a card's colour no longer depends on its position in the list.
-
-function SectionHeading({
-  eyebrow,
-  title,
-  subtitle,
-  accentFrom,
-  divider = true,
-}: {
-  eyebrow?: string;
-  title: string;
-  subtitle?: string;
-  /** Colour the title's trailing words from this word index onward.
-   *  Defaults to the final word, which is the house style for every section
-   *  heading on this page — pass an explicit index only to accent more. */
-  accentFrom?: number;
-  divider?: boolean;
-}) {
-  const wordCount = title.trim().split(/\s+/).filter(Boolean).length;
-  // A one-word title accents nothing: colouring the whole heading loses the
-  // two-tone effect and just reads as a differently coloured heading.
-  const resolvedAccent = accentFrom ?? (wordCount > 1 ? wordCount - 1 : undefined);
-
-  return (
-    <div className="mx-auto mb-6 max-w-2xl text-center sm:mb-10">
-      {eyebrow && (
-        <Reveal as="span" className="mb-2 inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
-          {eyebrow}
-        </Reveal>
-      )}
-      <AnimatedTitle as="h2" text={title} delay={90} accentFrom={resolvedAccent} className="text-2xl font-bold md:text-4xl" />
-      {subtitle && (
-        <Reveal as="p" delay={180} className="mt-3 text-muted-foreground">
-          {subtitle}
-        </Reveal>
-      )}
-      {divider && (
-        <Reveal delay={240} className="mt-4">
-          <div aria-hidden className="flex items-center justify-center gap-2">
-            <span className="h-px w-12 bg-gradient-to-r from-transparent to-primary/40" />
-            <span className="h-1.5 w-1.5 rotate-45 bg-primary/60" />
-            <span className="h-px w-12 bg-gradient-to-l from-transparent to-primary/40" />
-          </div>
-        </Reveal>
-      )}
-    </div>
-  );
-}
 
 export default function SiteHome() {
   const navigate = useNavigate();
@@ -100,7 +55,6 @@ export default function SiteHome() {
   const values = s.values || [];
   const projects = data?.projects || [];
   const schemes = data?.schemes || [];
-  const news = data?.news || [];
   const blogs = data?.blogs || [];
   const gallery = data?.gallery || [];
   const videos = data?.videos || [];
@@ -171,11 +125,14 @@ export default function SiteHome() {
   }
 
   const layout = resolveHomeLayout(s.homeLayout).filter((item) => item.visible);
+  // Each section's heading copy and colours: the admin's overrides from
+  // Website Settings → Home Page Layout, else the built-in wording.
+  const heading = (key: HomeSectionKey) => resolveHomeHeading(s.homeLayout, key);
 
   // Home sections, rendered in the order chosen in Website Settings → Home Page Layout.
   const renderers: Record<HomeSectionKey, () => ReactNode> = {
     counters: () => counts.length > 0 && (
-        <section className="px-3 py-10 sm:px-4 sm:py-14">
+        <section className="px-3 py-[15px] sm:px-4">
           {/* Brand-green gradient plate — colours sampled from the org logo
               (see --gradient-brand in index.css) — sits as its own band near
               the foot of the page, just above the associates strip/footer. */}
@@ -228,13 +185,20 @@ export default function SiteHome() {
         <div className="container mx-auto px-4">
           <div className="grid items-center gap-6 sm:grid-cols-[1.05fr_0.95fr] sm:gap-10">
           <div className="space-y-4">
-            <Reveal as="span" className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
-              About Us
+            <Reveal as="span" className="inline-block">
+              <span
+                className={cn("inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider", !heading("about").eyebrowColor && "bg-primary/10 text-primary")}
+                style={eyebrowStyle(heading("about").eyebrowColor)}
+              >
+                {heading("about").eyebrow}
+              </span>
             </Reveal>
             <AnimatedTitle
               as="h2"
               delay={90}
-              className="font-display text-[32px] font-normal leading-[1.05] tracking-[-1.1px] sm:text-[38px] sm:leading-[38px]"
+              className="text-2xl font-bold md:text-4xl"
+              style={textStyle(heading("about").titleColor)}
+              accentFrom={Math.max(1, (s.aboutUs?.title || `About ${org.displayName || org.erpTitle}`).trim().split(/\s+/).length - 1)}
               text={s.aboutUs?.title || `About ${org.displayName || org.erpTitle}`}
             />
             <Reveal as="p" delay={180} className="font-site text-[18px] leading-[1.6] text-[#505256] lg:text-[22px] lg:leading-[33px]">
@@ -337,11 +301,11 @@ export default function SiteHome() {
       </section>
     ),
     projects: () => projects.length > 0 && (
-        <section id="projects" className="scroll-mt-20 bg-muted/60 py-5">
+        <section id="projects" className="scroll-mt-20 bg-muted/60 py-4">
           <div className="container mx-auto px-4">
-            <SectionHeading eyebrow="Zakat in Action" title="Our Projects" subtitle="Real support for real lives. Explore our key initiatives." />
+            <SectionHeading {...heading("projects")} colors={heading("projects")} />
             <ProjectsShowcase projects={projects} />
-            <div className="mt-6 text-center sm:mt-10">
+            <div className="mt-5 text-center sm:mt-6">
               <Button variant="outline" className="rounded-full" onClick={() => navigate("/projects-hub")}>
                 View all projects <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
@@ -354,6 +318,7 @@ export default function SiteHome() {
           <div className="container relative mx-auto px-4">
             <SchemesStack
               schemes={schemes}
+              heading={heading("schemes")}
               onOpen={(sc) => navigate(schemePath(sc))}
               onViewAll={() => navigate("/schemes")}
             />
@@ -368,54 +333,17 @@ export default function SiteHome() {
           <Sprout className="absolute -right-12 bottom-0 h-72 w-72 text-primary/[0.05]" />
         </div>
         <div className="container relative mx-auto px-4">
-          <SectionHeading eyebrow="Zakat Calculator" title="Calculate Your Zakat" subtitle="Know your Zakat obligation in just a few simple steps." />
+          <SectionHeading {...heading("calculator")} colors={heading("calculator")} />
           <ZakatCalculator />
         </div>
       </section>
     ),
-    news: () => news.length > 0 && (
-        <section id="news" className="scroll-mt-20 py-5">
-          <div className="container mx-auto px-4">
-            {/* Copy and layout follow the organisation's own marketing site. */}
-            <ContentRail
-              heading="What we’ve been up to lately"
-              onOpen={(id) => navigate(`/news/${id}`)}
-              items={news.slice(0, 6).map((n) => ({
-                _id: n._id,
-                title: n.title,
-                imageUrl: n.imageUrl,
-                eyebrow: (n.category || "news").replace(/_/g, " "),
-                meta: n.publishDate
-                  ? new Date(n.publishDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-                  : "",
-                byline: `By ${org.displayName || "People's Foundation"}`,
-                excerpt: n.description,
-              }))}
-            />
-            <div className="mt-8 text-center">
-              <Button variant="outline" className="rounded-full" onClick={() => navigate("/news")}>
-                View all news & events <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </section>
-      ),
     gallery: () => gallery.length > 0 && (
-        <section id="gallery" className="scroll-mt-20 bg-gray-50 py-8 sm:py-10">
+        <section id="gallery" className="scroll-mt-20 bg-gray-50 py-4 sm:py-6">
           <div className="container mx-auto px-4">
+            <SectionHeading {...heading("gallery")} colors={heading("gallery")} />
             {gallery.length > 0 && (
               <div className="rounded-3xl border border-border/50 bg-card p-5 shadow-sm sm:p-6">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-primary">Gallery</span>
-                    <h3 className="text-lg font-bold">Moments That Matter</h3>
-                  </div>
-                  {/* The noun drops out on narrow screens: the full label left
-                      the heading beside it barely 100px to wrap into. */}
-                  <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => navigate("/gallery")}>
-                    View all<span className="hidden sm:inline">&nbsp;photos</span> <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                  </Button>
-                </div>
                 <div className="grid grid-cols-3 gap-3">
                   {gallery.slice(0, 3).map((a, i) => (
                     <Reveal key={a._id} delay={i * 100} className="min-w-0">
@@ -437,6 +365,11 @@ export default function SiteHome() {
                     </Reveal>
                   ))}
                 </div>
+                <div className="mt-5 text-center">
+                  <Button variant="outline" className="rounded-full" onClick={() => navigate("/gallery")}>
+                    View all photos <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -444,7 +377,7 @@ export default function SiteHome() {
         </section>
       ),
     videos: () => videos.length > 0 && (
-        <section id="videos" className="scroll-mt-20 py-8 sm:py-10">
+        <section id="videos" className="scroll-mt-20 py-4 sm:py-6">
           <div className="container mx-auto px-4">
             <VideoRow
               videos={videos.map((v) => ({
@@ -454,6 +387,8 @@ export default function SiteHome() {
                 thumbnailUrl: videoThumb(v.videoUrl, v.thumbnailUrl),
               }))}
               channelName={org.displayName || "People's Foundation"}
+              heading={heading("videos").title}
+              headingColors={heading("videos")}
               onPlay={(url) => setActiveVideo(url)}
               onExplore={() => navigate("/videos")}
             />
@@ -461,11 +396,12 @@ export default function SiteHome() {
         </section>
       ),
     blogs: () => blogs.length > 0 && (
-        <section id="blogs" className="scroll-mt-20 py-8 sm:py-10">
+        <section id="blogs" className="scroll-mt-20 bg-[#faf7f2] py-4 sm:py-6">
           <div className="container mx-auto px-4">
             {/* Same card as the news band, matching the marketing site. */}
             <ContentRail
-              heading="Blogs"
+              heading={heading("blogs").title}
+              headingColors={heading("blogs")}
               onOpen={(slug) => navigate(`/blog/${slug}`)}
               items={blogs.slice(0, 6).map((b) => ({
                 _id: b.slug,
@@ -478,7 +414,7 @@ export default function SiteHome() {
                 byline: b.author ? `By ${b.author}` : undefined,
               }))}
             />
-            <div className="mt-8 text-center">
+            <div className="mt-5 text-center">
               <Button variant="outline" className="rounded-full" onClick={() => navigate("/blogs")}>
                 View all posts <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
@@ -487,34 +423,51 @@ export default function SiteHome() {
         </section>
       ),
     media: () => mediaItems.length > 0 && (
-        <section className="py-5">
+        <section className="py-4">
           <div className="container mx-auto px-4">
-            <SectionHeading eyebrow="In the news" title="Media Coverage" />
+            <SectionHeading {...heading("media")} colors={heading("media")} />
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {mediaItems.map((m, i) => (
+              {mediaItems.slice(0, 8).map((m, i) => (
                 <Reveal key={m._id} delay={i * 80} className="h-full">
                   <a href={m.link || "#"} target="_blank" rel="noreferrer"
                     className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
                     {m.imageUrl && <img loading="lazy" decoding="async" src={m.imageUrl} alt={m.title} className="h-36 w-full object-cover" />}
                     <div className="space-y-1 p-4">
                       {m.source && <span className="text-xs font-medium uppercase tracking-wide text-primary">{m.source}</span>}
-                      <h3 className="line-clamp-2 text-sm font-semibold">{m.title}</h3>
+                      <h3 className="font-malayalam text-[19px] font-normal leading-[1.2] sm:text-[20px]">{m.title}</h3>
                     </div>
                   </a>
                 </Reveal>
               ))}
             </div>
+            <div className="mt-5 text-center">
+              <Button variant="outline" className="rounded-full" onClick={() => navigate("/media")}>
+                View more <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </section>
       ),
     donation: () => (
-      <section id="donate" className="scroll-mt-20 py-5">
+      <section id="donate" className="scroll-mt-20 py-4">
         <div className="container mx-auto px-4">
           <VolunteerDonateBand
             heading={donation.heading}
             description={donation.description}
             paymentLink={donation.paymentLink}
             onVolunteer={() => setVolunteerOpen(true)}
+            volunteer={{
+              eyebrow: donation.volunteerEyebrow,
+              title: donation.volunteerTitle,
+              description: donation.volunteerDescription,
+              backgroundColor: donation.volunteerBackgroundColor,
+              textColor: donation.volunteerTextColor,
+            }}
+            donate={{
+              eyebrow: donation.donateEyebrow,
+              backgroundColor: donation.donateBackgroundColor,
+              textColor: donation.donateTextColor,
+            }}
           />
           {donation.enabled && (donation.accountName || donation.accountNumber || donation.bankName) && (
             /* The QR moved here from the About band: it belongs beside the
@@ -546,35 +499,19 @@ export default function SiteHome() {
     // near-identical "Our Associates & Partners" strip that read the same
     // Partners records — two sections showing one dataset.
     associates: () => associateLogos.length > 0 && (
-      <section className="border-t border-border/40 py-8 sm:py-12">
+      <section id="associates" className="scroll-mt-20 border-t border-border/40 py-5 sm:py-8">
         {/* Strip shares the page container with the heading — it used to be
             full-bleed, which made it wider than every other section. */}
         <div className="container mx-auto px-4">
-          {/* Title and supporting line as a centred pair rather than the eyebrow
-              + centred heading the other sections use: this band is ported from
-              the live site, where the pair is what sets the two drifting rows
-              apart from the sections above. */}
-          {/* Wider than the live site's pair: that one heads with "Our
-              Associates", and our longer "Associates & Partners" wraps to two
-              lines in a 320px column. */}
-          <div className="mx-auto grid max-w-[735px] gap-3 pb-8 sm:pb-10 lg:grid-cols-[380px_335px] lg:gap-5">
-            <AnimatedTitle
-              as="h2"
-              className="font-display text-[32px] font-normal leading-[1.05] tracking-[-1.1px] sm:text-[38px] sm:leading-[38px]"
-              text="Associates & Partners"
-            />
-            <Reveal as="p" delay={120} className="font-site text-[18px] leading-[1.6] text-[#505256] lg:text-[22px] lg:leading-[33px]">
-              Working together with organisations that share our purpose.
-            </Reveal>
-          </div>
+          <SectionHeading {...heading("associates")} colors={heading("associates")} />
           <AssociatesMarquee logos={associateLogos} />
         </div>
       </section>
     ),
     faq: () => faqs.length > 0 && (
-        <section id="faq" className="scroll-mt-20 py-5">
+        <section id="faq" className="scroll-mt-20 py-4">
           <div className="container mx-auto max-w-3xl px-4">
-            <SectionHeading eyebrow="Help" title="Frequently Asked Questions" />
+            <SectionHeading {...heading("faq")} colors={heading("faq")} />
             <Reveal delay={80}>
               <Accordion type="single" collapsible className="w-full">
                 {faqs.map((f) => (
@@ -614,6 +551,7 @@ export default function SiteHome() {
         <SiteFooter settings={s} />
       </div>
 
+      <SitePopup popup={s.popup} />
       <MobileBottomNav />
       <BackToTop />
       {/* The home page renders its own chrome rather than going through

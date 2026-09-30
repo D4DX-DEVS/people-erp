@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { RichContent } from "@/components/site/RichContent";
 import { ProjectCard } from "@/components/site/ProjectCard";
 import { ContactSection } from "@/components/site/ContactSection";
 import { getYouTubeId, videoThumb } from "@/hooks/useSiteData";
@@ -44,19 +45,34 @@ const colsClass = (n?: number, fallback = 3) => {
 };
 
 function SectionHeading({
-  title, subtitle, icon, badge, onDark,
-}: { title?: string; subtitle?: string; icon?: string; badge: BadgeStyle; onDark?: boolean }) {
+  title, subtitle, icon, badge, onDark, titleColor, textColor,
+}: {
+  title?: string; subtitle?: string; icon?: string; badge: BadgeStyle; onDark?: boolean;
+  /** Explicit colour overrides — win over the onDark default when set. */
+  titleColor?: string; textColor?: string;
+}) {
   if (!title && !subtitle && !icon) return null;
   const Icon = icon ? resolveIcon(icon) : null;
   return (
-    <div className="mx-auto mb-10 max-w-2xl text-center">
+    <div className="mx-auto mb-6 max-w-2xl text-center">
       {Icon && (
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={badge}>
           <Icon className="h-7 w-7" />
         </div>
       )}
-      {title && <h2 className="text-2xl font-bold md:text-4xl">{title}</h2>}
-      {subtitle && <p className={cn("mt-3", onDark ? "text-white/80" : "text-muted-foreground")}>{subtitle}</p>}
+      {title && (
+        <h2 className="text-2xl font-bold md:text-4xl" style={titleColor ? { color: colorValue(titleColor) } : undefined}>
+          {title}
+        </h2>
+      )}
+      {subtitle && (
+        <p
+          className={cn("mt-3", !textColor && (onDark ? "text-white/80" : "text-muted-foreground"))}
+          style={textColor ? { color: colorValue(textColor) } : undefined}
+        >
+          {subtitle}
+        </p>
+      )}
     </div>
   );
 }
@@ -81,30 +97,6 @@ export function PageSections({ sections }: { sections?: PageSection[] }) {
       ))}
     </>
   );
-}
-
-/**
- * Split a plain-text body into paragraphs on blank lines.
- *
- * `content` is rendered as text, never as markup — so a body that arrives
- * carrying HTML (pasted from a word processor, or seeded that way) would
- * otherwise show its tags verbatim. Block tags become paragraph breaks and the
- * rest are dropped; the text is still escaped by React on the way out, so this
- * strips markup rather than trusting it.
- */
-function toParagraphs(content: string): string[] {
-  let text = content;
-  if (/<\/?[a-z][^>]*>/i.test(text)) {
-    text = text
-      .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">");
-  }
-  return text.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
 }
 
 export function SectionBlock({
@@ -134,6 +126,7 @@ export function SectionBlock({
   const customBg = section.background === "custom" && section.backgroundColor ? colorValue(section.backgroundColor) : "";
   const onDark = section.background === "primary" || (section.background === "custom" && !!customBg && isDarkColor(customBg));
   const badge = (itemColor?: string): BadgeStyle => (onDark ? DARK_BADGE : iconBadgeStyle(itemColor, accent));
+  const textStyle = section.textColor ? { color: colorValue(section.textColor) } : undefined;
 
   let body: React.ReactNode = null;
 
@@ -142,9 +135,7 @@ export function SectionBlock({
       if (!section.content?.trim()) return null;
       body = (
         <div className="mx-auto max-w-3xl">
-          {toParagraphs(section.content).map((para, idx) => (
-            <p key={idx} className="mb-4 whitespace-pre-line leading-relaxed text-muted-foreground">{para}</p>
-          ))}
+          <RichContent content={section.content} className={cn(!textStyle && "text-muted-foreground")} style={textStyle} />
         </div>
       );
       break;
@@ -165,9 +156,7 @@ export function SectionBlock({
             )}
           </div>
           <div className={imageFirst ? "lg:order-2" : "lg:order-1"}>
-            {toParagraphs(section.content || "").map((para, idx) => (
-              <p key={idx} className="mb-4 whitespace-pre-line leading-relaxed text-muted-foreground">{para}</p>
-            ))}
+            <RichContent content={section.content} className={cn(!textStyle && "text-muted-foreground")} style={textStyle} />
           </div>
         </div>
       );
@@ -400,7 +389,15 @@ export function SectionBlock({
     ? "[&_p]:text-white/85 [&_h3]:text-white [&_button]:text-white"
     : "";
   const heading = (
-    <SectionHeading title={section.title} subtitle={section.subtitle} icon={section.icon} badge={badge()} onDark={onDark} />
+    <SectionHeading
+      title={section.title}
+      subtitle={section.subtitle}
+      icon={section.icon}
+      badge={badge()}
+      onDark={onDark}
+      titleColor={section.titleColor}
+      textColor={section.textColor}
+    />
   );
 
   return (
@@ -408,7 +405,7 @@ export function SectionBlock({
     // long unbroken string instead of forcing the layout to scroll sideways.
     <section
       className={cn(
-        "py-8 sm:py-14 md:py-20 [overflow-wrap:anywhere]",
+        "py-6 sm:py-8 md:py-10 [overflow-wrap:anywhere]",
         tightBottom && "pb-2 sm:pb-3 md:pb-4",
         bgClass,
         darkCustom && "text-white",
@@ -443,13 +440,18 @@ function CardTile({ item, onLink, badge }: { item: SectionItem; onLink: (link?: 
     else if (item.link) onLink(item.link);
   };
 
+  const bg = item.backgroundColor ? colorValue(item.backgroundColor) : "";
+  const onDarkCard = !!bg && isDarkColor(bg);
+
   return (
     <>
       <Card
         className={cn(
           "group flex h-full flex-col overflow-hidden border-border/60 transition-shadow hover:shadow-xl",
           clickable && "cursor-pointer",
+          onDarkCard && "text-white",
         )}
+        style={bg ? { backgroundColor: bg } : undefined}
         onClick={clickable ? activate : undefined}
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
@@ -466,9 +468,11 @@ function CardTile({ item, onLink, badge }: { item: SectionItem; onLink: (link?: 
         )}
         <CardContent className="flex flex-1 flex-col gap-2 p-6">
           {item.title && <h3 className="text-lg font-semibold">{item.title}</h3>}
-          {item.description && <p className="line-clamp-3 text-sm text-muted-foreground">{item.description}</p>}
+          {item.description && (
+            <p className={cn("line-clamp-3 text-sm", onDarkCard ? "text-white/80" : "text-muted-foreground")}>{item.description}</p>
+          )}
           {clickable && (
-            <span className="mt-auto inline-flex items-center pt-1 text-sm font-medium text-primary">
+            <span className={cn("mt-auto inline-flex items-center pt-1 text-sm font-medium", onDarkCard ? "text-white" : "text-primary")}>
               {detailed ? "Read more" : "Learn more"} <ChevronRight className="h-4 w-4" />
             </span>
           )}
@@ -675,15 +679,25 @@ function ContentGrid({
     case "partners":
       return (
         <div className="flex flex-wrap items-center justify-center gap-8">
-          {items.map((p) => (
-            p.logoUrl ? (
-              <a key={p._id} href={p.link || "#"} target="_blank" rel="noreferrer" className="grayscale transition hover:grayscale-0">
-                <img src={p.logoUrl} alt={p.name} className="h-12 w-auto object-contain" />
-              </a>
+          {items.map((p) => {
+            if (!p.logoUrl) {
+              return <span key={p._id} className="text-sm font-medium text-muted-foreground">{p.name}</span>;
+            }
+            const img = <img src={p.logoUrl} alt={p.name} className="h-12 w-auto object-contain" />;
+            if (!p.link || p.link === "#") {
+              return <div key={p._id} className="grayscale">{img}</div>;
+            }
+            // An internal path (e.g. "/p/some-page") navigates in-app; anything else opens as an external link.
+            return p.link.startsWith("/") ? (
+              <button key={p._id} onClick={() => navigate(p.link)} className="grayscale transition hover:grayscale-0">
+                {img}
+              </button>
             ) : (
-              <span key={p._id} className="text-sm font-medium text-muted-foreground">{p.name}</span>
-            )
-          ))}
+              <a key={p._id} href={p.link} target="_blank" rel="noreferrer" className="grayscale transition hover:grayscale-0">
+                {img}
+              </a>
+            );
+          })}
         </div>
       );
 

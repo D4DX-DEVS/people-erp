@@ -14,7 +14,10 @@ interface AnimatedTitleProps {
   /** Index of the first word to colour with `accentClassName`. */
   accentFrom?: number;
   accentClassName?: string;
+  /** Inline style for the accented words — an admin-picked colour wins over `accentClassName`. */
+  accentStyle?: CSSProperties;
   className?: string;
+  style?: CSSProperties;
 }
 
 /**
@@ -34,7 +37,9 @@ export function AnimatedTitle({
   delay = 0,
   accentFrom,
   accentClassName = "text-primary",
+  accentStyle,
   className,
+  style,
 }: AnimatedTitleProps) {
   const Tag = (as || "h2") as ElementType;
   const { ref, inView } = useInView<HTMLElement>();
@@ -45,13 +50,15 @@ export function AnimatedTitle({
       ref={ref as React.Ref<never>}
       aria-label={text}
       className={cn("anim-title", inView && "is-visible", className)}
+      style={style}
     >
       {words.map((word, i) => (
         <Fragment key={`${word}-${i}`}>
           {i > 0 ? " " : null}
           <span
             aria-hidden
-            className={cn("anim-title-word", accentFrom !== undefined && i >= accentFrom && accentClassName)}
+            className={cn("anim-title-word", accentFrom !== undefined && i >= accentFrom && !accentStyle && accentClassName)}
+            style={accentFrom !== undefined && i >= accentFrom ? accentStyle : undefined}
           >
             <span style={{ "--word-delay": `${delay + i * stagger}ms` } as CSSProperties}>{word}</span>
           </span>

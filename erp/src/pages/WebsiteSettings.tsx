@@ -6,13 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import VoiceTextarea from "@/components/ui/VoiceTextarea";
 import { useToast } from "@/hooks/use-toast";
-import { website } from "@/lib/api";
-import { Loader2, Plus, Trash2, Save, Globe, Users, Phone, Mail, MapPin, Facebook, Instagram, Youtube, Twitter, Upload, X, ImageIcon, Menu, Palette, ArrowUp, ArrowDown, Heart, LayoutList, Images, Brush } from "lucide-react";
+import { website, config as configApi, type LogoVariant } from "@/lib/api";
+import { Loader2, Plus, Trash2, Save, Globe, Users, Phone, Mail, MapPin, Facebook, Instagram, Youtube, Twitter, Upload, X, ImageIcon, Menu, Palette, ArrowUp, ArrowDown, Heart, LayoutList, Images, Brush, ImagePlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useRBAC } from "@/hooks/useRBAC";
 import { useConfig } from "@/contexts/ConfigContext";
+import { resolveOrgAssetUrl } from "@/hooks/useOrgLogoUrl";
+import { LogoSlotUploader, LOGO_SLOTS } from "@/components/branding/LogoSlotUploader";
 import { NavigationBuilder } from "@/components/site/NavigationBuilder";
 import { normalizeNavigation, type NavigationSettings } from "@/types/siteNavigation";
 import { IconPicker } from "@/components/site/IconPicker";
@@ -55,7 +57,7 @@ export default function WebsiteSettings() {
   const { hasAnyPermission } = useRBAC();
   
   const canEdit = hasAnyPermission(['website.write', 'settings.write']);
-  const { org } = useConfig();
+  const { org, refreshConfig } = useConfig();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -98,7 +100,12 @@ export default function WebsiteSettings() {
   // Home page section order / visibility
   const [homeLayout, setHomeLayout] = useState<HomeLayoutItem[]>(() => resolveHomeLayout([]));
   // Donation
-  const [donation, setDonation] = useState({ enabled: false, heading: "", description: "", accountName: "", accountNumber: "", bankName: "", ifsc: "", upiId: "", paymentLink: "" });
+  const [donation, setDonation] = useState({
+    enabled: false, heading: "", description: "", accountName: "", accountNumber: "", bankName: "", ifsc: "", upiId: "", paymentLink: "",
+    // The two columns of the home page's Volunteer + Donate band
+    donateEyebrow: "", donateBackgroundColor: "", donateTextColor: "",
+    volunteerEyebrow: "", volunteerTitle: "", volunteerDescription: "", volunteerBackgroundColor: "", volunteerTextColor: "",
+  });
   // SEO
   const [seo, setSeo] = useState({ title: "", description: "", keywords: "" });
   // Footer
@@ -154,6 +161,14 @@ export default function WebsiteSettings() {
           ifsc: settings.donation?.ifsc || "",
           upiId: settings.donation?.upiId || "",
           paymentLink: settings.donation?.paymentLink || "",
+          donateEyebrow: settings.donation?.donateEyebrow || "",
+          donateBackgroundColor: settings.donation?.donateBackgroundColor || "",
+          donateTextColor: settings.donation?.donateTextColor || "",
+          volunteerEyebrow: settings.donation?.volunteerEyebrow || "",
+          volunteerTitle: settings.donation?.volunteerTitle || "",
+          volunteerDescription: settings.donation?.volunteerDescription || "",
+          volunteerBackgroundColor: settings.donation?.volunteerBackgroundColor || "",
+          volunteerTextColor: settings.donation?.volunteerTextColor || "",
         });
         setSeo({
           title: settings.seo?.title || "",
@@ -261,6 +276,34 @@ export default function WebsiteSettings() {
     }
   };
 
+  const handleLogoUpload = async (file: File, variant: LogoVariant) => {
+    try {
+      const response = await configApi.uploadLogo(file, variant);
+      if ((response as any).success) {
+        toast({ title: "Success", description: "Image uploaded" });
+        await refreshConfig();
+      } else {
+        toast({ title: "Error", description: (response as any).message || "Upload failed", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Upload failed", variant: "destructive" });
+    }
+  };
+
+  const handleLogoRemove = async (variant: LogoVariant) => {
+    try {
+      const response = await configApi.deleteLogo(variant);
+      if ((response as any).success) {
+        toast({ title: "Success", description: "Image removed" });
+        await refreshConfig();
+      } else {
+        toast({ title: "Error", description: (response as any).message || "Remove failed", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Remove failed", variant: "destructive" });
+    }
+  };
+
   const handleAddCounter = () => {
     if (!newCounter.title || newCounter.count < 0) {
       toast({
@@ -335,6 +378,38 @@ export default function WebsiteSettings() {
           </Button>
         )}
       </div>
+
+      {/* Branding: header logo, footer logo, favicon */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImagePlus className="h-5 w-5" />
+            Branding
+          </CardTitle>
+          <CardDescription>
+            Upload the marks used across the website — the header logo, the footer logo and the browser tab favicon.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {LOGO_SLOTS.map((slot) => (
+            <LogoSlotUploader
+              key={slot.variant}
+              variant={slot.variant}
+              title={slot.title}
+              description={slot.description}
+              darkPreview={slot.darkPreview}
+              currentUrl={resolveOrgAssetUrl(
+                slot.variant === 'primary' ? org.logoUrl
+                  : slot.variant === 'footer' ? org.footerLogoUrl
+                  : org.faviconUrl
+              )}
+              disabled={!canEdit}
+              onUpload={handleLogoUpload}
+              onRemove={handleLogoRemove}
+            />
+          ))}
+        </CardContent>
+      </Card>
 
       {/* Header & Navigation */}
       <Card>
@@ -899,6 +974,37 @@ export default function WebsiteSettings() {
           </div>
           <div className="space-y-2"><Label>Description</Label>
             <VoiceTextarea rows={2} value={donation.description} onChange={(e) => setDonation({ ...donation, description: e.target.value })} disabled={!canEdit} /></div>
+
+          {/* The home page band: Become a Volunteer beside Support Our Mission */}
+          <div className="grid gap-4 border-t border-border/60 pt-4 md:grid-cols-2">
+            <div className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm font-medium">Volunteer column</p>
+              <div className="space-y-2"><Label>Small label</Label>
+                <Input value={donation.volunteerEyebrow} onChange={(e) => setDonation({ ...donation, volunteerEyebrow: e.target.value })} disabled={!canEdit} placeholder="Get Involved" /></div>
+              <div className="space-y-2"><Label>Title</Label>
+                <Input value={donation.volunteerTitle} onChange={(e) => setDonation({ ...donation, volunteerTitle: e.target.value })} disabled={!canEdit} placeholder="Become a Volunteer" /></div>
+              <div className="space-y-2"><Label>Text</Label>
+                <VoiceTextarea rows={2} value={donation.volunteerDescription} onChange={(e) => setDonation({ ...donation, volunteerDescription: e.target.value })} disabled={!canEdit} placeholder="Join hands with us to make a difference in the community…" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>Background</Label>
+                  <ColorPicker value={donation.volunteerBackgroundColor} defaultLabel="Default (light)" disabled={!canEdit} onChange={(v) => setDonation({ ...donation, volunteerBackgroundColor: v })} /></div>
+                <div className="space-y-2"><Label>Text colour</Label>
+                  <ColorPicker value={donation.volunteerTextColor} defaultLabel="Default" disabled={!canEdit} onChange={(v) => setDonation({ ...donation, volunteerTextColor: v })} /></div>
+              </div>
+            </div>
+            <div className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm font-medium">Donate column</p>
+              <p className="text-xs text-muted-foreground">Its title and text are the Heading and Description above.</p>
+              <div className="space-y-2"><Label>Small label</Label>
+                <Input value={donation.donateEyebrow} onChange={(e) => setDonation({ ...donation, donateEyebrow: e.target.value })} disabled={!canEdit} placeholder="Support Our Mission" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>Background</Label>
+                  <ColorPicker value={donation.donateBackgroundColor} defaultLabel="Default (brand gradient)" disabled={!canEdit} onChange={(v) => setDonation({ ...donation, donateBackgroundColor: v })} /></div>
+                <div className="space-y-2"><Label>Text colour</Label>
+                  <ColorPicker value={donation.donateTextColor} defaultLabel="Default (white)" disabled={!canEdit} onChange={(v) => setDonation({ ...donation, donateTextColor: v })} /></div>
+              </div>
+            </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2"><Label>Account Name</Label>
               <Input value={donation.accountName} onChange={(e) => setDonation({ ...donation, accountName: e.target.value })} disabled={!canEdit} /></div>

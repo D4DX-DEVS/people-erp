@@ -8,6 +8,8 @@ import { schemeTheme } from "@/config/schemeThemes";
 import { resolveIcon } from "@/lib/siteIcons";
 import type { SchemeCardData } from "@/components/site/SchemeCard";
 import { CATEGORY_WASH, NEUTRAL_WASH } from "@/components/site/ProjectsGrid";
+import { colorValue } from "@/lib/siteColors";
+import type { ResolvedHomeHeading } from "@/types/siteHome";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -33,13 +35,22 @@ const STACK_SIZE = 5;
  */
 export function SchemesStack({
   schemes,
+  heading,
   onOpen,
   onViewAll,
 }: {
   schemes: SchemeCardData[];
+  /** Copy + colours from Website Settings → Home Page Layout; the built-in wording when absent. */
+  heading?: ResolvedHomeHeading;
   onOpen: (scheme: SchemeCardData) => void;
   onViewAll: () => void;
 }) {
+  const eyebrow = heading?.eyebrow || "Support Programs";
+  const title = heading?.title || "Schemes & Programs";
+  const subtitle = heading?.subtitle || "Focused initiatives for a stronger, self-reliant community. Scroll to walk through each program — every card carries its own story.";
+  const titleWords = title.trim().split(/\s+/);
+  const titleLead = titleWords.slice(0, -1).join(" ");
+  const titleLast = titleWords[titleWords.length - 1];
   const visible = schemes.slice(0, STACK_SIZE);
   const scopeRef = useRef<HTMLDivElement>(null);
   const pinRef = useRef<HTMLDivElement>(null);
@@ -171,15 +182,31 @@ export function SchemesStack({
       <div ref={pinRef} className="grid items-start gap-10 md:grid-cols-[0.85fr_1.15fr] md:gap-12">
         {/* Intro — held still by the row's pin, not by sticky. */}
         <div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
-            Support Programs
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary"
+            style={heading?.eyebrowColor ? { color: colorValue(heading.eyebrowColor) } : undefined}
+          >
+            {eyebrow}
           </span>
-          <h2 className="mt-4 text-3xl font-extrabold tracking-tight md:text-4xl xl:text-5xl">
-            Schemes & <span className="text-primary">Programs</span>
+          {/* Two-tone: the leading words take the title colour, the last word
+              the accent colour — each the brand default unless the admin picked one. */}
+          <h2
+            className="mt-4 text-3xl font-extrabold tracking-tight md:text-4xl xl:text-5xl"
+            style={heading?.titleColor ? { color: colorValue(heading.titleColor) } : undefined}
+          >
+            {titleLead ? `${titleLead} ` : ""}
+            <span
+              className={cn(!heading?.accentColor && "text-primary")}
+              style={heading?.accentColor ? { color: colorValue(heading.accentColor) } : undefined}
+            >
+              {titleLast}
+            </span>
           </h2>
-          <p className="mt-4 leading-relaxed text-muted-foreground">
-            Focused initiatives for a stronger, self-reliant community. Scroll to walk through
-            each program — every card carries its own story.
+          <p
+            className={cn("mt-4 leading-relaxed", !heading?.subtitleColor && "text-muted-foreground")}
+            style={heading?.subtitleColor ? { color: colorValue(heading.subtitleColor) } : undefined}
+          >
+            {subtitle}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button size="lg" className="rounded-full px-8" onClick={onViewAll}>

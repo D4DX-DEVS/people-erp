@@ -30,6 +30,10 @@ export interface SiteSettings {
   donation?: {
     enabled?: boolean; heading?: string; description?: string; accountName?: string; accountNumber?: string;
     bankName?: string; ifsc?: string; upiId?: string; paymentLink?: string; qrImageUrl?: string;
+    /** The two columns of the home page's Volunteer + Donate band. Colours: swatch name or hex. */
+    donateEyebrow?: string; donateBackgroundColor?: string; donateTextColor?: string;
+    volunteerEyebrow?: string; volunteerTitle?: string; volunteerDescription?: string;
+    volunteerBackgroundColor?: string; volunteerTextColor?: string;
     /** Multiple payable accounts. Falls back to the single account* fields above
      *  when absent, so settings saved before this existed still render. */
     bankAccounts?: Array<{
@@ -37,6 +41,7 @@ export interface SiteSettings {
       bankName?: string; branch?: string; ifsc?: string;
     }>;
   };
+  popup?: { enabled?: boolean; title?: string; subtitle?: string; description?: string; content?: string; imageUrl?: string; backgroundColor?: string; textColor?: string; buttonText?: string; buttonLink?: string; buttonColor?: string; buttonTextColor?: string };
   seo?: { title?: string; description?: string; keywords?: string; ogImageUrl?: string };
   footer?: { description?: string; copyrightText?: string; links?: Array<{ label: string; url: string }> };
 }

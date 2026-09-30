@@ -1,4 +1,6 @@
 import { useRef, type ReactNode } from "react";
+import { SectionHeading } from "@/components/site/SectionHeading";
+import type { HomeHeadingStyle } from "@/types/siteHome";
 import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface ContentRailItem {
@@ -28,11 +30,14 @@ export interface ContentRailItem {
  */
 export function ContentRail({
   heading,
+  headingColors,
   items,
   onOpen,
   aside,
 }: {
   heading: string;
+  /** Admin-chosen heading colour; unset keeps the page's default text colour. */
+  headingColors?: HomeHeadingStyle;
   items: ContentRailItem[];
   onOpen: (id: string) => void;
   aside?: ReactNode;
@@ -48,9 +53,10 @@ export function ContentRail({
 
   return (
     <>
-      <div className="mb-6 flex items-start justify-between gap-4 sm:mb-8">
-        <h2 className="max-w-[19ch] text-[28px] sm:text-[34px] lg:text-[38px]">{heading}</h2>
-        <div className="flex shrink-0 items-center gap-2 pt-1">
+      <div className="relative">
+      <SectionHeading title={heading} colors={headingColors} />
+      <div className="absolute right-0 top-0 flex items-start justify-end gap-4">
+        <div className="flex shrink-0 items-center gap-2">
           {aside ?? (
             <>
               <button
@@ -73,8 +79,14 @@ export function ContentRail({
           )}
         </div>
       </div>
+      </div>
 
-      <div ref={trackRef} className="scrollbar-hide flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2">
+      {/* items-start: cards size to their own content instead of the default
+          flex stretch, which matched every card's height to the tallest one
+          in the whole scrollable row — a card with a short title/excerpt
+          stretched to a longer sibling's height left a dead gap below its
+          "Read more" row with nothing to fill it. */}
+      <div ref={trackRef} className="scrollbar-hide flex snap-x snap-mandatory items-start gap-5 overflow-x-auto pb-2">
         {items.map((item) => (
           <article
             key={item._id}
@@ -83,7 +95,7 @@ export function ContentRail({
             <button
               type="button"
               onClick={() => onOpen(item._id)}
-              className="group flex h-full w-full flex-col rounded-[20px] border border-border/70 bg-card p-3 pb-2.5 text-left shadow-sm transition-shadow duration-300 hover:shadow-lg"
+              className="group flex w-full flex-col rounded-[20px] border border-border/70 bg-card p-3 pb-2.5 text-left shadow-sm transition-shadow duration-300 hover:shadow-lg"
             >
               <span className="block overflow-hidden rounded-[14px] bg-muted">
                 {item.imageUrl ? (
@@ -99,24 +111,20 @@ export function ContentRail({
                 )}
               </span>
 
-              <span className="flex flex-1 flex-col px-1 pt-3">
+              <span className="flex flex-col px-1 pt-2.5">
                 {/* Category and author are dropped from the card front — the
                     date is the only thing readers need at a glance here. */}
                 {item.meta && <span className="text-[15px] leading-6 text-muted-foreground">{item.meta}</span>}
-                <span className="mt-2 font-malayalam text-[19px] leading-[1.2] text-foreground sm:text-[20px]">
+                <span className="mt-1.5 font-malayalam text-[19px] leading-[1.2] text-foreground sm:text-[20px]">
                   {item.title}
                 </span>
                 {item.excerpt && (
-                  <span className="mt-2 line-clamp-2 font-noto-malayalam text-[16px] leading-relaxed text-muted-foreground">
+                  <span className="mt-1.5 line-clamp-2 font-noto-malayalam text-[16px] leading-relaxed text-muted-foreground">
                     {item.excerpt}
                   </span>
                 )}
 
-                {/* `mt-auto` used to pin this row to the card's bottom edge,
-                    leaving a variable, often large, blank gap above it
-                    whenever the excerpt ran short. A fixed gap keeps "Read
-                    more" right under the content instead. */}
-                <span className="mt-3 flex items-center justify-between gap-2">
+                <span className="mt-2.5 flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-primary transition-colors duration-300 group-hover:underline">
                     Read more
                   </span>
