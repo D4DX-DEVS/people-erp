@@ -24,6 +24,7 @@ import GalleryListPage from "./pages/site/GalleryListPage";
 import VideosListPage from "./pages/site/VideosListPage";
 import ProjectsListPage from "./pages/site/ProjectsListPage";
 import ProjectDetailPage from "./pages/site/ProjectDetailPage";
+import MediaListPage from "./pages/site/MediaListPage";
 import SchemeDetailPage from "./pages/site/SchemeDetailPage";
 import SchemesListPage from "./pages/site/SchemesListPage";
 import DownloadsPage from "./pages/site/DownloadsPage";
@@ -108,6 +109,7 @@ import WebsiteGallery from "./pages/WebsiteGallery";
 import WebsiteVideos from "./pages/WebsiteVideos";
 import WebsiteBlogs from "./pages/WebsiteBlogs";
 import WebsiteMedia from "./pages/WebsiteMedia";
+import WebsitePopup from "./pages/WebsitePopup";
 import WebsiteContactMessages from "./pages/WebsiteContactMessages";
 import WebsiteVolunteers from "./pages/WebsiteVolunteers";
 import WebsitePages from "./pages/WebsitePages";
@@ -150,6 +152,7 @@ const App = () => (
             <Route path="/news" element={<NewsListPage />} />
             <Route path="/news/:id" element={<NewsDetailPage />} />
             <Route path="/videos" element={<VideosListPage />} />
+            <Route path="/media" element={<MediaListPage />} />
             <Route path="/projects-hub" element={<ProjectsListPage />} />
             <Route path="/projects-hub/:slug" element={<ProjectDetailPage />} />
             <Route path="/schemes" element={<SchemesListPage />} />
@@ -271,6 +274,7 @@ const App = () => (
             <Route path="/website-gallery" element={<AuthGuard><Layout><WebsiteGallery /></Layout></AuthGuard>} />
             <Route path="/website-videos" element={<AuthGuard><Layout><WebsiteVideos /></Layout></AuthGuard>} />
             <Route path="/website-blogs" element={<AuthGuard><Layout><WebsiteBlogs /></Layout></AuthGuard>} />
+            <Route path="/website-popup" element={<AuthGuard><Layout><WebsitePopup /></Layout></AuthGuard>} />
             <Route path="/website-media" element={<AuthGuard><Layout><WebsiteMedia /></Layout></AuthGuard>} />
             <Route path="/website-messages" element={<AuthGuard><Layout><WebsiteContactMessages /></Layout></AuthGuard>} />
             <Route path="/website-volunteers" element={<AuthGuard><Layout><WebsiteVolunteers /></Layout></AuthGuard>} />

@@ -176,38 +176,43 @@ export function AssociatesMarquee({ logos }: { logos: AssociateLogo[] }) {
     };
   }, [logos.length]);
 
+  // Move/up are listened for on window while a drag is live, so the drag keeps
+  // tracking however the browser retargets pointer events (pointer capture and
+  // pointerleave behave differently across Safari/Chrome/touch).
+  const stopDragRef = useRef<() => void>();
+  useEffect(() => () => stopDragRef.current?.(), []);
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = viewportRef.current;
     if (!el) return;
-    // Only the primary mouse button drags; touch/pen always drag.
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    // Capture is what lets the drag keep tracking once the pointer leaves the
-    // element's bounds — a nice-to-have, not a requirement, so a browser that
-    // refuses it (some touch/pen edge cases throw "no active pointer") must
-    // not abort the rest of this handler and silently break the drag.
-    try { el.setPointerCapture(e.pointerId); } catch { /* dragging still works without capture */ }
+    stopDragRef.current?.();
     draggingRef.current = true;
     dragSuppressRef.current = false;
     pointerStartRef.current = { x: e.clientX, position: positionRef.current };
+    const pointerId = e.pointerId;
     el.classList.add("associate-marquee--grabbing");
-  };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!draggingRef.current) return;
-    const dx = e.clientX - pointerStartRef.current.x;
-    if (Math.abs(dx) > DRAG_THRESHOLD) dragSuppressRef.current = true;
-    apply(pointerStartRef.current.position - dx);
-  };
-
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    const el = viewportRef.current;
-    el?.classList.remove("associate-marquee--grabbing");
-    try { el?.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-    // Let the suppression flag survive just long enough for the synthetic
-    // click that follows pointerup on whichever tile the drag ended over.
-    if (dragSuppressRef.current) setTimeout(() => { dragSuppressRef.current = false; }, 0);
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const dx = ev.clientX - pointerStartRef.current.x;
+      if (Math.abs(dx) > DRAG_THRESHOLD) dragSuppressRef.current = true;
+      apply(pointerStartRef.current.position - dx);
+    };
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      stopDragRef.current = undefined;
+      draggingRef.current = false;
+      el.classList.remove("associate-marquee--grabbing");
+      // Keep the suppression flag just long enough for the click that follows pointerup.
+      if (dragSuppressRef.current) setTimeout(() => { dragSuppressRef.current = false; }, 0);
+    };
+    stopDragRef.current = end;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
   };
 
   if (logos.length === 0) return null;
@@ -217,10 +222,7 @@ export function AssociatesMarquee({ logos }: { logos: AssociateLogo[] }) {
       ref={viewportRef}
       className="associate-marquee overflow-hidden"
       onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onPointerLeave={endDrag}
+      onDragStart={(e) => e.preventDefault()}
     >
       <div ref={trackRef} className="associate-track">
         {[...logos, ...logos].map((logo, i) => (

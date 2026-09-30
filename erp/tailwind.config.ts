@@ -18,11 +18,11 @@ export default {
       // globally — `.site-font` (index.css) puts Montserrat on the public site,
       // and `font-display` / `font-malayalam` are opt-in per element.
       fontFamily: {
-        display: ['"Clash Display"', "Montserrat", "system-ui", "sans-serif"],
-        site: ["Montserrat", "system-ui", "sans-serif"],
+        display: ['"Clash Display"', "Montserrat", '"Anek Malayalam"', "system-ui", "sans-serif"],
+        site: ["Montserrat", '"Anek Malayalam"', "system-ui", "sans-serif"],
         malayalam: ['"Anek Malayalam"', "Montserrat", "system-ui", "sans-serif"],
         // News/blog card body copy only — see ContentRail.
-        "noto-malayalam": ['"Noto Sans Malayalam"', "Montserrat", "system-ui", "sans-serif"],
+        "noto-malayalam": ['"Anek Malayalam"', "Montserrat", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

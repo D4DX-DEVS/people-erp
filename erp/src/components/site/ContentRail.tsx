@@ -1,4 +1,6 @@
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { SectionHeading } from "@/components/site/SectionHeading";
+import type { HomeHeadingStyle } from "@/types/siteHome";
 import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface ContentRailItem {
@@ -28,14 +30,14 @@ export interface ContentRailItem {
  */
 export function ContentRail({
   heading,
-  headingStyle,
+  headingColors,
   items,
   onOpen,
   aside,
 }: {
   heading: string;
   /** Admin-chosen heading colour; unset keeps the page's default text colour. */
-  headingStyle?: CSSProperties;
+  headingColors?: HomeHeadingStyle;
   items: ContentRailItem[];
   onOpen: (id: string) => void;
   aside?: ReactNode;
@@ -51,9 +53,10 @@ export function ContentRail({
 
   return (
     <>
-      <div className="mb-6 flex items-start justify-between gap-4 sm:mb-8">
-        <h2 className="max-w-[19ch] text-[28px] sm:text-[34px] lg:text-[38px]" style={headingStyle}>{heading}</h2>
-        <div className="flex shrink-0 items-center gap-2 pt-1">
+      <div className="relative">
+      <SectionHeading title={heading} colors={headingColors} />
+      <div className="absolute right-0 top-0 flex items-start justify-end gap-4">
+        <div className="flex shrink-0 items-center gap-2">
           {aside ?? (
             <>
               <button
@@ -75,6 +78,7 @@ export function ContentRail({
             </>
           )}
         </div>
+      </div>
       </div>
 
       {/* items-start: cards size to their own content instead of the default

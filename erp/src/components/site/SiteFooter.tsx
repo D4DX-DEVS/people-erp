@@ -214,11 +214,11 @@ export function SiteFooter({ settings }: SiteFooterProps) {
           drawer, and the tab bar already sits right underneath it. */}
       <div
         data-site-footer
-        className="border-t border-border/60 bg-background px-4 py-4 text-center text-muted-foreground lg:hidden"
+        className="site-footer-panel px-4 py-4 text-center text-[#B3B3B3] lg:hidden"
       >
         <p className="text-[11px] leading-relaxed [overflow-wrap:anywhere]">{copyright}</p>
         <p className="mt-1 text-[11px] leading-relaxed">
-          {poweredBy("text-foreground hover:text-primary")}
+          {poweredBy("text-white hover:opacity-80")}
         </p>
       </div>
     </>

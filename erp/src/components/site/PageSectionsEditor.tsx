@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { sitePages } from '@/lib/api';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 import { IconPicker } from '@/components/site/IconPicker';
 import { ColorPicker } from '@/components/site/ColorPicker';
 import { mapEmbedSrc, isUnframeableMapLink } from '@/lib/mapEmbed';
@@ -388,8 +389,7 @@ function SectionCard({
           {section.type === 'richtext' && (
             <div>
               <Label className="text-xs">Content</Label>
-              <Textarea rows={8} disabled={disabled} value={section.content || ''} onChange={(e) => onUpdate({ content: e.target.value })} />
-              <p className="text-xs text-muted-foreground mt-1">Plain text; blank line = new paragraph</p>
+              <RichTextEditor minHeight={200} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
             </div>
           )}
 
@@ -397,7 +397,7 @@ function SectionCard({
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">Content</Label>
-                <Textarea rows={6} disabled={disabled} value={section.content || ''} onChange={(e) => onUpdate({ content: e.target.value })} />
+                <RichTextEditor minHeight={160} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
               </div>
               <div>
                 <Label className="text-xs">Image</Label>

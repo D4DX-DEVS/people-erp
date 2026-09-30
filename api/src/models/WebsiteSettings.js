@@ -142,6 +142,23 @@ const websiteSettingsSchema = new mongoose.Schema({
     qrImageKey: { type: String, default: '' }
   },
 
+  // Welcome popup shown when the site opens. Every field is optional.
+  popup: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: '', maxlength: 200 },
+    subtitle: { type: String, default: '', maxlength: 300 },
+    description: { type: String, default: '', maxlength: 2000 },
+    content: { type: String, default: '', maxlength: 20000 },
+    backgroundColor: { type: String, default: '', maxlength: 32 },
+    textColor: { type: String, default: '', maxlength: 32 },
+    buttonText: { type: String, default: '', maxlength: 60 },
+    buttonLink: { type: String, default: '', maxlength: 500 },
+    buttonColor: { type: String, default: '', maxlength: 32 },
+    buttonTextColor: { type: String, default: '', maxlength: 32 },
+    imageUrl: { type: String, default: '' },
+    imageKey: { type: String, default: '' }
+  },
+
   // SEO metadata for the public site
   seo: {
     title: { type: String, default: '' },

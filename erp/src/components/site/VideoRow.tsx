@@ -1,3 +1,7 @@
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
+import { SectionHeading } from "@/components/site/SectionHeading";
+import type { HomeHeadingStyle } from "@/types/siteHome";
 import type { CSSProperties } from "react";
 import { Play, Share2, Youtube } from "lucide-react";
 import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
@@ -26,7 +30,7 @@ export function VideoRow({
   videos,
   channelName,
   heading = "Videos",
-  headingStyle,
+  headingColors,
   onPlay,
   onExplore,
 }: {
@@ -34,7 +38,7 @@ export function VideoRow({
   channelName: string;
   heading?: string;
   /** Admin-chosen heading colour; unset keeps the page's default text colour. */
-  headingStyle?: CSSProperties;
+  headingColors?: HomeHeadingStyle;
   onPlay: (url: string) => void;
   onExplore: () => void;
 }) {
@@ -44,20 +48,7 @@ export function VideoRow({
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between gap-4 sm:mb-8">
-        <h2 className="text-[28px] sm:text-[34px] lg:text-[38px]" style={headingStyle}>{heading}</h2>
-        <button
-          type="button"
-          onClick={onExplore}
-          className="group inline-flex shrink-0 items-center gap-1.5 text-[15px] font-medium text-foreground transition-colors hover:text-primary"
-        >
-          Explore More
-          <span aria-hidden className="inline-flex">
-            <Play className="h-3 w-3 fill-current" />
-            <Play className="-ml-1.5 h-3 w-3 fill-current" />
-          </span>
-        </button>
-      </div>
+      <SectionHeading title={heading} colors={headingColors} />
 
       <div className="grid gap-5 sm:grid-cols-2">
         {items.map((v) => (
@@ -111,6 +102,11 @@ export function VideoRow({
             </span>
           </button>
         ))}
+      </div>
+      <div className="mt-6 text-center">
+        <Button variant="outline" className="rounded-full" onClick={onExplore}>
+          View all videos <ArrowRight className="ml-1 h-4 w-4" />
+        </Button>
       </div>
     </>
   );

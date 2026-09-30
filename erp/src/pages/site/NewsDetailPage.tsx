@@ -1,3 +1,4 @@
+import { RichContent } from "@/components/site/RichContent";
 import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
@@ -80,11 +81,7 @@ export default function NewsDetailPage() {
                 {item.imageUrl && (
                   <img src={item.imageUrl} alt={item.title} className="mt-6 w-full rounded-3xl object-cover" />
                 )}
-                <div className="prose prose-neutral mt-8 max-w-none space-y-4 whitespace-pre-line leading-relaxed text-foreground/90">
-                  {(item.description || "").split(/\n\n+/).map((para: string, i: number) => (
-                    <p key={i}>{para}</p>
-                  ))}
-                </div>
+                <RichContent content={item.description} className="mt-8 max-w-none text-foreground/90" />
               </article>
             )}
           </div>

@@ -1,3 +1,4 @@
+import { RichContent } from "@/components/site/RichContent";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -9,6 +10,7 @@ import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { MobileBottomNav } from "@/components/site/MobileBottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
+import { ContentRail } from "@/components/site/ContentRail";
 import { blogs, website } from "@/lib/api";
 
 export default function BlogDetailPage() {
@@ -17,6 +19,7 @@ export default function BlogDetailPage() {
   const [blog, setBlog] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [related, setRelated] = useState<any[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -29,6 +32,13 @@ export default function BlogDetailPage() {
         if (!mounted) return;
         setBlog(blogRes?.data || null);
         setSettings(homeRes?.data?.settings || null);
+        const cur = blogRes?.data;
+        const listRes: any = await blogs.getPublic({ limit: "24" }).catch(() => null);
+        if (!mounted) return;
+        const others: any[] = (listRes?.data || []).filter((b: any) => b.slug !== slug);
+        // Same-category posts first, then the rest by recency.
+        others.sort((a, b) => Number(b.category === cur?.category) - Number(a.category === cur?.category));
+        setRelated(others.slice(0, 8));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -40,7 +50,7 @@ export default function BlogDetailPage() {
     <div className="min-h-screen bg-background">
       <SiteHeader donateLink={settings?.donation?.paymentLink} />
       <SiteBreadcrumbs items={[{ label: "Blog", href: "/blogs" }, { label: blog?.title || "Article" }]} />
-      <PageBody className="mx-auto max-w-3xl">
+      <PageBody>
         <Button variant="ghost" className="mb-4" onClick={() => navigate("/")}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -56,12 +66,28 @@ export default function BlogDetailPage() {
               {blog.author}{blog.publishDate ? ` · ${new Date(blog.publishDate).toLocaleDateString()}` : ""}
             </div>
             {blog.coverImageUrl && <img src={blog.coverImageUrl} alt={blog.title} className="mt-6 w-full rounded-2xl object-cover" />}
-            <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-wrap leading-relaxed text-foreground/90">
-              {blog.content}
-            </div>
+            <RichContent content={blog.content} className="mt-8 max-w-none text-foreground/90" />
           </>
         )}
       </PageBody>
+      {related.length > 0 && (
+        <section className="bg-[#faf7f2] py-4 sm:py-6">
+          <div className="container mx-auto px-4">
+            <ContentRail
+              heading="Related Blogs"
+              onOpen={(s) => navigate(`/blog/${s}`)}
+              items={related.map((b) => ({
+                _id: b.slug,
+                title: b.title,
+                imageUrl: b.coverImageUrl,
+                eyebrow: (b.category || "general").replace(/_/g, " "),
+                meta: b.publishDate ? new Date(b.publishDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "",
+                byline: b.author ? `By ${b.author}` : undefined,
+              }))}
+            />
+          </div>
+        </section>
+      )}
       <SiteFooter settings={settings} />
       <MobileBottomNav />
       <BackToTop />

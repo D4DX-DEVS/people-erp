@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import VoiceTextarea from '@/components/ui/VoiceTextarea';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -65,10 +66,21 @@ export default function WebsiteBlogs() {
     } finally { setLoading(false); }
   };
 
-  const openModal = (it?: BlogItem) => {
+  const openModal = async (listed?: BlogItem) => {
+    let it = listed;
+    if (listed) {
+      // The list omits each post's body, so fetch the full record before editing.
+      try {
+        const res: any = await blogsApi.getById(listed._id);
+        if (res.success && res.data) it = res.data;
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message || 'Failed to load blog content', variant: 'destructive' });
+        return;
+      }
+    }
     if (it) {
       setEditing(it);
-      setForm({ title: it.title, author: it.author || '', excerpt: it.excerpt || '', content: it.content, category: it.category || 'general', tags: (it.tags || []).join(', '), featured: it.featured, status: it.status });
+      setForm({ title: it.title, author: it.author || '', excerpt: it.excerpt || '', content: it.content || '', category: it.category || 'general', tags: (it.tags || []).join(', '), featured: it.featured, status: it.status });
       setCoverPreview(it.coverImageUrl || null);
     } else {
       setEditing(null);
@@ -178,7 +190,7 @@ export default function WebsiteBlogs() {
               <div><Label>Category</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
             </div>
             <div><Label>Excerpt</Label><VoiceTextarea rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} /></div>
-            <div><Label>Content *</Label><VoiceTextarea rows={10} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
+            <div><Label>Content *</Label><RichTextEditor minHeight={240} value={form.content} onChange={(html) => setForm({ ...form, content: html })} /></div>
             <div><Label>Tags (comma-separated)</Label><Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
             <div><Label>Cover Image</Label><Input type="file" accept="image/*" onChange={onCover} />
               <p className="text-xs text-muted-foreground mt-1">1200 × 675 px (16:9). Center-cropped to a band on blog cards, shown in full on the post page. Max 5MB.</p>

@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { RichContent } from "@/components/site/RichContent";
 import { ProjectCard } from "@/components/site/ProjectCard";
 import { ContactSection } from "@/components/site/ContactSection";
 import { getYouTubeId, videoThumb } from "@/hooks/useSiteData";
@@ -53,7 +54,7 @@ function SectionHeading({
   if (!title && !subtitle && !icon) return null;
   const Icon = icon ? resolveIcon(icon) : null;
   return (
-    <div className="mx-auto mb-10 max-w-2xl text-center">
+    <div className="mx-auto mb-6 max-w-2xl text-center">
       {Icon && (
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={badge}>
           <Icon className="h-7 w-7" />
@@ -98,30 +99,6 @@ export function PageSections({ sections }: { sections?: PageSection[] }) {
   );
 }
 
-/**
- * Split a plain-text body into paragraphs on blank lines.
- *
- * `content` is rendered as text, never as markup — so a body that arrives
- * carrying HTML (pasted from a word processor, or seeded that way) would
- * otherwise show its tags verbatim. Block tags become paragraph breaks and the
- * rest are dropped; the text is still escaped by React on the way out, so this
- * strips markup rather than trusting it.
- */
-function toParagraphs(content: string): string[] {
-  let text = content;
-  if (/<\/?[a-z][^>]*>/i.test(text)) {
-    text = text
-      .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">");
-  }
-  return text.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
-}
-
 export function SectionBlock({
   section,
   tightBottom = false,
@@ -158,9 +135,7 @@ export function SectionBlock({
       if (!section.content?.trim()) return null;
       body = (
         <div className="mx-auto max-w-3xl">
-          {toParagraphs(section.content).map((para, idx) => (
-            <p key={idx} className={cn("mb-4 whitespace-pre-line leading-relaxed", !textStyle && "text-muted-foreground")} style={textStyle}>{para}</p>
-          ))}
+          <RichContent content={section.content} className={cn(!textStyle && "text-muted-foreground")} style={textStyle} />
         </div>
       );
       break;
@@ -181,9 +156,7 @@ export function SectionBlock({
             )}
           </div>
           <div className={imageFirst ? "lg:order-2" : "lg:order-1"}>
-            {toParagraphs(section.content || "").map((para, idx) => (
-              <p key={idx} className={cn("mb-4 whitespace-pre-line leading-relaxed", !textStyle && "text-muted-foreground")} style={textStyle}>{para}</p>
-            ))}
+            <RichContent content={section.content} className={cn(!textStyle && "text-muted-foreground")} style={textStyle} />
           </div>
         </div>
       );
@@ -432,7 +405,7 @@ export function SectionBlock({
     // long unbroken string instead of forcing the layout to scroll sideways.
     <section
       className={cn(
-        "py-8 sm:py-14 md:py-20 [overflow-wrap:anywhere]",
+        "py-6 sm:py-8 md:py-10 [overflow-wrap:anywhere]",
         tightBottom && "pb-2 sm:pb-3 md:pb-4",
         bgClass,
         darkCustom && "text-white",

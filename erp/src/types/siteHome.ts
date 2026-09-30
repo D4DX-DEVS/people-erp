@@ -7,7 +7,6 @@ export type HomeSectionKey =
   | "projects"
   | "schemes"
   | "calculator"
-  | "news"
   | "gallery"
   | "videos"
   | "blogs"
@@ -68,7 +67,7 @@ export const HOME_SECTIONS: HomeSectionDef[] = [
   },
   {
     key: "projects", label: "Projects", description: "The latest six projects.",
-    heading: { eyebrow: "Zakat in Action", title: "Our Projects", subtitle: "Real support for real lives. Explore our key initiatives." },
+    heading: { title: "Our Projects", subtitle: "Real support for real lives. Explore our key initiatives." },
     accent: true, divider: true,
   },
   {
@@ -83,10 +82,6 @@ export const HOME_SECTIONS: HomeSectionDef[] = [
     key: "calculator", label: "Zakat calculator", description: "An interactive Zakat calculator, always available.",
     heading: { eyebrow: "Zakat Calculator", title: "Calculate Your Zakat", subtitle: "Know your Zakat obligation in just a few simple steps." },
     accent: true, divider: true,
-  },
-  {
-    key: "news", label: "News & events", description: "The latest three published news items.",
-    heading: { title: "What we’ve been up to lately" },
   },
   {
     key: "gallery", label: "Gallery", description: "Photo album covers.",

@@ -56,6 +56,13 @@ router.put('/settings',
   websiteController.updateSettings
 );
 
+router.put('/settings/popup-image',
+  authenticate, crossFranchiseResolver,
+  hasAnyPermission(['website.write', 'settings.write']),
+  uploadSingleMemory('image'),
+  websiteController.uploadPopupImage
+);
+
 router.put('/settings/about-image',
   authenticate, crossFranchiseResolver,
   hasAnyPermission(['website.write', 'settings.write']),
