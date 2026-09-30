@@ -580,14 +580,14 @@ export default function CommitteeApproval() {
               <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious 
-                    onClick={() => setPagination({...pagination, page: Math.max(1, pagination.page - 1)})}
+                    onClick={() => filterHook.setCurrentPage(Math.max(1, pagination.page - 1))}
                     className={pagination.page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                   />
                 </PaginationItem>
                 {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
                   <PaginationItem key={page}>
                     <PaginationLink
-                      onClick={() => setPagination({...pagination, page})}
+                      onClick={() => filterHook.setCurrentPage(page)}
                       isActive={pagination.page === page}
                       className="cursor-pointer"
                     >
@@ -597,7 +597,7 @@ export default function CommitteeApproval() {
                 ))}
                 <PaginationItem>
                   <PaginationNext
-                    onClick={() => setPagination({...pagination, page: Math.min(pagination.pages, pagination.page + 1)})}
+                    onClick={() => filterHook.setCurrentPage(Math.min(pagination.pages, pagination.page + 1))}
                     className={pagination.page === pagination.pages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                   />
                 </PaginationItem>

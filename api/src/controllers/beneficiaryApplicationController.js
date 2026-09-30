@@ -464,6 +464,7 @@ class BeneficiaryApplicationController {
           existingApplication.requestedAmount = requestedAmount;
           existingApplication.documents = documents || [];
           existingApplication.status = 'pending';
+          existingApplication.submittedAt = new Date();
           existingApplication.draftMetadata = undefined;
           
           // Get application stages from scheme
@@ -569,7 +570,7 @@ class BeneficiaryApplicationController {
               scheme: existingApplication.scheme,
               status: existingApplication.status,
               requestedAmount: existingApplication.requestedAmount,
-              submittedAt: existingApplication.createdAt,
+              submittedAt: existingApplication.submittedAt || existingApplication.createdAt,
               convertedFromDraft: true
             }
           }, existingApplication.eligibilityScore?.autoRejected 
@@ -604,6 +605,7 @@ class BeneficiaryApplicationController {
       // Create application with all required fields INCLUDING formData
       const application = new Application({
         applicationNumber: applicationNumber,
+        submittedAt: new Date(),
         beneficiary: beneficiary._id,
         scheme: schemeId,
         franchise: req.franchiseId,
@@ -782,7 +784,7 @@ class BeneficiaryApplicationController {
           scheme: application.scheme,
           status: application.status,
           requestedAmount: application.requestedAmount,
-          submittedAt: application.createdAt,
+          submittedAt: application.submittedAt || application.createdAt,
           eligibilityScore: application.eligibilityScore?.totalPoints > 0 ? {
             percentage: application.eligibilityScore.percentage,
             meetsThreshold: application.eligibilityScore.meetsThreshold,
@@ -856,7 +858,7 @@ class BeneficiaryApplicationController {
             maxAmount: scheme.benefits?.amount || 0
           },
           status: app.status,
-          submittedAt: app.createdAt,
+          submittedAt: app.submittedAt || app.createdAt,
           requestedAmount: app.requestedAmount,
           location: {
             district: app.district?.name || null,
@@ -937,7 +939,7 @@ class BeneficiaryApplicationController {
         .populate('district', 'name')
         .populate('area', 'name')
         .populate('unit', 'name')
-        .select('applicationNumber scheme beneficiary status createdAt reviewedAt approvedAt requestedAmount approvedAmount district area unit interview');
+        .select('applicationNumber scheme beneficiary status createdAt submittedAt reviewedAt approvedAt requestedAmount approvedAmount district area unit interview');
 
       if (!application) {
         return ResponseHelper.error(res, 'Application not found', 404);
@@ -959,7 +961,7 @@ class BeneficiaryApplicationController {
           category: application.scheme.category
         },
         status: application.status,
-        submittedAt: application.createdAt,
+        submittedAt: application.submittedAt || application.createdAt,
         reviewedAt: application.reviewedAt,
         approvedAt: application.approvedAt,
         requestedAmount: application.requestedAmount,

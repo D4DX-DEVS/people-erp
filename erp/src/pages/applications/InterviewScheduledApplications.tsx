@@ -32,6 +32,7 @@ interface Application {
   area: { _id: string; name: string; code: string; };
   unit: { _id: string; name: string; code: string; };
   createdAt: string;
+  submittedAt?: string;
   interview?: { scheduledDate?: string; scheduledTime?: string; type?: string; location?: string; };
   eligibilityScore?: {
     totalPoints: number;
@@ -438,7 +439,7 @@ export default function InterviewScheduledApplications() {
                           <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-500 border-orange-500/20">Rescheduled</Badge>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground">{new Date(app.createdAt).toLocaleDateString()}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(app.submittedAt || app.createdAt).toLocaleDateString()}</div>
                       <div className="text-sm font-medium mt-1">₹{app.requestedAmount.toLocaleString()}</div>
                     </TableCell>
                     <TableCell>{getApplicationDisplay(app).schemeName}</TableCell>

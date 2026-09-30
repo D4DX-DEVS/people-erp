@@ -30,6 +30,7 @@ interface Application {
   area: { _id: string; name: string; code: string; };
   unit: { _id: string; name: string; code: string; };
   createdAt: string;
+  submittedAt?: string;
   eligibilityScore?: {
     totalPoints: number;
     maxPoints: number;
@@ -241,7 +242,7 @@ export default function RejectedApplications() {
                         <div><span className="font-medium">Project:</span> {getApplicationDisplay(app).projectName}</div>
                         <div><span className="font-medium">District:</span> {getApplicationDisplay(app).districtName}</div>
                         <div><span className="font-medium">Area:</span> {getApplicationDisplay(app).areaName}</div>
-                        <div><span className="font-medium">Applied:</span> {new Date(app.createdAt).toLocaleDateString()}</div>
+                        <div><span className="font-medium">Applied:</span> {new Date(app.submittedAt || app.createdAt).toLocaleDateString()}</div>
                         <div><span className="font-medium">Phone:</span> {getApplicationDisplay(app).beneficiaryPhone}</div>
                       </div>
                     </div>
@@ -281,7 +282,7 @@ export default function RejectedApplications() {
                     </TableCell>
                     <TableCell>
                       <div className="font-mono text-sm">{app.applicationNumber}</div>
-                      <div className="text-xs text-muted-foreground">{new Date(app.createdAt).toLocaleDateString()}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(app.submittedAt || app.createdAt).toLocaleDateString()}</div>
                       <div className="text-sm font-medium mt-1">₹{app.requestedAmount.toLocaleString()}</div>
                     </TableCell>
                     <TableCell>{getApplicationDisplay(app).schemeName}</TableCell>

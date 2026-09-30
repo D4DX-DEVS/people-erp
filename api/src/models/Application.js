@@ -64,6 +64,11 @@ const applicationSchema = new mongoose.Schema({
     default: {}
   },
 
+  // When the beneficiary finally clicked Submit (not when the draft/application was started)
+  submittedAt: {
+    type: Date
+  },
+
   // Draft metadata
   draftMetadata: {
     lastSavedAt: { type: Date },
@@ -679,6 +684,7 @@ applicationSchema.index({ project: 1 });
 applicationSchema.index({ status: 1 });
 applicationSchema.index({ state: 1, district: 1, area: 1, unit: 1 });
 applicationSchema.index({ createdAt: -1 });
+applicationSchema.index({ submittedAt: -1 });
 applicationSchema.index({ isRecurring: 1, 'recurringConfig.status': 1 });
 applicationSchema.index({ 'recurringConfig.nextPaymentDate': 1 });
 applicationSchema.index({ renewalStatus: 1, expiryDate: 1 });

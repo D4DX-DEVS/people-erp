@@ -80,6 +80,7 @@ interface Application {
     code: string;
   };
   createdAt: string;
+  submittedAt?: string;
   updatedAt: string;
   createdBy: {
     _id: string;
@@ -900,7 +901,7 @@ export default function Applications() {
                             <span className="font-medium">Area:</span> {display.areaName}
                           </div>
                           <div>
-                            <span className="font-medium">Applied:</span> {new Date(app.createdAt).toLocaleDateString()}
+                            <span className="font-medium">Applied:</span> {new Date(app.submittedAt || app.createdAt).toLocaleDateString()}
                           </div>
                           {app.expiryDate && (
                             <div>

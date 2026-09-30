@@ -127,16 +127,16 @@ const getApplications = async (req, res) => {
       Object.assign(filter, await buildFormDataFilter(scheme, formFilters, buildFranchiseReadFilter(req)));
     }
 
-    // Date range filter (must match the same createdAt window used by the
+    // Date range filter (must match the same submittedAt window used by the
     // consolidation stats endpoint, otherwise drill-down counts diverge from
     // the stat cards)
     if (startDate || endDate) {
-      filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      filter.submittedAt = {};
+      if (startDate) filter.submittedAt.$gte = new Date(startDate);
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = end;
+        filter.submittedAt.$lte = end;
       }
     }
 
@@ -172,7 +172,7 @@ const getApplications = async (req, res) => {
       .populate('createdBy', 'name')
       .populate('reviewedBy', 'name')
       .populate('approvedBy', 'name')
-      .sort({ createdAt: -1 })
+      .sort({ submittedAt: -1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -2811,7 +2811,7 @@ const getApplicationConsolidation = async (req, res) => {
     }
 
     const baseFilter = { ...franchiseFilter };
-    if (Object.keys(dateFilter).length > 0) baseFilter.createdAt = dateFilter;
+    if (Object.keys(dateFilter).length > 0) baseFilter.submittedAt = dateFilter;
 
     // Location scoping
     if (!isSuperAdmin && role !== 'state_admin') {

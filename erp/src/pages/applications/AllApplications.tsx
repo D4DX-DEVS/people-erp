@@ -44,6 +44,7 @@ interface Application {
   area?: { _id: string; name?: string | null; code: string; } | null;
   unit?: { _id: string; name?: string | null; code: string; } | null;
   createdAt: string;
+  submittedAt?: string;
   updatedAt: string;
   interview?: any;
   eligibilityScore?: {
@@ -380,7 +381,7 @@ export default function AllApplications() {
                           <div><span className="font-medium">Project:</span> {display.projectName}</div>
                           <div><span className="font-medium">District:</span> {display.districtName}</div>
                           <div><span className="font-medium">Area:</span> {display.areaName}</div>
-                          <div><span className="font-medium">Applied:</span> {new Date(app.createdAt).toLocaleDateString()}</div>
+                          <div><span className="font-medium">Applied:</span> {new Date(app.submittedAt || app.createdAt).toLocaleDateString()}</div>
                           <div><span className="font-medium">Phone:</span> {display.beneficiaryPhone}</div>
                         </div>
                       </div>
@@ -455,7 +456,7 @@ export default function AllApplications() {
                       </TableCell>
                       <TableCell>
                         <div className="font-mono text-sm">{app.applicationNumber}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(app.createdAt).toLocaleDateString()}</div>
+                        <div className="text-xs text-muted-foreground">{new Date(app.submittedAt || app.createdAt).toLocaleDateString()}</div>
                         <div className="text-sm font-medium mt-1">₹{app.requestedAmount.toLocaleString()}</div>
                       </TableCell>
                       <TableCell>{display.schemeName}</TableCell>
