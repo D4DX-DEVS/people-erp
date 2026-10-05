@@ -3,10 +3,10 @@ const ProjectPage = require('../models/ProjectPage');
 const { deleteFromSpaces } = require('../utils/s3Upload');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
 const {
-  slugify, hydrateSections, collectImageKeys, PUBLIC_PROJECT_STATUSES
+  slugify, hydrateSections, collectImageKeys, PUBLIC_PROJECT_STATUSES, PUBLIC_PROJECT_SORT
 } = require('../utils/siteContent');
 
-const PROJECT_ADMIN_FIELDS = 'name code description category status startDate endDate';
+const PROJECT_ADMIN_FIELDS = 'name code description category status startDate endDate displayOrder';
 const OVERVIEW_BACKGROUNDS = ['default', 'muted', 'primary', 'tint', 'custom'];
 
 /** Ensure the slug is unique within the franchise scope, appending -2, -3… if needed. */
@@ -126,7 +126,7 @@ exports.getAll = async (req, res) => {
   try {
     const scope = buildFranchiseReadFilter(req);
     const [projects, pages] = await Promise.all([
-      Project.find(scope).sort({ createdAt: -1 }).select(PROJECT_ADMIN_FIELDS).lean(),
+      Project.find(scope).sort(PUBLIC_PROJECT_SORT).select(PROJECT_ADMIN_FIELDS).lean(),
       ProjectPage.find(scope).select('project slug status coverImageUrl updatedAt').lean()
     ]);
     const byProject = new Map(pages.map(pg => [String(pg.project), pg]));
@@ -138,6 +138,49 @@ exports.getAll = async (req, res) => {
   } catch (error) {
     console.error('Get project pages error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch project pages', error: error.message });
+  }
+};
+
+/**
+ * Admin: set the order projects appear in on the public site (home rail,
+ * projects hub, project feeds). Position 1 is shown first.
+ * PUT /api/project-pages/order   body: { order: [projectId, ...] }
+ *
+ * The sent ids are re-sequenced among the positions they already hold; a
+ * project that is not in the list keeps its place. So sending every project is
+ * a full re-order, while a client that only sees some of them (or loaded the
+ * list before a project was added) cannot shove the ones it doesn't know about
+ * out of position. A position is written for every project in scope, which
+ * keeps the ranking gapless and never leaves a project unplaced.
+ */
+exports.reorder = async (req, res) => {
+  try {
+    const scope = buildFranchiseReadFilter(req);
+    const requested = Array.isArray(req.body.order) ? req.body.order.map(String) : [];
+
+    const projects = await Project.find(scope).sort(PUBLIC_PROJECT_SORT).select('_id').lean();
+    const current = projects.map(p => String(p._id));
+    const inScope = new Set(current);
+    const sequence = [...new Set(requested)].filter(id => inScope.has(id));
+    const moving = new Set(sequence);
+
+    // Walk the current order: every slot held by a moving project takes the next
+    // id from the requested sequence; every other slot is left as it was.
+    let next = 0;
+    const ids = current.map(id => (moving.has(id) ? sequence[next++] : id));
+
+    if (ids.length) {
+      // timestamps: false — re-ranking is not an edit of the project itself.
+      await Project.bulkWrite(
+        ids.map((id, i) => ({ updateOne: { filter: { _id: id, ...scope }, update: { $set: { displayOrder: i + 1 } } } })),
+        { timestamps: false }
+      );
+    }
+
+    res.json({ success: true, data: ids, message: 'Project order saved' });
+  } catch (error) {
+    console.error('Reorder projects error:', error);
+    res.status(500).json({ success: false, message: 'Failed to save project order', error: error.message });
   }
 };
 

@@ -23,7 +23,7 @@ export default function MediaListPage() {
 
   return (
     <SiteShell>
-      <PageHero title="Media Coverage" subtitle="Press mentions and news features." />
+      <PageHero pageKey="media" />
       <SiteBreadcrumbs items={[{ label: "Media Coverage" }]} />
       <PageBody>
         {loading ? (

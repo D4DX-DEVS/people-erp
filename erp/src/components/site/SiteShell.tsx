@@ -11,6 +11,8 @@ import { useConfig } from "@/contexts/ConfigContext";
 import { usesFloatingZakatButton } from "@/config/orgFeatures";
 import { isHomeSectionVisible } from "@/types/siteHome";
 import { cn } from "@/lib/utils";
+import { HERO_PAGES, heroTextCss, type HeroPageKey } from "@/lib/heroText";
+import type { HeroTextStyle } from "@/types/sitePage";
 
 interface SiteShellProps {
   children?: ReactNode;
@@ -89,19 +91,66 @@ export function PageBody({
   );
 }
 
-/** Page hero band shared by the public inner pages. */
-export function PageHero({ title, subtitle, imageUrl }: { title: string; subtitle?: string; imageUrl?: string }) {
+/**
+ * Page hero band shared by the public inner pages.
+ *
+ * Two ways to drive it:
+ *  - `pageKey` for the built-in pages (Videos, Gallery, …): the wording defaults
+ *    to HERO_PAGES, and whatever the admin saved under Website Settings → Page
+ *    Heroes — copy, formatting, hidden — wins over it.
+ *  - `title` / `subtitle` / `titleStyle` / `subtitleStyle` directly, for pages
+ *    that carry their own hero (project and scheme detail pages).
+ *
+ * A hidden line is dropped from the band but its text is kept as screen-reader
+ * text, so the page never loses its <h1>. With both lines hidden and no image
+ * there is nothing left to draw, so the band itself goes.
+ */
+export function PageHero({
+  pageKey, title, subtitle, imageUrl, titleStyle, subtitleStyle,
+}: {
+  pageKey?: HeroPageKey;
+  title?: string;
+  subtitle?: string;
+  imageUrl?: string;
+  titleStyle?: HeroTextStyle;
+  subtitleStyle?: HeroTextStyle;
+}) {
+  const { data } = useSiteData();
+  const builtIn = pageKey ? HERO_PAGES.find((p) => p.key === pageKey) : undefined;
+  const saved = pageKey ? data?.settings?.pageHeroes?.[pageKey] : undefined;
+
+  const heading = saved?.title?.trim() || title || builtIn?.title || "";
+  const lead = saved?.subtitle?.trim() || subtitle || builtIn?.subtitle;
+  const titleFormat = pageKey ? saved?.titleStyle : titleStyle;
+  const leadFormat = pageKey ? saved?.subtitleStyle : subtitleStyle;
+
+  const showTitle = !titleFormat?.hidden;
+  const showLead = !!lead && !leadFormat?.hidden;
+
+  if (!showTitle && !showLead && !imageUrl) return <h1 className="sr-only">{heading}</h1>;
+
   return (
     <section className="relative overflow-hidden bg-gradient-hero py-8 text-center text-primary-foreground [overflow-wrap:anywhere] sm:py-16 md:py-24">
       {imageUrl && (
         <>
-          <img src={imageUrl} alt={title} className="absolute inset-0 h-full w-full object-cover" />
+          <img src={imageUrl} alt={showTitle ? heading : ""} className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-black/50" />
         </>
       )}
       <div className="container relative mx-auto px-4">
-        <h1 className="mx-auto max-w-3xl text-2xl font-extrabold sm:text-3xl md:text-5xl">{title}</h1>
-        {subtitle && <p className="mx-auto mt-3 max-w-2xl text-base text-primary-foreground/90 sm:mt-4 sm:text-lg">{subtitle}</p>}
+        {showTitle ? (
+          <h1 className="mx-auto max-w-3xl text-2xl font-extrabold sm:text-3xl md:text-5xl" style={heroTextCss(titleFormat, "title")}>{heading}</h1>
+        ) : (
+          <h1 className="sr-only">{heading}</h1>
+        )}
+        {showLead && (
+          <p
+            className={cn("mx-auto max-w-2xl text-base text-primary-foreground/90 sm:text-lg", showTitle ? "mt-3 sm:mt-4" : "mt-0")}
+            style={heroTextCss(leadFormat, "subtitle")}
+          >
+            {lead}
+          </p>
+        )}
       </div>
     </section>
   );

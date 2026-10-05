@@ -187,6 +187,8 @@ export default function SchemeDetailPage() {
       <PageHero
         title={page.hero?.title || name}
         subtitle={page.hero?.subtitle || page.summary}
+        titleStyle={page.hero?.titleStyle}
+        subtitleStyle={page.hero?.subtitleStyle}
         imageUrl={page.hero?.imageUrl || page.coverImageUrl || scheme.imageUrl || theme.image}
       />
       <SiteBreadcrumbs items={[{ label: "Schemes", href: "/schemes" }, { label: page.hero?.title || name }]} />

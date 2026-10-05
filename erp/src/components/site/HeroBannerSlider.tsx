@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { heroTextCss } from "@/lib/heroText";
+import type { HeroTextStyle } from "@/types/sitePage";
 
 export interface HeroBanner {
   _id: string;
@@ -16,6 +18,9 @@ interface HeroBannerSliderProps {
   hero?: {
     title?: string;
     subtitle?: string;
+    /** Formatting for each line, set under Website Settings → Hero. `hidden` removes it from every slide. */
+    titleStyle?: HeroTextStyle;
+    subtitleStyle?: HeroTextStyle;
     ctaText?: string;
     ctaLink?: string;
     secondaryCtaText?: string;
@@ -128,12 +133,22 @@ export function HeroBannerSlider({ banners, hero }: HeroBannerSliderProps) {
           <div className="container mx-auto flex h-full max-w-6xl items-center px-4">
             <div key={index} className="max-w-xl space-y-4 text-white">
               {(banners[index]?.title || hero?.title) && (
-                <h1 className="animate-in fade-in slide-in-from-bottom-4 break-words text-3xl font-extrabold leading-tight drop-shadow-sm duration-700 sm:text-4xl md:text-5xl">
-                  {banners[index]?.title || hero?.title}
-                </h1>
+                hero?.titleStyle?.hidden ? (
+                  <h1 className="sr-only">{banners[index]?.title || hero?.title}</h1>
+                ) : (
+                  <h1
+                    className="animate-in fade-in slide-in-from-bottom-4 break-words text-3xl font-extrabold leading-tight drop-shadow-sm duration-700 sm:text-4xl md:text-5xl"
+                    style={heroTextCss(hero?.titleStyle, "title")}
+                  >
+                    {banners[index]?.title || hero?.title}
+                  </h1>
+                )
               )}
-              {(banners[index]?.description || hero?.subtitle) && (
-                <p className="animate-in fade-in slide-in-from-bottom-4 max-w-lg text-sm leading-relaxed text-white/85 duration-700 sm:text-base md:text-lg">
+              {(banners[index]?.description || hero?.subtitle) && !hero?.subtitleStyle?.hidden && (
+                <p
+                  className="animate-in fade-in slide-in-from-bottom-4 max-w-lg text-sm leading-relaxed text-white/85 duration-700 sm:text-base md:text-lg"
+                  style={heroTextCss(hero?.subtitleStyle, "subtitle")}
+                >
                   {banners[index]?.description || hero?.subtitle}
                 </p>
               )}

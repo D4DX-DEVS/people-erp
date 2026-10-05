@@ -41,7 +41,7 @@ export default function DownloadsPage() {
 
   return (
     <SiteShell>
-      <PageHero title="Downloads" subtitle="Brochures, reports and guidelines you can download." />
+      <PageHero pageKey="downloads" />
       <SiteBreadcrumbs items={[{ label: "Downloads" }]} />
 
       <PageBody>

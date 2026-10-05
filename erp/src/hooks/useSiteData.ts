@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { website } from "@/lib/api";
-import type { SitePageSummary } from "@/types/sitePage";
+import type { HeroTextStyle, SitePageSummary } from "@/types/sitePage";
+import type { HeroPageKey, PageHeroSettings } from "@/lib/heroText";
 import type { NavigationSettings } from "@/types/siteNavigation";
 import type { HomeLayoutItem } from "@/types/siteHome";
 import type { PublicProject } from "@/lib/siteProjects";
@@ -10,7 +11,10 @@ export interface SiteValue {
   title?: string;
   description?: string;
   icon?: string;
+  /** Accent for the card's icon, number, underline and arrow: swatch name or hex. Empty = the site's orange. */
   color?: string;
+  /** Card background: swatch name or hex. Empty = white. */
+  backgroundColor?: string;
   order?: number;
 }
 
@@ -19,7 +23,14 @@ export interface SiteSettings {
   navigation?: NavigationSettings;
   aboutUs?: { title?: string; description?: string; imageUrl?: string };
   /** style picks the home page's opening band: the built-in artwork or a photo slider fed by Banners. */
-  hero?: { style?: "illustrated" | "slider"; title?: string; subtitle?: string; ctaText?: string; ctaLink?: string; secondaryCtaText?: string; secondaryCtaLink?: string };
+  hero?: {
+    style?: "illustrated" | "slider"; title?: string; subtitle?: string;
+    /** Formatting for each line; `hidden` removes it from the home hero. */
+    titleStyle?: HeroTextStyle; subtitleStyle?: HeroTextStyle;
+    ctaText?: string; ctaLink?: string; secondaryCtaText?: string; secondaryCtaLink?: string;
+  };
+  /** Hero copy + formatting of the built-in inner pages, keyed by HeroPageKey (Website Settings → Page Heroes). */
+  pageHeroes?: Partial<Record<HeroPageKey, PageHeroSettings>>;
   appearance?: { primaryColor?: string; gradientColor?: string };
   vision?: { title?: string; description?: string; icon?: string; color?: string };
   mission?: { title?: string; description?: string; icon?: string; color?: string };

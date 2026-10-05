@@ -26,7 +26,7 @@ export default function GalleryListPage() {
 
   return (
     <SiteShell>
-      <PageHero title="Gallery" subtitle="Glimpses from our work on the ground." />
+      <PageHero pageKey="gallery" />
       <SiteBreadcrumbs items={[{ label: "Gallery" }]} />
 
       <PageBody>

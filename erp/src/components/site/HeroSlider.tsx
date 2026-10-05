@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import heroMontage from "@/assets/bnr1.png";
 import { HeroBannerSlider } from "@/components/site/HeroBannerSlider";
 import { usePointerParallax } from "@/hooks/useParallax";
+import { heroTextCss, heroTextColor } from "@/lib/heroText";
+import type { HeroTextStyle } from "@/types/sitePage";
 
 interface Banner {
   _id: string;
@@ -20,6 +22,9 @@ interface HeroSliderProps {
     style?: "illustrated" | "slider";
     title?: string;
     subtitle?: string;
+    /** Formatting for each line, set under Website Settings → Hero. `hidden` removes it. */
+    titleStyle?: HeroTextStyle;
+    subtitleStyle?: HeroTextStyle;
     ctaText?: string;
     ctaLink?: string;
     secondaryCtaText?: string;
@@ -156,6 +161,14 @@ function IllustratedHero({ banners, hero }: HeroSliderProps) {
     ? splitTitle(customTitle)
     : { line1: sentenceCase(slide.titleLine1), line2: sentenceCase(slide.titleLine2) };
 
+  // Formatting is the admin's, and applies to every slide — the built-in ones
+  // included — so a hidden title is hidden throughout rather than only on the
+  // slide whose copy they typed. The eyebrow belongs to the title, so it goes too.
+  const titleStyle = hero?.titleStyle;
+  const subtitleStyle = hero?.subtitleStyle;
+  const titleTone = heroTextColor(titleStyle);
+  const titleText = `${title.line1} ${title.line2}`.trim();
+
   return (
     <section ref={heroRef} className="relative overflow-hidden bg-gradient-to-br from-muted via-background to-muted py-6 sm:py-10 md:py-14">
       {/* Subtle Islamic geometric dot pattern */}
@@ -251,25 +264,40 @@ function IllustratedHero({ banners, hero }: HeroSliderProps) {
       <div className="container static mx-auto grid items-center gap-8 px-4 sm:gap-10 lg:relative lg:grid-cols-2 lg:gap-12">
         {/* Text */}
         <div className="relative z-10 max-w-xl space-y-4" key={index}>
-          <span className="inline-block animate-in fade-in slide-in-from-bottom-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground duration-700">
-            {slide.eyebrow}
-          </span>
+          {!titleStyle?.hidden && (
+            <span className="inline-block animate-in fade-in slide-in-from-bottom-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground duration-700">
+              {slide.eyebrow}
+            </span>
+          )}
           {/* One size for every slide, custom or built-in, and the same
               two-tone split: line one green (text-primary), line two orange. */}
           {/* break-words: an admin can put any single long word on either line,
               and at this weight one overflowing word scrolls the whole page. */}
-          <h1 className="animate-in fade-in slide-in-from-bottom-4 break-words text-3xl font-extrabold leading-tight text-primary duration-700 sm:text-4xl md:text-6xl">
-            {title.line1}
-            {title.line2 && (
-              <>
-                <br />
-                <span className="text-[hsl(var(--warning))]">{title.line2}</span>
-              </>
-            )}
-          </h1>
-          <p className="animate-in fade-in slide-in-from-bottom-4 text-base text-foreground/75 duration-700 md:text-lg lg:text-muted-foreground">
-            {sentenceCase(customSubtitle || slide.subtitle)}
-          </p>
+          {titleStyle?.hidden ? (
+            <h1 className="sr-only">{titleText}</h1>
+          ) : (
+            <h1
+              className="animate-in fade-in slide-in-from-bottom-4 break-words text-3xl font-extrabold leading-tight text-primary duration-700 sm:text-4xl md:text-6xl"
+              style={heroTextCss(titleStyle, "title")}
+            >
+              {title.line1}
+              {title.line2 && (
+                <>
+                  <br />
+                  {/* A picked colour replaces the green/orange split. */}
+                  <span className="text-[hsl(var(--warning))]" style={titleTone}>{title.line2}</span>
+                </>
+              )}
+            </h1>
+          )}
+          {!subtitleStyle?.hidden && (
+            <p
+              className="animate-in fade-in slide-in-from-bottom-4 text-base text-foreground/75 duration-700 md:text-lg lg:text-muted-foreground"
+              style={heroTextCss(subtitleStyle, "subtitle")}
+            >
+              {sentenceCase(customSubtitle || slide.subtitle)}
+            </p>
+          )}
           {/* Each button takes half the row on a phone rather than wrapping to
               two stacked full-width pills, then sizes to its label from `sm`. */}
           <div className="flex flex-wrap gap-3 pt-2">

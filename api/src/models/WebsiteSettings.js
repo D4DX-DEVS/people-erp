@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const franchisePlugin = require('../utils/franchisePlugin');
 const orgConfig = require('../config/orgConfig');
+const { heroTextStyle } = require('./heroTextStyle');
+
+// Built-in inner pages whose hero text is editable under Website Settings → Page Heroes.
+// Keep in sync with HERO_PAGES in erp/src/lib/heroText.ts.
+const HERO_PAGE_KEYS = ['projects', 'schemes', 'news', 'blogs', 'gallery', 'videos', 'media', 'downloads', 'privacy'];
 
 // Header navigation — one link (menu item, dropdown child or action button)
 const NAV_LINK_KINDS = ['home', 'section', 'builtin', 'page', 'donate', 'custom'];
@@ -84,11 +89,27 @@ const websiteSettingsSchema = new mongoose.Schema({
     style: { type: String, enum: ['illustrated', 'slider'], default: 'illustrated' },
     title: { type: String, default: '' },
     subtitle: { type: String, default: '' },
+    // Font / size / weight / colour for each line, and a switch to remove it.
+    titleStyle: { ...heroTextStyle },
+    subtitleStyle: { ...heroTextStyle },
     ctaText: { type: String, default: '' },
     ctaLink: { type: String, default: '' },
     secondaryCtaText: { type: String, default: '' },
     secondaryCtaLink: { type: String, default: '' }
   },
+
+  // Hero band of each built-in inner page (Videos, Gallery, …). Those pages have
+  // no page-builder record, so their hero copy and formatting live here. Empty
+  // title/subtitle = the page's built-in wording.
+  pageHeroes: HERO_PAGE_KEYS.reduce((fields, key) => {
+    fields[key] = {
+      title: { type: String, default: '', maxlength: 200 },
+      subtitle: { type: String, default: '', maxlength: 300 },
+      titleStyle: { ...heroTextStyle },
+      subtitleStyle: { ...heroTextStyle }
+    };
+    return fields;
+  }, {}),
 
   // Site-wide colour palette (hex). Empty = the app's default theme.
   appearance: {
@@ -113,7 +134,10 @@ const websiteSettingsSchema = new mongoose.Schema({
     title: { type: String, default: '' },
     description: { type: String, default: '' },
     icon: { type: String, default: 'heart' },
+    // Accent for the card's icon, number, underline and the arrow to the next card
+    // (swatch name or hex; '' = the site's orange). backgroundColor tints the card itself ('' = white).
     color: { type: String, default: '' },
+    backgroundColor: { type: String, default: '', maxlength: 32 },
     order: { type: Number, default: 0 }
   }],
 
@@ -273,3 +297,4 @@ websiteSettingsSchema.plugin(franchisePlugin);
 module.exports = mongoose.model('WebsiteSettings', websiteSettingsSchema);
 module.exports.NAV_LINK_KINDS = NAV_LINK_KINDS;
 module.exports.HOME_SECTION_KEYS = HOME_SECTION_KEYS;
+module.exports.HERO_PAGE_KEYS = HERO_PAGE_KEYS;

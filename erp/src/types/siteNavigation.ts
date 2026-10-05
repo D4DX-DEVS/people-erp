@@ -1,6 +1,7 @@
 // Shared types + helpers for the customizable public-site header
 // (stored as WebsiteSettings.navigation in the API).
 import type { SitePageSummary } from "@/types/sitePage";
+import { isInAppTarget, localiseTarget } from "@/lib/siteNav";
 
 export type NavLinkKind = "home" | "section" | "builtin" | "page" | "donate" | "custom";
 
@@ -206,14 +207,40 @@ export function isRenderable(link: NavLink, donateLink?: string): boolean {
   return link.kind === "donate" ? !!donateLink : !!link.target?.trim();
 }
 
-/** What visitors actually see: the custom config, or the automatic menu built from live pages. */
+/**
+ * Does this link open another page of the website, so that "open in a new tab"
+ * has no business applying to it? True for routes and anchors, and for a pasted
+ * web address of one of the site's own pages; false for external sites, mailto:
+ * and tel: links, and the donate link.
+ */
+export function staysOnSite(link: NavLink, pages: Array<Pick<SitePageSummary, "slug">> = []): boolean {
+  if (link.kind === "donate") return false;
+  return isInAppTarget(localiseTarget(link.target || "", pages.map((p) => p.slug.toLowerCase())));
+}
+
+/**
+ * What visitors actually see: the custom config, or the automatic menu built from live pages.
+ *
+ * Two corrections are applied to whatever was saved. A full web address of one
+ * of the site's own pages becomes its in-app path (see localiseTarget), and a
+ * link that stays on the site always opens in the same window — a new tab is for
+ * leaving the site, not for moving around it.
+ */
 export function resolveNavigation(stored: NavigationSettings | undefined, pages: NavPage[], donateLink?: string) {
   const nav = stored?.customized
     ? stored
     : { ...buildDefaultNavigation(pages), menuAlignment: stored?.menuAlignment || "center" };
 
+  const slugs = pages.map((p) => p.slug.toLowerCase());
+  const onSite = <T extends NavLink>(link: T): T => {
+    const target = link.target ? localiseTarget(link.target, slugs) : link.target;
+    const inPlace = link.kind !== "donate" && isInAppTarget(target);
+    return { ...link, target, openInNewTab: inPlace ? false : link.openInNewTab };
+  };
+
   const seen = new Set<string>();
   const items = nav.items
+    .map((i) => ({ ...onSite(i), children: i.children?.map(onSite) }))
     .filter((i) => i.visible !== false && i.label?.trim())
     .map((i) => (i.type === "dropdown" ? { ...i, children: (i.children || []).filter((c) => isRenderable(c, donateLink)) } : i))
     .filter((i) => (i.type === "dropdown" ? (i.children || []).length > 0 : isRenderable(i, donateLink)))
@@ -226,7 +253,7 @@ export function resolveNavigation(stored: NavigationSettings | undefined, pages:
       seen.add(key);
       return true;
     });
-  const buttons = nav.buttons.filter((b) => isRenderable(b, donateLink));
+  const buttons = nav.buttons.map(onSite).filter((b) => isRenderable(b, donateLink));
 
   return { menuAlignment: (nav.menuAlignment || "center") as MenuAlignment, items, buttons };
 }

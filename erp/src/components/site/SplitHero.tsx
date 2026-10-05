@@ -5,22 +5,28 @@ import { RichContent } from "@/components/site/RichContent";
 import { isHtml } from "@/lib/richText";
 import { resolveIcon } from "@/lib/siteIcons";
 import { colorValue, colorTint } from "@/lib/siteColors";
-import type { PageSection, SectionItem } from "@/types/sitePage";
+import { heroTextCss, heroTextColor } from "@/lib/heroText";
+import { cn } from "@/lib/utils";
+import type { HeroTextStyle, PageSection, SectionItem } from "@/types/sitePage";
 
 const paragraphs = (content?: string) =>
   (content || "").replace(/<\/(p|div)>/gi, "\n\n").replace(/<[^>]+>/g, "").split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
 
 /** Editorial landing hero: eyebrow + two-tone title on the left, photo fading in from the right. */
 export function SplitHero({
-  eyebrow, title, subtitle, imageUrl, paragraphs: paras, html, ctaText, ctaLink,
+  eyebrow, title, subtitle, imageUrl, paragraphs: paras, html, ctaText, ctaLink, titleStyle, subtitleStyle,
 }: {
   eyebrow?: string; title: string; subtitle?: string; imageUrl?: string;
   paragraphs?: string[]; html?: string; ctaText?: string; ctaLink?: string;
+  /** Admin formatting for the title / subtitle; `hidden` removes the line (the title stays as screen-reader text). */
+  titleStyle?: HeroTextStyle; subtitleStyle?: HeroTextStyle;
 }) {
   const navigate = useNavigate();
   const words = title.trim().split(/\s+/);
   const first = words.length > 1 ? words[0] : title;
   const rest = words.length > 1 ? words.slice(1).join(" ") : "";
+  // A picked colour replaces the two-tone split: both words take it.
+  const tone = heroTextColor(titleStyle);
   const go = () => {
     if (!ctaLink) return;
     if (/^https?:\/\//i.test(ctaLink)) window.open(ctaLink, "_blank");
@@ -42,11 +48,25 @@ export function SplitHero({
               {eyebrow}<span className="h-px w-16 bg-primary" />
             </p>
           )}
-          <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
-            <span className="block text-foreground">{first}</span>
-            {rest && <span className="block text-primary">{rest}</span>}
-          </h1>
-          {subtitle && <p className="mt-4 text-lg text-foreground/90 md:text-xl">{subtitle}</p>}
+          {titleStyle?.hidden ? (
+            <h1 className="sr-only">{title}</h1>
+          ) : (
+            <h1
+              className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl"
+              style={heroTextCss(titleStyle, "title")}
+            >
+              <span className={cn("block", !tone && "text-foreground")} style={tone}>{first}</span>
+              {rest && <span className={cn("block", !tone && "text-primary")} style={tone}>{rest}</span>}
+            </h1>
+          )}
+          {subtitle && !subtitleStyle?.hidden && (
+            <p
+              className={cn("text-lg md:text-xl", !subtitleStyle?.color && "text-foreground/90", titleStyle?.hidden ? "mt-0" : "mt-4")}
+              style={heroTextCss(subtitleStyle, "subtitle")}
+            >
+              {subtitle}
+            </p>
+          )}
           {html && isHtml(html) ? (
             <RichContent content={html} className="mt-6 text-[0.95rem] text-foreground/80" />
           ) : !!paras?.length && (

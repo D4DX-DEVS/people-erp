@@ -90,9 +90,25 @@ export interface PageSection {
   _expanded?: boolean;
 }
 
+/**
+ * Formatting for one line of hero text. Every field is optional: empty means
+ * "keep the built-in look", and `hidden` removes the line from the public page.
+ * Option values are defined in lib/heroText.ts (mirrored in the API's heroTextStyle model).
+ */
+export interface HeroTextStyle {
+  hidden?: boolean;
+  font?: string;
+  size?: string;
+  weight?: string;
+  /** Swatch name or hex. */
+  color?: string;
+}
+
 export interface SitePageHero {
   title?: string;
   subtitle?: string;
+  titleStyle?: HeroTextStyle;
+  subtitleStyle?: HeroTextStyle;
   imageUrl?: string;
   imageKey?: string;
 }

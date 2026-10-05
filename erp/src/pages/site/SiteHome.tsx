@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, ArrowRight, Sparkles, Loader2,
-  Sprout,
+  Sprout, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,7 +32,7 @@ import { SchemesStack } from "@/components/site/SchemesStack";
 import { AssociatesMarquee } from "@/components/site/AssociatesMarquee";
 import { VolunteerDonateBand } from "@/components/site/VolunteerDonateBand";
 import { resolveDonationDefaults } from "@/config/donationDefaults";
-import { iconBadgeStyle, colorValue, colorTint } from "@/lib/siteColors";
+import { iconBadgeStyle, colorValue, colorTint, isDarkColor } from "@/lib/siteColors";
 import { resolveHomeLayout, resolveHomeHeading, isHomeSectionVisible, type HomeSectionKey, type HomeHeadingStyle } from "@/types/siteHome";
 import { usesFloatingZakatButton } from "@/config/orgFeatures";
 import { schemePath } from "@/lib/siteSchemes";
@@ -256,42 +256,76 @@ export default function SiteHome() {
             </div>
           )}
 
-          {/* Values, in the live site's "Our Impacts" treatment: an icon, a large
-              accent-coloured figure and a label, held apart by hairlines instead
-              of boxed into cards. Lifted onto the same warm accent the display
-              headings already use for their second half, so the strip reads as
-              part of this palette rather than a transplant.
+          {/* Values as a row of steps: four soft cards, each with a large tinted
+              icon disc, the figure, the title and a short underline, and from `lg`
+              a chevron in the gap that hands on to the next card.
 
-              Two per row on the narrowest screen — one per row put four tall
-              columns under everything else and doubled the band. */}
+              Each card takes its colour from its own settings (accent: icon,
+              figure, underline, chevron; optional card background), falling back
+              to the site's orange and white. flex-wrap + justify-center rather
+              than a grid so a short last row — five values, six — sits in the
+              middle instead of hugging the left edge; the chevron is left off
+              the last card of every row, since nothing follows it there. Two
+              per row below `lg`, where the chevrons are dropped. */}
           {values.length > 0 && (
-            <div className="mt-10 grid grid-cols-2 gap-y-10 lg:grid-cols-4 lg:gap-y-0">
+            <div className="mt-10 flex flex-wrap justify-center gap-4 sm:gap-6 lg:gap-x-10 lg:gap-y-8">
               {values.map((v, i) => {
                 const Icon = iconFor(v.icon);
+                const tone = v.color ? colorValue(v.color) : "hsl(var(--warning))";
+                const wash = v.color ? colorTint(v.color, 0.14) : "hsl(var(--warning) / 0.14)";
+                const surface = v.backgroundColor ? colorValue(v.backgroundColor) : "";
+                const onDark = !!surface && isDarkColor(surface);
+                const lastInRow = i % 4 === 3 || i === values.length - 1;
                 return (
                   <Reveal
-                    key={i}
+                    key={v._id || i}
                     delay={i * 80}
-                    className="h-full border-[#D7D7D7] px-5 lg:border-r lg:last:border-r-0"
+                    className="relative w-[calc(50%-0.5rem)] sm:w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.875rem)]"
                   >
-                    {/* A fixed gap rather than justify-between. The reference
-                        pins its figure to the foot of the column, but that only
-                        lines the four figures up because its blocks are all the
-                        same height — ours carry descriptions of different
-                        lengths, and bottom-anchoring them left the figures
-                        stepping up and down across the row. */}
-                    <div className="flex h-full flex-col gap-10 lg:gap-24">
-                      <Icon className="h-11 w-11 text-[hsl(var(--warning))]" strokeWidth={1.5} />
-                      <div>
-                        <span className="block font-site text-[52px] font-medium leading-none text-[hsl(var(--warning))] lg:text-[60px]">
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <h3 className="mt-3 font-site text-[24px] font-medium leading-tight text-[#010101] lg:text-[27px]">
-                          {v.title}
-                        </h3>
-                        <p className="mt-1.5 font-site text-[14px] leading-snug text-muted-foreground">{v.description}</p>
+                    <div
+                      className="flex h-full flex-col rounded-3xl bg-card p-4 shadow-[0_12px_40px_-14px_rgba(15,23,42,0.18)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_44px_-14px_rgba(15,23,42,0.24)] sm:p-6 lg:p-8"
+                      style={surface ? { backgroundColor: surface } : undefined}
+                    >
+                      <div
+                        className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full sm:h-20 sm:w-20 lg:h-28 lg:w-28"
+                        style={{ backgroundColor: wash, color: tone }}
+                      >
+                        <Icon className="h-7 w-7 sm:h-10 sm:w-10 lg:h-12 lg:w-12" strokeWidth={1.75} />
+                      </div>
+                      <span
+                        className="mt-4 block font-site text-4xl font-bold leading-none sm:text-5xl lg:mt-6 lg:text-6xl"
+                        style={{ color: tone }}
+                      >
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      {/* Inline weight: `.site-font h3` sets 500 and outranks a utility class. */}
+                      <h3
+                        className={cn("mt-2 font-site text-lg leading-tight sm:text-xl lg:mt-3 lg:text-[1.65rem]", onDark ? "text-white" : "text-[#010101]")}
+                        style={{ fontWeight: 600 }}
+                      >
+                        {v.title}
+                      </h3>
+                      {v.description && (
+                        <p className={cn("mt-1.5 font-site text-[14px] leading-snug", onDark ? "text-white/80" : "text-muted-foreground")}>
+                          {v.description}
+                        </p>
+                      )}
+                      {/* Pinned to the foot so the underlines line up across a row
+                          even when descriptions differ in length. */}
+                      <div className="mt-auto pt-5 lg:pt-7">
+                        <span className="block h-1.5 w-10 rounded-full lg:w-14" style={{ backgroundColor: tone }} />
                       </div>
                     </div>
+
+                    {!lastInRow && (
+                      <span
+                        aria-hidden
+                        className="absolute -right-10 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full lg:flex"
+                        style={{ backgroundColor: wash, color: tone }}
+                      >
+                        <ChevronRight className="h-6 w-6" strokeWidth={3} />
+                      </span>
+                    )}
                   </Reveal>
                 );
               })}

@@ -553,6 +553,8 @@ class ApiClient {
     category?: string;
     priority?: string;
     search?: string;
+    /** "order" lists projects in website order (the order set by drag-to-reorder) instead of newest first. */
+    sort?: string;
   }): Promise<ApiResponse<{
     projects: Project[];
     pagination: {
@@ -2318,6 +2320,11 @@ export const projectPages = {
   getPublicBySlug: (slug: string) => apiClient.request(`/project-pages/public/${slug}`),
   // Admin
   getAll: () => apiClient.request('/project-pages'),
+  /** Set the order projects appear in on the public site; `order` is every project id, first to last. */
+  reorder: (order: string[]) => apiClient.request('/project-pages/order', {
+    method: 'PUT',
+    body: JSON.stringify({ order })
+  }),
   getByProject: (projectId: string) => apiClient.request(`/project-pages/${projectId}`),
   save: (projectId: string, data: any) => apiClient.request(`/project-pages/${projectId}`, {
     method: 'PUT',
