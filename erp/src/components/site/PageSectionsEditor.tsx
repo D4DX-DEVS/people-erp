@@ -18,6 +18,7 @@ import { sitePages } from '@/lib/api';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import { IconPicker } from '@/components/site/IconPicker';
 import { ColorPicker } from '@/components/site/ColorPicker';
+import { HeroTextFormat } from '@/components/site/HeroTextFormat';
 import { mapEmbedSrc, isUnframeableMapLink } from '@/lib/mapEmbed';
 import {
   type PageSection, type SectionItem, type SectionType, type SectionBackground, type SitePageHero,
@@ -314,7 +315,12 @@ function SectionCard({
   // Stored on the section itself (UI-only, stripped on save) so the state
   // travels with the section through reorder/delete instead of array position.
   const expanded = section._expanded !== false;
-  const showFooterBackground = section.type !== 'cta';
+  const isCta = section.type === 'cta';
+  // A call to action's unset background is the brand gradient (other sections: plain),
+  // and its "primary" is the same thing — so it offers one gradient choice, not two.
+  const backgroundOptions = (Object.keys(BACKGROUND_LABELS) as SectionBackground[]).filter((val) => !(isCta && val === 'primary'));
+  const backgroundLabel = (val: SectionBackground) => (isCta && val === 'default' ? 'Brand gradient' : BACKGROUND_LABELS[val]);
+  const backgroundValue: SectionBackground = isCta && section.background === 'primary' ? 'default' : (section.background || 'default');
 
   const addGalleryImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -491,17 +497,6 @@ function SectionCard({
                   <Input disabled={disabled} value={section.ctaLink || ''} onChange={(e) => onUpdate({ ctaLink: e.target.value })} />
                 </div>
               </div>
-              <div>
-                <Label className="text-xs">Background</Label>
-                <Select disabled={disabled} value={section.background || 'default'} onValueChange={(v) => onUpdate({ background: v as PageSection['background'] })}>
-                  <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default</SelectItem>
-                    <SelectItem value="muted">Muted</SelectItem>
-                    <SelectItem value="primary">Primary</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           )}
 
@@ -619,38 +614,38 @@ function SectionCard({
             </div>
           )}
 
-          {showFooterBackground && (
-            <div className="pt-2 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Section Background</Label>
-                <Select disabled={disabled} value={section.background || 'default'} onValueChange={(v) => onUpdate({ background: v as SectionBackground })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(BACKGROUND_LABELS) as SectionBackground[]).map((val) => (
-                      <SelectItem key={val} value={val}>{BACKGROUND_LABELS[val]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {section.background === 'tint'
-                    ? 'A soft wash of the accent colour behind the section.'
-                    : section.background === 'custom'
-                      ? 'Any colour you like — text turns white automatically on dark colours.'
+          <div className="pt-2 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">{isCta ? 'Band Background' : 'Section Background'}</Label>
+              <Select disabled={disabled} value={backgroundValue} onValueChange={(v) => onUpdate({ background: v as SectionBackground })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {backgroundOptions.map((val) => (
+                    <SelectItem key={val} value={val}>{backgroundLabel(val)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {section.background === 'tint'
+                  ? 'A soft wash of the accent colour behind the section.'
+                  : section.background === 'custom'
+                    ? 'Any colour you like — text turns white automatically on dark colours. Use Title colour and Content text colour above to set your own.'
+                    : isCta
+                      ? 'The brand gradient. Pick Custom colour to set your own, then use Title colour and Content text colour above for the text.'
                       : section.background === 'primary'
                         ? 'The brand gradient card with white text.'
                         : section.background === 'muted'
                           ? 'A light grey band.'
                           : 'Plain page background.'}
-                </p>
-              </div>
-              {section.background === 'custom' && (
-                <div>
-                  <Label className="text-xs">Background colour</Label>
-                  <ColorPicker value={section.backgroundColor} allowDefault={false} disabled={disabled} onChange={(v) => onUpdate({ backgroundColor: v })} />
-                </div>
-              )}
+              </p>
             </div>
-          )}
+            {section.background === 'custom' && (
+              <div>
+                <Label className="text-xs">Background colour</Label>
+                <ColorPicker value={section.backgroundColor} allowDefault={false} disabled={disabled} onChange={(v) => onUpdate({ backgroundColor: v })} />
+              </div>
+            )}
+          </div>
         </CardContent>
       )}
     </Card>
@@ -751,14 +746,16 @@ export function HeroEditor({
     <Card>
       <CardHeader><CardTitle className="text-base">Hero Banner</CardTitle></CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="space-y-2">
             <Label className="text-xs">Hero Title</Label>
             <Input disabled={disabled} placeholder={titlePlaceholder} value={h.title || ''} onChange={(e) => onChange({ ...h, title: e.target.value })} />
+            <HeroTextFormat label="Title" disabled={disabled} value={h.titleStyle} onChange={(titleStyle) => onChange({ ...h, titleStyle })} />
           </div>
-          <div>
+          <div className="space-y-2">
             <Label className="text-xs">Hero Subtitle</Label>
             <Input disabled={disabled} value={h.subtitle || ''} onChange={(e) => onChange({ ...h, subtitle: e.target.value })} />
+            <HeroTextFormat label="Subtitle" disabled={disabled} value={h.subtitleStyle} onChange={(subtitleStyle) => onChange({ ...h, subtitleStyle })} />
           </div>
         </div>
         <div>

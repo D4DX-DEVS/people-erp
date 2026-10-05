@@ -12,7 +12,7 @@ const Blog = require('../models/Blog');
 const MediaCoverage = require('../models/MediaCoverage');
 const SitePage = require('../models/SitePage');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
-const { attachProjectPages, attachSchemePages, PUBLIC_PROJECT_STATUSES, PUBLIC_SCHEME_STATUSES } = require('../utils/siteContent');
+const { attachProjectPages, attachSchemePages, PUBLIC_PROJECT_STATUSES, PUBLIC_PROJECT_SORT, PUBLIC_SCHEME_STATUSES } = require('../utils/siteContent');
 
 /**
  * Aggregated public home payload — one call returns every section needed
@@ -40,7 +40,7 @@ exports.getHome = async (req, res) => {
     ] = await Promise.all([
       WebsiteSettings.findOne({ ...scope }).select('-updatedBy -__v').lean(),
       Banner.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).select('-createdBy -updatedBy').lean(),
-      Project.find({ status: { $in: ['active', 'approved', 'draft'] }, ...scope }).sort({ createdAt: -1 })
+      Project.find({ status: { $in: ['active', 'approved', 'draft'] }, ...scope }).sort(PUBLIC_PROJECT_SORT)
         .select('name description category status').lean(),
       Scheme.find({ status: 'active', ...scope }).sort({ createdAt: -1 }).limit(8)
         .select('name title description category status imageUrl').lean(),
@@ -130,7 +130,7 @@ exports.getProjects = async (req, res) => {
     if (typeof category === 'string' && PROJECT_CATEGORIES.includes(category)) filter.category = category;
 
     const [projects, total] = await Promise.all([
-      Project.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
+      Project.find(filter).sort(PUBLIC_PROJECT_SORT).skip(skip).limit(limit)
         .select('name description category status').lean(),
       Project.countDocuments(filter)
     ]);

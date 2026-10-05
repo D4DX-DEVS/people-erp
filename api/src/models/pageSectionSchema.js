@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { heroTextStyle } = require('./heroTextStyle');
 
 // Shared section schemas for the page builders (SitePage + ProjectPage).
 
@@ -63,6 +64,9 @@ const sectionSchema = new mongoose.Schema({
 const heroSchema = {
   title: { type: String, default: '' },
   subtitle: { type: String, default: '' },
+  // Per-line formatting + a switch to remove the line from the public page.
+  titleStyle: { ...heroTextStyle },
+  subtitleStyle: { ...heroTextStyle },
   imageUrl: { type: String, default: '' },
   imageKey: { type: String, default: '' }
 };

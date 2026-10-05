@@ -55,7 +55,7 @@ export default function SchemesListPage() {
 
   return (
     <SiteShell>
-      <PageHero title="Schemes & Programs" subtitle="Focused initiatives for a stronger, self-reliant community." />
+      <PageHero pageKey="schemes" />
       <SiteBreadcrumbs items={[{ label: "Schemes" }]} />
 
       <PageBody>

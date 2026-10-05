@@ -22,6 +22,10 @@ import { HomeLayoutEditor } from "@/components/site/HomeLayoutEditor";
 import { resolveHomeLayout, type HomeLayoutItem } from "@/types/siteHome";
 import { ColorPicker } from "@/components/site/ColorPicker";
 import { THEME_PRESETS, themeStyle, colorValue, isHex } from "@/lib/siteColors";
+import { HeroTextFormat } from "@/components/site/HeroTextFormat";
+import { HERO_PAGES, isHeroTextCustomised, type HeroPageKey } from "@/lib/heroText";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import type { HeroTextStyle } from "@/types/sitePage";
 import type { SiteValue } from "@/hooks/useSiteData";
 
 /** The two shapes the homepage's opening band can take, chosen per franchise. */
@@ -42,6 +46,25 @@ const HERO_STYLES = [
 
 /** Pickers hand back swatch names; the site-wide palette is stored as hex ("" = app default). */
 const toHex = (v: string) => (isHex(v) ? v : v && v !== "primary" ? colorValue(v) : "");
+
+/** One built-in page's hero as the form edits it (Website Settings → Page Heroes). */
+interface PageHeroForm {
+  title: string;
+  subtitle: string;
+  titleStyle: HeroTextStyle;
+  subtitleStyle: HeroTextStyle;
+}
+type PageHeroForms = Record<HeroPageKey, PageHeroForm>;
+
+const toPageHeroForms = (saved?: Record<string, Partial<PageHeroForm>>): PageHeroForms =>
+  Object.fromEntries(
+    HERO_PAGES.map(({ key }) => [key, {
+      title: saved?.[key]?.title || "",
+      subtitle: saved?.[key]?.subtitle || "",
+      titleStyle: saved?.[key]?.titleStyle || {},
+      subtitleStyle: saved?.[key]?.subtitleStyle || {},
+    }]),
+  ) as PageHeroForms;
 
 interface Counter {
   _id?: string;
@@ -87,9 +110,13 @@ export default function WebsiteSettings() {
   // Hero
   const [hero, setHero] = useState<{
     style: "illustrated" | "slider";
-    title: string; subtitle: string; ctaText: string; ctaLink: string;
+    title: string; subtitle: string; titleStyle: HeroTextStyle; subtitleStyle: HeroTextStyle; ctaText: string; ctaLink: string;
     secondaryCtaText: string; secondaryCtaLink: string;
-  }>({ style: "illustrated", title: "", subtitle: "", ctaText: "", ctaLink: "", secondaryCtaText: "", secondaryCtaLink: "" });
+  }>({ style: "illustrated", title: "", subtitle: "", titleStyle: {}, subtitleStyle: {}, ctaText: "", ctaLink: "", secondaryCtaText: "", secondaryCtaLink: "" });
+  // Hero band of each built-in inner page (Videos, Gallery, …)
+  const [pageHeroes, setPageHeroes] = useState<PageHeroForms>(() => toPageHeroForms());
+  const updatePageHero = (key: HeroPageKey, patch: Partial<PageHeroForm>) =>
+    setPageHeroes((current) => ({ ...current, [key]: { ...current[key], ...patch } }));
   // Vision & Mission
   const [vision, setVision] = useState({ title: "", description: "", icon: "", color: "" });
   const [mission, setMission] = useState({ title: "", description: "", icon: "", color: "" });
@@ -141,11 +168,14 @@ export default function WebsiteSettings() {
           style: settings.hero?.style === "slider" ? "slider" : "illustrated",
           title: settings.hero?.title || "",
           subtitle: settings.hero?.subtitle || "",
+          titleStyle: settings.hero?.titleStyle || {},
+          subtitleStyle: settings.hero?.subtitleStyle || {},
           ctaText: settings.hero?.ctaText || "",
           ctaLink: settings.hero?.ctaLink || "",
           secondaryCtaText: settings.hero?.secondaryCtaText || "",
           secondaryCtaLink: settings.hero?.secondaryCtaLink || "",
         });
+        setPageHeroes(toPageHeroForms(settings.pageHeroes));
         setVision({ title: settings.vision?.title || "", description: settings.vision?.description || "", icon: settings.vision?.icon || "", color: settings.vision?.color || "" });
         setMission({ title: settings.mission?.title || "", description: settings.mission?.description || "", icon: settings.mission?.icon || "", color: settings.mission?.color || "" });
         setValues(Array.isArray(settings.values) ? settings.values : []);
@@ -213,6 +243,7 @@ export default function WebsiteSettings() {
           twitter
         },
         hero,
+        pageHeroes,
         vision,
         mission,
         donation,
@@ -857,9 +888,11 @@ export default function WebsiteSettings() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2"><Label>{hero.style === "slider" ? "Fallback title" : "Title"}</Label>
-              <Input value={hero.title} onChange={(e) => setHero({ ...hero, title: e.target.value })} disabled={!canEdit} placeholder="Empowering communities" /></div>
+              <Input value={hero.title} onChange={(e) => setHero({ ...hero, title: e.target.value })} disabled={!canEdit} placeholder="Empowering communities" />
+              <HeroTextFormat label="Title" disabled={!canEdit} value={hero.titleStyle} onChange={(titleStyle) => setHero({ ...hero, titleStyle })} /></div>
             <div className="space-y-2"><Label>{hero.style === "slider" ? "Fallback subtitle" : "Subtitle"}</Label>
-              <Input value={hero.subtitle} onChange={(e) => setHero({ ...hero, subtitle: e.target.value })} disabled={!canEdit} /></div>
+              <Input value={hero.subtitle} onChange={(e) => setHero({ ...hero, subtitle: e.target.value })} disabled={!canEdit} />
+              <HeroTextFormat label="Subtitle" disabled={!canEdit} value={hero.subtitleStyle} onChange={(subtitleStyle) => setHero({ ...hero, subtitleStyle })} /></div>
             <div className="space-y-2"><Label>Primary Button Text</Label>
               <Input value={hero.ctaText} onChange={(e) => setHero({ ...hero, ctaText: e.target.value })} disabled={!canEdit} placeholder="Donate Now" /></div>
             <div className="space-y-2"><Label>Primary Button Link</Label>
@@ -869,6 +902,57 @@ export default function WebsiteSettings() {
             <div className="space-y-2"><Label>Secondary Button Link</Label>
               <Input value={hero.secondaryCtaLink} onChange={(e) => setHero({ ...hero, secondaryCtaLink: e.target.value })} disabled={!canEdit} /></div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Page Heroes — the banner on each built-in inner page */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Page Heroes</CardTitle>
+          <CardDescription>
+            The banner at the top of each built-in page. Change its wording, format the text (font, size, weight, colour)
+            or hide it. Pages built under Website → Pages, Project Pages and Scheme Pages have their own hero in their editor.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Accordion type="multiple" className="w-full">
+            {HERO_PAGES.map((page) => {
+              const form = pageHeroes[page.key];
+              const formatted = isHeroTextCustomised({ ...form.titleStyle, hidden: false }) || isHeroTextCustomised({ ...form.subtitleStyle, hidden: false });
+              return (
+                <AccordionItem key={page.key} value={page.key}>
+                  <AccordionTrigger className="py-3 text-left hover:no-underline">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{page.label}</span>
+                      {(form.title || form.subtitle) && <Badge variant="secondary" className="text-[10px]">Custom text</Badge>}
+                      {formatted && <Badge variant="secondary" className="text-[10px]">Formatted</Badge>}
+                      {form.titleStyle.hidden && <Badge variant="outline" className="text-[10px]">Title hidden</Badge>}
+                      {form.subtitleStyle.hidden && <Badge variant="outline" className="text-[10px]">Subtitle hidden</Badge>}
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-4 pb-4">
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input value={form.title} onChange={(e) => updatePageHero(page.key, { title: e.target.value })} disabled={!canEdit} placeholder={page.title} maxLength={200} />
+                        <HeroTextFormat label="Title" disabled={!canEdit} value={form.titleStyle} onChange={(titleStyle) => updatePageHero(page.key, { titleStyle })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Subtitle</Label>
+                        <Input value={form.subtitle} onChange={(e) => updatePageHero(page.key, { subtitle: e.target.value })} disabled={!canEdit} placeholder={page.subtitle} maxLength={300} />
+                        <HeroTextFormat label="Subtitle" disabled={!canEdit} value={form.subtitleStyle} onChange={(subtitleStyle) => updatePageHero(page.key, { subtitleStyle })} />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Leave the text empty to keep the built-in wording. Changes show on{" "}
+                      <a href={page.path} target="_blank" rel="noreferrer" className="font-medium underline underline-offset-4">{page.path}</a>{" "}
+                      after you save. A hidden title is still read by screen readers.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
         </CardContent>
       </Card>
 
@@ -911,7 +995,7 @@ export default function WebsiteSettings() {
             <Heart className="h-5 w-5" />
             Core Values
           </CardTitle>
-          <CardDescription>Value cards shown under the About section on the home page, each with its own icon and colour.</CardDescription>
+          <CardDescription>The step cards shown under the About section on the home page. Each has its own icon, accent colour and card background.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {values.length === 0 && (
@@ -935,20 +1019,24 @@ export default function WebsiteSettings() {
                   </div>
                 )}
               </div>
-              <div className="grid gap-3 md:grid-cols-[1fr_200px_160px]">
+              <div className="grid gap-3 md:grid-cols-[1fr_200px_170px_170px]">
                 <div className="space-y-2"><Label>Title</Label>
                   <Input value={v.title || ""} placeholder="e.g. Compassion" disabled={!canEdit} onChange={(e) => updateValue(index, { title: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Icon</Label>
                   <IconPicker value={v.icon} color={v.color} disabled={!canEdit} onChange={(icon) => updateValue(index, { icon })} /></div>
-                <div className="space-y-2"><Label>Colour</Label>
-                  <ColorPicker value={v.color} defaultLabel="Brand" disabled={!canEdit} onChange={(color) => updateValue(index, { color })} /></div>
+                <div className="space-y-2"><Label>Accent colour</Label>
+                  <ColorPicker value={v.color} defaultLabel="Orange (default)" disabled={!canEdit} onChange={(color) => updateValue(index, { color })} />
+                  <p className="text-xs text-muted-foreground">Icon, number, underline and arrow.</p></div>
+                <div className="space-y-2"><Label>Card background</Label>
+                  <ColorPicker value={v.backgroundColor} defaultLabel="White (default)" disabled={!canEdit} onChange={(backgroundColor) => updateValue(index, { backgroundColor })} />
+                  <p className="text-xs text-muted-foreground">Text turns white on dark colours.</p></div>
               </div>
               <div className="space-y-2"><Label>Description</Label>
                 <VoiceTextarea rows={2} value={v.description || ""} disabled={!canEdit} onChange={(e) => updateValue(index, { description: e.target.value })} /></div>
             </div>
           ))}
           {canEdit && (
-            <Button type="button" variant="outline" size="sm" onClick={() => setValues([...values, { title: "", description: "", icon: "heart", color: "" }])}>
+            <Button type="button" variant="outline" size="sm" onClick={() => setValues([...values, { title: "", description: "", icon: "heart", color: "", backgroundColor: "" }])}>
               <Plus className="mr-2 h-4 w-4" /> Add Value
             </Button>
           )}

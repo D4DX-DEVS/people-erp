@@ -66,6 +66,33 @@ const sanitizeHomeLayout = (layout) => {
   return out;
 };
 
+const HERO_PAGE_KEYS = WebsiteSettings.HERO_PAGE_KEYS;
+// One line of hero text's formatting. font/size/weight are whitelisted by the schema's setters.
+const cleanHeroStyle = (style) => {
+  const s = style && typeof style === 'object' ? style : {};
+  return {
+    hidden: !!s.hidden,
+    font: String(s.font || ''),
+    size: String(s.size || ''),
+    weight: String(s.weight || ''),
+    color: String(s.color || '').trim().slice(0, 32)
+  };
+};
+// Known pages only; copy is length-capped and every page is always present.
+const sanitizePageHeroes = (heroes) => {
+  const src = heroes && typeof heroes === 'object' ? heroes : {};
+  return HERO_PAGE_KEYS.reduce((out, key) => {
+    const h = src[key] && typeof src[key] === 'object' ? src[key] : {};
+    out[key] = {
+      title: String(h.title || '').trim().slice(0, 200),
+      subtitle: String(h.subtitle || '').trim().slice(0, 300),
+      titleStyle: cleanHeroStyle(h.titleStyle),
+      subtitleStyle: cleanHeroStyle(h.subtitleStyle)
+    };
+    return out;
+  }, {});
+};
+
 const cleanHex = (value) => (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(value || '').trim()) ? String(value).trim() : '');
 
 class WebsiteController {
@@ -131,7 +158,7 @@ class WebsiteController {
    */
   async updateSettings(req, res) {
     try {
-      let { aboutUs, counts, contactDetails, socialMedia, hero, vision, mission, values, donation, seo, footer, navigation, appearance, homeLayout, popup } = req.body;
+      let { aboutUs, counts, contactDetails, socialMedia, hero, vision, mission, values, donation, seo, footer, navigation, appearance, homeLayout, popup, pageHeroes } = req.body;
       const userId = req.user._id;
 
       // Parse JSON strings if they come from FormData
@@ -151,6 +178,7 @@ class WebsiteController {
       appearance = parseMaybe(appearance);
       homeLayout = parseMaybe(homeLayout);
       popup = parseMaybe(popup);
+      pageHeroes = parseMaybe(pageHeroes);
 
       // Normalize seo.keywords to an array (accept array or comma-separated string)
       if (seo && seo.keywords !== undefined) {
@@ -203,6 +231,7 @@ class WebsiteController {
       if (footer) settings.footer = footer;
       if (navigation) settings.navigation = sanitizeNavigation(navigation);
       if (homeLayout) settings.homeLayout = sanitizeHomeLayout(homeLayout);
+      if (pageHeroes) settings.pageHeroes = sanitizePageHeroes(pageHeroes);
       if (appearance) {
         settings.appearance = {
           primaryColor: cleanHex(appearance.primaryColor),

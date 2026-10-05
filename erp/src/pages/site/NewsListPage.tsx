@@ -52,7 +52,7 @@ export default function NewsListPage() {
 
   return (
     <SiteShell>
-      <PageHero title="News & Events" subtitle="Latest happenings and announcements." />
+      <PageHero pageKey="news" />
       <SiteBreadcrumbs items={[{ label: "News & Events" }]} />
 
       <PageBody>

@@ -15,7 +15,7 @@ import { SiteHeader } from "@/components/site/SiteHeader";
 import { sitePages } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
-  DESTINATION_GROUPS, BUTTON_ICONS, buildDefaultNavigation, findDestination, pageTarget,
+  DESTINATION_GROUPS, BUTTON_ICONS, buildDefaultNavigation, findDestination, pageTarget, staysOnSite,
   type NavigationSettings, type NavItem, type NavLink, type NavButton, type MenuAlignment,
 } from "@/types/siteNavigation";
 
@@ -427,7 +427,7 @@ function ItemRow({ item, index, count, pages, disabled, onChange, onMove, onRemo
       )}
 
       {expanded && !isDropdown && (
-        <NewTabCheckbox id={`item-${index}-newtab`} checked={!!item.openInNewTab} disabled={disabled} onChange={(v) => onChange({ openInNewTab: v })} />
+        <NewTabOption id={`item-${index}-newtab`} link={item} pages={pages} disabled={disabled} onChange={(v) => onChange({ openInNewTab: v })} />
       )}
 
       {expanded && isDropdown && (
@@ -487,7 +487,7 @@ function ChildRow({ link, index, count, pages, disabled, onChange, onMove, onRem
           onToggleVisible={() => onChange({ visible: !visible })} onMove={onMove} onRemove={onRemove}
         />
       </div>
-      <NewTabCheckbox id={`child-${index}-${link._id || ""}-newtab`} checked={!!link.openInNewTab} disabled={disabled} onChange={(v) => onChange({ openInNewTab: v })} />
+      <NewTabOption id={`child-${index}-${link._id || ""}-newtab`} link={link} pages={pages} disabled={disabled} onChange={(v) => onChange({ openInNewTab: v })} />
     </div>
   );
 }
@@ -570,16 +570,24 @@ function ButtonRow({ button, index, count, pages, disabled, onChange, onMove, on
       )}
 
       {expanded && (
-        <NewTabCheckbox id={`btn-${index}-newtab`} checked={!!button.openInNewTab} disabled={disabled} onChange={(v) => onChange({ openInNewTab: v })} />
+        <NewTabOption id={`btn-${index}-newtab`} link={button} pages={pages} disabled={disabled} onChange={(v) => onChange({ openInNewTab: v })} />
       )}
     </div>
   );
 }
 
-function NewTabCheckbox({ id, checked, disabled, onChange }: { id: string; checked: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
+/**
+ * "Open in a new tab" — offered only for links that leave the website. A link
+ * to one of the site's own pages always opens in place, so the choice would do
+ * nothing there and the line says so instead.
+ */
+function NewTabOption({ id, link, pages, disabled, onChange }: { id: string; link: NavLink; pages: AdminPage[]; disabled: boolean; onChange: (v: boolean) => void }) {
+  if (staysOnSite(link, pages)) {
+    return <p className="text-xs text-muted-foreground">Pages on this website open in the same window.</p>;
+  }
   return (
     <div className="flex items-center gap-2">
-      <Checkbox id={id} checked={checked} disabled={disabled} onCheckedChange={(v) => onChange(v === true)} />
+      <Checkbox id={id} checked={!!link.openInNewTab} disabled={disabled} onCheckedChange={(v) => onChange(v === true)} />
       <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">Open in a new tab</Label>
     </div>
   );
@@ -665,6 +673,12 @@ function LinkPicker({ link, pages, disabled, allowDonate = false, onChange }: Li
           disabled={disabled}
           onChange={(e) => onChange({ kind: "custom", target: e.target.value })}
         />
+      )}
+      {selected === CUSTOM && (
+        <p className="text-xs text-muted-foreground">
+          To link to one of your own pages, choose it from the list above. A pasted web address of your own page also works
+          and opens in the same window on any address the site is viewed from.
+        </p>
       )}
       {selected === DONATE && (
         <p className="text-xs text-muted-foreground">Uses the payment link from the Donation section below. Hidden while that link is empty.</p>

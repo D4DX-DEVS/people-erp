@@ -27,7 +27,7 @@ export default function VideosListPage() {
 
   return (
     <SiteShell>
-      <PageHero title="Videos" subtitle="Stories of change in motion." />
+      <PageHero pageKey="videos" />
       <SiteBreadcrumbs items={[{ label: "Videos" }]} />
 
       <PageBody>

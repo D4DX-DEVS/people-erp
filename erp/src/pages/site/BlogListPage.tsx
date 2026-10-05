@@ -34,7 +34,7 @@ export default function BlogListPage() {
 
   return (
     <SiteShell>
-      <PageHero title="From our Blog" subtitle="Perspectives, insights and stories." />
+      <PageHero pageKey="blogs" />
       <SiteBreadcrumbs items={[{ label: "Blog" }]} />
 
       <PageBody>

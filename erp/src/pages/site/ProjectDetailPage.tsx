@@ -110,6 +110,8 @@ export default function ProjectDetailPage() {
       <PageHero
         title={page.hero?.title || project.name}
         subtitle={page.hero?.subtitle || page.summary}
+        titleStyle={page.hero?.titleStyle}
+        subtitleStyle={page.hero?.subtitleStyle}
         imageUrl={page.hero?.imageUrl || page.coverImageUrl || projectImage({ ...project, coverImageUrl: page.coverImageUrl })}
       />
       <SiteBreadcrumbs

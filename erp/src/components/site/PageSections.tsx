@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { RichContent } from "@/components/site/RichContent";
 import { ProjectCard } from "@/components/site/ProjectCard";
 import { ContactSection } from "@/components/site/ContactSection";
+import { HorizontalTimeline } from "@/components/site/HorizontalTimeline";
 import { getYouTubeId, videoThumb } from "@/hooks/useSiteData";
 import { cn } from "@/lib/utils";
 import { resolveIcon } from "@/lib/siteIcons";
@@ -177,16 +178,29 @@ export function SectionBlock({
 
     case "stats": {
       if (!items.length) return null;
+      // Four cards to a row on a desktop, two on a phone, and whatever is left on
+      // the last row sits in the middle of it — five stats read 4 + 1 centred,
+      // six read 4 + 2 centred. That is flex-wrap with justify-center rather than
+      // a grid, because a grid would pin the stragglers to the left edge. Each
+      // card's width is a quarter of the row less its share of the gaps, so a
+      // short last row has cards exactly as wide as a full one. The columns
+      // setting no longer applies here: the layout is the same for every stats block.
       body = (
-        <div className={`grid grid-cols-2 gap-6 ${colsClass(section.columns, 4)}`}>
+        <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
           {items.map((item, idx) => {
             const Icon = resolveIcon(item.icon);
             return (
-              <div key={item._id || idx} className="text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl" style={badge(item.color)}>
+              <div
+                key={item._id || idx}
+                className={cn(
+                  "flex w-[calc(50%-0.5rem)] flex-col items-center rounded-2xl border p-4 text-center shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md sm:w-[calc(50%-0.75rem)] sm:p-6 lg:w-[calc(25%-1.125rem)]",
+                  onDark ? "border-white/25 bg-white/10 backdrop-blur-sm" : "border-border/60 bg-card",
+                )}
+              >
+                <div className="mb-3 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" style={badge(item.color)}>
                   <Icon className="h-6 w-6" />
                 </div>
-                <div className={cn("text-3xl font-extrabold md:text-4xl", onDark ? "text-white" : "text-foreground")}>{item.value}</div>
+                <div className={cn("max-w-full break-words text-2xl font-extrabold leading-tight sm:text-3xl xl:text-4xl", onDark ? "text-white" : "text-foreground")}>{item.value}</div>
                 <div className={cn("mt-1 text-sm", onDark ? "text-white/80" : "text-muted-foreground")}>{item.title}</div>
               </div>
             );
@@ -198,21 +212,7 @@ export function SectionBlock({
 
     case "timeline": {
       if (!items.length) return null;
-      body = (
-        <div className="relative mx-auto max-w-2xl border-l-2 pl-8" style={{ borderColor: onDark ? "rgba(255,255,255,0.4)" : colorTint(accent, 0.35) }}>
-          {items.map((item, idx) => (
-            <div key={item._id || idx} className="relative pb-10 last:pb-0">
-              <span
-                className="absolute -left-[2.35rem] top-1 flex h-4 w-4 items-center justify-center rounded-full border-2 bg-background"
-                style={{ borderColor: onDark ? "#ffffff" : colorValue(accent) }}
-              />
-              {item.value && <div className="text-sm font-bold" style={{ color: onDark ? "#ffffff" : colorValue(accent) }}>{item.value}</div>}
-              {item.title && <h3 className="mt-1 font-semibold">{item.title}</h3>}
-              {item.description && <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>}
-            </div>
-          ))}
-        </div>
-      );
+      body = <HorizontalTimeline items={items} accent={accent} onDark={onDark} />;
       break;
     }
 
@@ -247,16 +247,38 @@ export function SectionBlock({
 
     case "cta": {
       if (!section.title && !section.content && !section.ctaText) return null;
+      // The band's colours come from the section's own settings, like every other
+      // section. Unset (or "Brand gradient") keeps the original look: the brand
+      // gradient with the theme's foreground colour. A custom colour picks black
+      // or white text for itself unless a text colour is chosen, so the band
+      // stays readable whatever colour it is given.
+      const brandGradient = !section.background || section.background === "default" || section.background === "primary" || (section.background === "custom" && !customBg);
+      const surface = brandGradient
+        ? { className: "bg-gradient-hero text-primary-foreground", style: undefined }
+        : section.background === "muted"
+          ? { className: "bg-muted text-foreground", style: undefined }
+          : section.background === "tint"
+            ? { className: "text-foreground", style: { backgroundColor: colorTint(accent, 0.12) } }
+            : { className: onDark ? "text-white" : "text-foreground", style: { backgroundColor: customBg } };
       return (
         // Tighter than the other section types on purpose: a call to action is
         // a closing band, usually the last thing on a page, and the roomy
         // rhythm the content sections use left it stranded in whitespace.
         <section className="py-3 sm:py-4 md:py-6">
           <div className="container mx-auto px-4">
-            <div className="rounded-3xl bg-gradient-hero p-6 text-center text-primary-foreground sm:p-8 md:p-10">
-              {section.title && <h2 className="text-2xl font-bold md:text-4xl">{section.title}</h2>}
+            <div className={cn("rounded-3xl p-6 text-center sm:p-8 md:p-10", surface.className)} style={surface.style}>
+              {section.title && (
+                <h2 className="text-2xl font-bold md:text-4xl" style={section.titleColor ? { color: colorValue(section.titleColor) } : undefined}>
+                  {section.title}
+                </h2>
+              )}
               {section.content && (
-                <p className="mx-auto mt-3 max-w-2xl whitespace-pre-line text-primary-foreground/90">{section.content}</p>
+                <p
+                  className={cn("mx-auto mt-3 max-w-2xl whitespace-pre-line", !textStyle && "opacity-90")}
+                  style={textStyle}
+                >
+                  {section.content}
+                </p>
               )}
               {section.ctaText && section.ctaLink && (
                 <Button size="lg" variant="secondary" className="mt-5 rounded-full" onClick={() => goLink(section.ctaLink)}>

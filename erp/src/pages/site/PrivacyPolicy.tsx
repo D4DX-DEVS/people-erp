@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { MobileBottomNav } from "@/components/site/MobileBottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
 import { useSiteData } from "@/hooks/useSiteData";
+import { heroTextCss } from "@/lib/heroText";
 
 export default function PrivacyPolicy() {
   const { org } = useConfig();
@@ -22,6 +23,12 @@ export default function PrivacyPolicy() {
   const address = org.address || "";
   const website = org.website || org.websiteUrl || "";
   const lastUpdated = "June 2026";
+
+  // Hero copy and formatting from Website Settings → Page Heroes; the wording
+  // below is what shows until an admin sets their own.
+  const hero = s.pageHeroes?.privacy;
+  const heroTitle = hero?.title?.trim() || "Privacy Policy";
+  const heroLead = hero?.subtitle?.trim() || `How ${orgName} collects, uses, and protects your personal information.`;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -42,10 +49,16 @@ export default function PrivacyPolicy() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
             <ShieldCheck className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-extrabold md:text-4xl">Privacy Policy</h1>
-          <p className="mx-auto mt-3 max-w-2xl text-primary-foreground/90">
-            How {orgName} collects, uses, and protects your personal information.
-          </p>
+          {hero?.titleStyle?.hidden ? (
+            <h1 className="sr-only">{heroTitle}</h1>
+          ) : (
+            <h1 className="text-3xl font-extrabold md:text-4xl" style={heroTextCss(hero?.titleStyle, "title")}>{heroTitle}</h1>
+          )}
+          {!hero?.subtitleStyle?.hidden && (
+            <p className="mx-auto mt-3 max-w-2xl text-primary-foreground/90" style={heroTextCss(hero?.subtitleStyle, "subtitle")}>
+              {heroLead}
+            </p>
+          )}
           <p className="mt-2 text-sm text-primary-foreground/70">Last updated: {lastUpdated}</p>
         </div>
       </section>

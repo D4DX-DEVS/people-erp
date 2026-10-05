@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { categoryLabel, projectImage, projectPath, type PublicProject } from "@/lib/siteProjects";
 
 /** How many projects the rail shows. The hub page carries the full list. */
-const PANEL_COUNT = 5;
+export const PANEL_COUNT = 5;
 /** Time each project holds the open panel before the next takes a turn. */
 const ADVANCE_MS = 5200;
 

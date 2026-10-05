@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Calendar, IndianRupee, Target, Loader2, AlertCircle, FolderKanban, Activity, Settings, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Calendar, IndianRupee, Target, Loader2, AlertCircle, FolderKanban, Activity, Settings, ChevronDown, ChevronUp, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectModal } from "@/components/modals/ProjectModal";
 import { ProjectDetailsModal } from "@/components/modals/ProjectDetailsModal";
@@ -15,9 +15,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { projects as projectsApi, type Project } from "@/lib/api";
+import { projects as projectsApi, projectPages as projectPagesApi, type Project } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
+import { useDragReorder } from "@/hooks/useDragReorder";
+import { PANEL_COUNT } from "@/components/site/ProjectsShowcase";
+import { cn } from "@/lib/utils";
 import { useExport } from "@/hooks/useExport";
 import ExportButton from "@/components/common/ExportButton";
 import { projectExportColumns } from "@/utils/exportColumns";
@@ -80,6 +83,38 @@ export default function Projects() {
   const canCreateProjects = hasPermission('projects.create');
   const canUpdateProjects = hasAnyPermission(['projects.update.all', 'projects.update.assigned']);
   const canManageProjects = hasPermission('projects.manage');
+  // The order projects appear in on the public website is a website setting, so
+  // it follows the website permission rather than the permission to edit a project.
+  const canReorder = hasAnyPermission(['website.write']);
+
+  // Dropping a project (or pressing an arrow) saves straight away: the list
+  // updates first, and goes back to how it was if the save fails.
+  const [savingOrder, setSavingOrder] = useState(false);
+  const reorderProjects = async (from: number, to: number) => {
+    if (savingOrder || from === to || to < 0 || to >= projectList.length) return;
+    const previous = projectList;
+    const next = projectList.slice();
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setProjectList(next);
+    setSavingOrder(true);
+    try {
+      await projectPagesApi.reorder(next.map((p) => p.id));
+      toast({ title: "Order saved", description: `"${moved.name}" is now #${to + 1} on the website.` });
+    } catch (err: any) {
+      setProjectList(previous);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to save project order",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+  // Called before the access check below so the hook order never changes.
+  const { dragIndex, handleProps, rowProps, indicator } = useDragReorder(reorderProjects, canReorder && !savingOrder);
+  const reorderable = canReorder && projectList.length > 1;
 
   // Load projects on component mount
   useEffect(() => {
@@ -106,7 +141,7 @@ export default function Projects() {
     try {
       setLoading(true);
       setError(null);
-      const response = await projectsApi.getAll();
+      const response = await projectsApi.getAll({ sort: 'order', limit: 100 });
       
       if (response.success && response.data) {
         setProjectList(response.data.projects);
@@ -225,6 +260,12 @@ export default function Projects() {
         <div>
           <h1 className="text-lg font-bold">Projects</h1>
           <p className="text-muted-foreground mt-1">Manage and track all NGO projects</p>
+          {reorderable && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Drag a project by its handle, or use the arrows, to set the order it appears in on the website —
+              the first {PANEL_COUNT} are shown on the home page.
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <ExportButton
@@ -265,17 +306,65 @@ export default function Projects() {
         </Card>
       ) : (
         <div className="grid gap-6">
-          {projectList.map((project) => {
+          {projectList.map((project, index) => {
             const progress = project.budgetUtilization || 0;
             const isExpanded = expandedProjects.has(project.id);
+            const dropLine = indicator(index);
 
             return (
-              <Card key={project.id} className="overflow-hidden hover:shadow-elegant transition-shadow">
+              <Card
+                key={project.id}
+                {...(reorderable ? rowProps(index) : {})}
+                className={cn(
+                  "relative overflow-hidden hover:shadow-elegant transition-shadow",
+                  dragIndex === index && "opacity-40",
+                )}
+              >
+                {/* Where the dragged project will land. */}
+                {dropLine && (
+                  <span
+                    aria-hidden
+                    className={cn("pointer-events-none absolute inset-x-0 z-10 h-1 bg-primary", dropLine === "top" ? "top-0" : "bottom-0")}
+                  />
+                )}
                 <Collapsible open={isExpanded} onOpenChange={() => toggleProjectExpansion(project.id)}>
                   <CollapsibleTrigger asChild>
                     <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2 flex-1">
+                      <div className="flex items-start gap-3">
+                        {reorderable && (
+                          // Clicks here must not fold/unfold the card, which is what the header does.
+                          <div className="flex shrink-0 flex-col items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              type="button" variant="ghost" size="icon" className="h-6 w-6"
+                              title="Move up" aria-label={`Move ${project.name} up`}
+                              disabled={savingOrder || index === 0} onClick={() => reorderProjects(index, index - 1)}
+                            >
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <span
+                              {...handleProps(index)}
+                              title="Drag to reorder"
+                              aria-label="Drag to reorder"
+                              className={cn(
+                                "flex h-7 w-7 items-center justify-center rounded text-muted-foreground",
+                                savingOrder ? "opacity-40" : "cursor-grab hover:bg-muted hover:text-foreground active:cursor-grabbing",
+                              )}
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </span>
+                            <span className="text-[11px] font-semibold leading-none text-muted-foreground" title="Position on the website">
+                              #{index + 1}
+                            </span>
+                            <Button
+                              type="button" variant="ghost" size="icon" className="h-6 w-6"
+                              title="Move down" aria-label={`Move ${project.name} down`}
+                              disabled={savingOrder || index === projectList.length - 1} onClick={() => reorderProjects(index, index + 1)}
+                            >
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                        <div className="space-y-2 flex-1 min-w-0">
                           <div className="flex items-center gap-3">
                             <img
                               src={categoryImages[project.category] || categoryImages.other}
@@ -338,7 +427,7 @@ export default function Projects() {
                             </div>
                           </div>
                         </div>
-                        <Badge className={statusColors[project.status] || statusColors.draft}>
+                        <Badge className={cn("shrink-0", statusColors[project.status] || statusColors.draft)}>
                           {project.status.replace('_', ' ')}
                         </Badge>
                       </div>

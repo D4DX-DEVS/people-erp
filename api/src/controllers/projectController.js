@@ -1,6 +1,7 @@
 const { Project, User, Location, MasterData } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
+const { PUBLIC_PROJECT_SORT } = require('../utils/siteContent');
 
 class ProjectController {
   /**
@@ -17,7 +18,8 @@ class ProjectController {
         priority,
         scope,
         coordinator,
-        search
+        search,
+        sort
       } = req.query;
 
       // Build filter query
@@ -54,7 +56,9 @@ class ProjectController {
         .populate('coordinator', 'name email phone role')
         .populate('targetRegions', 'name type code')
         .populate('createdBy', 'name email')
-        .sort({ createdAt: -1 })
+        // sort=order lists projects in website order (Project.displayOrder), the
+        // view the Projects page uses for drag-to-reorder; anything else stays newest-first.
+        .sort(sort === 'order' ? PUBLIC_PROJECT_SORT : { createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
 

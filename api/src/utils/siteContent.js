@@ -21,6 +21,12 @@ const slugify = (text) =>
 
 /** Project statuses the public site is allowed to show. */
 const PUBLIC_PROJECT_STATUSES = ['active', 'approved', 'completed'];
+/**
+ * Order projects appear in on the public site: the admin's arrangement first
+ * (Project.displayOrder), then newest. `_id` makes the order total, so paging
+ * through the hub never repeats or skips a project that ties on both.
+ */
+const PUBLIC_PROJECT_SORT = { displayOrder: 1, createdAt: -1, _id: 1 };
 /** Scheme statuses the public site is allowed to show. */
 const PUBLIC_SCHEME_STATUSES = ['active'];
 
@@ -102,7 +108,7 @@ async function resolveContentSource(source, limit, scope) {
       return Video.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).limit(lim)
         .select('title description videoUrl thumbnailUrl category').lean();
     case 'projects': {
-      const projects = await Project.find({ status: { $in: PUBLIC_PROJECT_STATUSES }, ...scope }).sort({ createdAt: -1 }).limit(lim)
+      const projects = await Project.find({ status: { $in: PUBLIC_PROJECT_STATUSES }, ...scope }).sort(PUBLIC_PROJECT_SORT).limit(lim)
         .select('name description category status').lean();
       return attachProjectPages(projects, scope);
     }
@@ -149,6 +155,7 @@ function collectImageKeys(page) {
 module.exports = {
   slugify,
   PUBLIC_PROJECT_STATUSES,
+  PUBLIC_PROJECT_SORT,
   PUBLIC_SCHEME_STATUSES,
   attachProjectPages,
   attachSchemePages,

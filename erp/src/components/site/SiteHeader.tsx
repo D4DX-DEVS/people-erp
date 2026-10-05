@@ -137,9 +137,13 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
   const phone = settings?.contactDetails?.phone || org.phone;
   const email = settings?.contactDetails?.email || org.email;
   const firstBrochureUrl = siteData?.brochures?.[0]?.fileUrl;
+  // The home payload carries the published pages next to the menu settings, so
+  // the slugs are there the moment the menu is — a link pasted as a full web
+  // address of one of those pages is routed in-app from the first paint, not
+  // only after the separate page-list request has come back.
   const { menuAlignment, items, buttons } = resolveNavigation(
     navigationProp ?? settings?.navigation,
-    publicPages || [],
+    publicPages ?? siteData?.pages ?? [],
     donateLink,
   );
 

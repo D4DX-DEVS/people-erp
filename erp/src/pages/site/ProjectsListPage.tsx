@@ -36,7 +36,7 @@ export default function ProjectsListPage() {
 
   return (
     <SiteShell>
-      <PageHero title="Our Projects" subtitle="Initiatives transforming lives in our communities." />
+      <PageHero pageKey="projects" />
       <SiteBreadcrumbs items={[{ label: "Projects" }]} />
 
       <PageBody>

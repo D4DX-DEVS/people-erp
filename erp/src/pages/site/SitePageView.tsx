@@ -54,6 +54,8 @@ export default function SitePageView() {
         eyebrow={page.navLabel || undefined}
         title={page.hero?.title || page.title}
         subtitle={page.hero?.subtitle}
+        titleStyle={page.hero?.titleStyle}
+        subtitleStyle={page.hero?.subtitleStyle}
         imageUrl={heroImage}
         paragraphs={splitParagraphs(intro?.content)}
         html={intro?.content}

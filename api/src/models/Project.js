@@ -32,6 +32,15 @@ const projectSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high', 'critical'],
     default: 'medium'
   },
+  // Position on the public website, 1 = first. Set from Website → Project Pages →
+  // "Arrange order"; lower numbers come first. A project that was never placed
+  // keeps the default, so it follows the placed ones (newest first among them).
+  // Not the same thing as `priority` above, which is internal urgency.
+  displayOrder: {
+    type: Number,
+    default: 9999,
+    min: [0, 'Display order cannot be negative']
+  },
   
   // Geographic Scope
   scope: {
@@ -321,6 +330,7 @@ projectSchema.index({ status: 1 });
 projectSchema.index({ coordinator: 1 });
 projectSchema.index({ targetRegions: 1 });
 projectSchema.index({ category: 1 });
+projectSchema.index({ displayOrder: 1, createdAt: -1 });
 projectSchema.index({ startDate: 1, endDate: 1 });
 projectSchema.index({ 'budget.total': 1 });
 

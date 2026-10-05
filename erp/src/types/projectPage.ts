@@ -40,6 +40,8 @@ export interface ProjectPageProject {
   status?: string;
   startDate?: string;
   endDate?: string;
+  /** Position on the public website, 1 = first (Website → Project Pages → Arrange order). */
+  displayOrder?: number;
 }
 
 /** Row of the admin list: every project with its page (null until built). */
