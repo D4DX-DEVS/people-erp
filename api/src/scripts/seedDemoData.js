@@ -239,6 +239,37 @@ const PROJECTS = [
       { label: 'Handover to local bodies', date: 'Completed' },
     ],
   },
+  {
+    // Listed last on purpose: the home endpoints sort projects newest-first,
+    // so this is the one that leads the campaign carousel.
+    name: 'Chooralmala\u2013Mundakkai Rehabilitation Project',
+    code: 'PF-REH-007',
+    category: 'infrastructure',
+    status: 'active',
+    priority: 'critical',
+    scope: 'district',
+    description:
+      'The ARISE MEPPADI programme: rebuilding homes, access roads and drinking water sources for the families displaced by the Chooralmala and Mundakkai landslides.',
+    summary:
+      'ARISE MEPPADI \u2014 survival, restoration and a return to vitality for the households displaced by the Chooralmala\u2013Mundakkai landslides.',
+    budget: 9600000,
+    spent: 3100000,
+    progress: 32,
+    beneficiaries: 480,
+    startDays: 400,
+    endDays: 330,
+    imageSeed: 'pf-rehab',
+    highlights: [
+      '142 temporary shelters handed over',
+      'Access road to Mundakkai reopened',
+      'Three drinking water sources restored',
+    ],
+    milestones: [
+      { label: 'Family needs assessment', date: 'Completed' },
+      { label: 'Temporary shelters', date: 'Completed' },
+      { label: 'Permanent housing', date: 'In progress' },
+    ],
+  },
 ];
 
 const SCHEMES = [

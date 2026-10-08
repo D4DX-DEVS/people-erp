@@ -590,3 +590,24 @@ All colors MUST be HSL.
   letter-spacing: -0.012em;
   line-height: 1.2;
 }
+
+/* ── Campaign tile ───────────────────────────────────────────────────────────
+   The marketing site's campaign cards are rounded rectangles with a circular
+   bite taken out of the top-right corner. It is a mask rather than a second
+   element sitting on top, so the notch reads as a hole through whatever is
+   behind it — a white patch would break the moment the band changed colour. */
+.campaign-tile {
+  border-radius: 1.5rem;
+  -webkit-mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
+  mask-image: radial-gradient(circle 2.25rem at top right, transparent 97%, #000 100%);
+}
+
+/* CTA red sampled from the live site's "Click here" button. */
+.campaign-cta {
+  background-color: #e1213a;
+  color: #fff;
+}
+
+.campaign-cta:hover {
+  background-color: #c81632;
+}

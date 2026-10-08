@@ -32,6 +32,8 @@ import { resolveDonationDefaults } from "@/config/donationDefaults";
 import { iconBadgeStyle } from "@/lib/siteColors";
 import { resolveHomeLayout, type HomeSectionKey } from "@/types/siteHome";
 import { schemePath } from "@/lib/siteSchemes";
+import { categoryLabel, projectImage, projectPath } from "@/lib/siteProjects";
+import { CampaignCarousel } from "@/components/site/CampaignCarousel";
 import { cn } from "@/lib/utils";
 
 const iconFor = (name?: string) => resolveIcon(name);
@@ -215,6 +217,28 @@ export default function SiteHome() {
           </div>
         </section>
       ),
+    // Lead campaigns, laid out like the organisation's marketing site: a large
+    // display headline over a wide campaign tile with the corner notch and the
+    // red call to action. Slides come from the newest projects, so the band is
+    // maintained from the same records as the projects section rather than a
+    // second copy of the same content.
+    campaigns: () => projects.length > 0 && (
+      <section id="campaigns" className="scroll-mt-20 py-8 sm:py-12">
+        <div className="container mx-auto px-4">
+          <CampaignCarousel
+            slides={projects.slice(0, 3).map((p) => ({
+              _id: p._id,
+              headline: p.name,
+              kicker: categoryLabel(p.category),
+              detail: p.description,
+              imageUrl: projectImage(p),
+              href: projectPath(p),
+            }))}
+            onOpen={(href) => navigate(href)}
+          />
+        </div>
+      </section>
+    ),
     about: () => (
       <section id="about" className="scroll-mt-20 py-6">
         {/* The band used to carry four jobs at once — lead copy, artwork, the

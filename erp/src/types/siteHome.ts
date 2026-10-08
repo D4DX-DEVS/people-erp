@@ -3,6 +3,7 @@
 
 export type HomeSectionKey =
   | "counters"
+  | "campaigns"
   | "about"
   | "projects"
   | "schemes"
@@ -31,6 +32,7 @@ export interface HomeLayoutItem {
 /** Default order, matching how the home page rendered before layouts were configurable. */
 export const HOME_SECTIONS: HomeSectionDef[] = [
   { key: "counters", label: "Impact counters", description: "The statistics counters set up in Website Settings." },
+  { key: "campaigns", label: "Campaign highlights", description: "The lead campaigns, as a carousel of the latest projects." },
   { key: "about", label: "About us", description: "About text and image, vision, mission and core values." },
   { key: "projects", label: "Projects", description: "The latest six projects." },
   { key: "schemes", label: "Schemes & programs", description: "Active schemes people can apply for." },
