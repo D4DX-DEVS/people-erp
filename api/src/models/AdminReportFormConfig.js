@@ -41,6 +41,17 @@ const fieldSchema = new mongoose.Schema({
     maxlength: [200, 'First column header cannot exceed 200 characters'],
     default: ''
   },
+  columnTypes: [{ type: String, enum: ['text', 'number'] }],
+  autoTotals: {
+    row: {
+      enabled: Boolean,
+      label: { type: String, maxlength: [100, 'Totals row label cannot exceed 100 characters'] }
+    },
+    column: {
+      enabled: Boolean,
+      label: { type: String, maxlength: [100, 'Totals column label cannot exceed 100 characters'] }
+    }
+  },
   conditionalLogic: {
     field: Number,
     operator: {

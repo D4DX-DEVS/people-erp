@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { canTransferApplication } from '@/utils/transferEligibility';
 import { TransferApplicationModal } from './TransferApplicationModal';
 import { ApplicationEditModal } from './ApplicationEditModal';
+import { computeTableTotals, formatTotal, getActiveTotals } from '@/lib/tableTotals';
 
 // Button that auto-syncs application top-level status based on current stage states
 const SyncStatusButton: React.FC<{ applicationId: string; onSynced: () => void }> = ({ applicationId, onSynced }) => {
@@ -1255,25 +1256,35 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
       return rowTitles[rowIndex] || `Row ${rowIndex + 1}`;
     };
 
+    // Auto-totals are derived from the submitted cells, never stored
+    const totals = getActiveTotals(fieldConfig);
+    const showLabelColumn = hasRowLabels || !!totals?.rowLabel;
+    const { columnTotals, rowTotals, grandTotal } = computeTableTotals(
+      tableData.slice(0, derivedRowCount),
+      colCount,
+      derivedColCount,
+    );
+
     return (
       <div className="overflow-auto rounded border">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-muted">
-              {hasRowLabels && <th className="border p-2 text-xs font-medium text-left text-muted-foreground">{firstColumnHeader}</th>}
+              {showLabelColumn && <th className="border p-2 text-xs font-medium text-left text-muted-foreground">{firstColumnHeader}</th>}
               {Array.from({ length: derivedColCount }, (_, i) => (
                 <th key={i} className="border p-2 text-xs font-semibold text-left">
                   {columnTitles[i] || `Column ${i + 1}`}
                 </th>
               ))}
+              {totals?.columnLabel && <th className="border p-2 text-xs font-semibold text-left">{totals.columnLabel}</th>}
             </tr>
           </thead>
           <tbody>
             {Array.from({ length: derivedRowCount }, (_, r) => (
               <tr key={r} className={r % 2 === 0 ? '' : 'bg-muted/30'}>
-                {hasRowLabels && (
+                {showLabelColumn && (
                   <td className="border p-2 text-xs font-medium text-muted-foreground bg-muted/50 whitespace-nowrap">
-                    {getRowLabel(r)}
+                    {hasRowLabels ? getRowLabel(r) : ''}
                   </td>
                 )}
                 {Array.from({ length: derivedColCount }, (_, c) => (
@@ -1281,8 +1292,20 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                     {tableData[r]?.[c] || <span className="text-muted-foreground italic">—</span>}
                   </td>
                 ))}
+                {totals?.columnLabel && (
+                  <td className="border p-2 text-xs font-medium bg-muted/40">{formatTotal(rowTotals[r])}</td>
+                )}
               </tr>
             ))}
+            {totals?.rowLabel && (
+              <tr className="bg-muted/60 font-semibold">
+                <td className="border p-2 text-xs whitespace-nowrap">{totals.rowLabel}</td>
+                {Array.from({ length: derivedColCount }, (_, c) => (
+                  <td key={c} className="border p-2 text-xs">{formatTotal(columnTotals[c])}</td>
+                ))}
+                {totals.columnLabel && <td className="border p-2 text-xs">{formatTotal(grandTotal)}</td>}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

@@ -12,6 +12,7 @@ import { CopyPlus, Info, UserCheck } from "lucide-react";
 import { FileUploadField } from "./FileUploadField";
 import { ProfilePhotoBox } from "./ProfilePhotoBox";
 import { type FieldAutoFill, getProfileSourceLabel } from "@/lib/profileAutoFill";
+import { type TableColumnType, type TableTotalsConfig, getActiveTotals, getColumnType } from "@/lib/tableTotals";
 
 interface Field {
   id: number;
@@ -26,6 +27,8 @@ interface Field {
   rows?: number;
   rowTitles?: string[];
   firstColumnHeader?: string;
+  columnTypes?: TableColumnType[];
+  autoTotals?: TableTotalsConfig;
   autoFill?: FieldAutoFill;
 }
 
@@ -261,7 +264,9 @@ export function FormPreview({ formTitle, formDescription, pages, instructions, s
       case "column": {
         const colCount = field.columns || 2;
         const rowCount = field.rows || 3;
-        const hasRowLabels = field.rowTitles?.some(t => t) ?? false;
+        const totals = getActiveTotals(field);
+        // A totals row needs the label column even when no row has a title
+        const hasRowLabels = (field.rowTitles?.some(t => t) ?? false) || !!totals?.rowLabel;
         return (
           <div key={field.id} className="space-y-2">
             {field.label && field.label !== "New row Field" && (
@@ -277,6 +282,9 @@ export function FormPreview({ formTitle, formDescription, pages, instructions, s
                         {field.columnTitles?.[i] || `Column ${i + 1}`}
                       </th>
                     ))}
+                    {totals?.columnLabel && (
+                      <th className="border-r border-b p-2 text-left font-semibold text-xs">{totals.columnLabel}</th>
+                    )}
                     <th className="border-b p-2 text-center font-medium text-xs w-[50px]"></th>
                   </tr>
                 </thead>
@@ -290,14 +298,27 @@ export function FormPreview({ formTitle, formDescription, pages, instructions, s
                       )}
                       {Array.from({ length: colCount }, (_, c) => (
                         <td key={c} className="border-r border-b p-1.5">
-                          <Input disabled placeholder="..." className="h-7 text-xs" />
+                          <Input disabled type={getColumnType(field, c) === "number" ? "number" : "text"} placeholder="..." className="h-7 text-xs" />
                         </td>
                       ))}
+                      {totals?.columnLabel && (
+                        <td className="border-r border-b p-2 text-xs font-semibold bg-muted/40">0</td>
+                      )}
                       <td className="border-b p-1.5 text-center w-[50px]">
                         <CopyPlus className="h-3.5 w-3.5 text-muted-foreground/40 mx-auto" />
                       </td>
                     </tr>
                   ))}
+                  {totals?.rowLabel && (
+                    <tr className="bg-muted/50 font-semibold">
+                      <td className="border-r p-2 text-xs whitespace-nowrap">{totals.rowLabel}</td>
+                      {Array.from({ length: colCount }, (_, c) => (
+                        <td key={c} className="border-r p-2 text-xs">0</td>
+                      ))}
+                      {totals.columnLabel && <td className="border-r p-2 text-xs">0</td>}
+                      <td />
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

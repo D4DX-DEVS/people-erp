@@ -6,6 +6,7 @@ import { Plus, Trash2, GripHorizontal } from "lucide-react";
 import { FieldEditor } from "./FieldEditor";
 import { AddFieldPopover } from "./AddFieldPopover";
 import { type FieldAutoFill } from "@/lib/profileAutoFill";
+import { type TableColumnType, type TableTotalsConfig } from "@/lib/tableTotals";
 
 interface Field {
   id: number;
@@ -20,6 +21,8 @@ interface Field {
   columnTitles?: string[];
   rows?: number;
   rowTitles?: string[];
+  columnTypes?: TableColumnType[];
+  autoTotals?: TableTotalsConfig;
   conditionalLogic?: {
     field: number;
     operator: string;

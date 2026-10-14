@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
@@ -20,6 +21,15 @@ import {
   getProfileSourceLabel,
   supportsProfileAutoFill,
 } from "@/lib/profileAutoFill";
+import {
+  type TableColumnType,
+  type TableTotalsConfig,
+  DEFAULT_TOTALS_COLUMN_LABEL,
+  DEFAULT_TOTALS_ROW_LABEL,
+  getActiveTotals,
+  getColumnType,
+  isNumberTable,
+} from "@/lib/tableTotals";
 
 interface Field {
   id: number;
@@ -35,6 +45,8 @@ interface Field {
   rows?: number;
   rowTitles?: string[];
   firstColumnHeader?: string;
+  columnTypes?: TableColumnType[];
+  autoTotals?: TableTotalsConfig;
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -67,6 +79,21 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
   const [showAutoFill, setShowAutoFill] = useState(false);
   const autoFillGroups = getProfileSourceGroups(field.type);
   const autoFillEnabled = !!field.autoFill?.enabled && !!field.autoFill?.source;
+  const tableColumnCount = field.columns || 2;
+  const activeTotals = getActiveTotals(field);
+
+  const setColumnType = (index: number, type: TableColumnType) => {
+    const types = Array.from({ length: tableColumnCount }, (_, i) => getColumnType(field, i));
+    types[index] = type;
+    onUpdate({ ...field, columnTypes: types });
+  };
+
+  const updateAutoTotals = (part: "row" | "column", patch: { enabled?: boolean; label?: string }) => {
+    onUpdate({
+      ...field,
+      autoTotals: { ...field.autoTotals, [part]: { ...field.autoTotals?.[part], ...patch } },
+    });
+  };
 
   return (
     <Card className="group hover:shadow-md transition-shadow p-3">
@@ -216,7 +243,8 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                           const cols = Math.max(1, parseInt(e.target.value) || 1);
                           const titles = field.columnTitles || [];
                           const newTitles = Array.from({ length: cols }, (_, i) => titles[i] || "");
-                          onUpdate({ ...field, columns: cols, columnTitles: newTitles });
+                          const newTypes = Array.from({ length: cols }, (_, i) => getColumnType(field, i));
+                          onUpdate({ ...field, columns: cols, columnTitles: newTitles, columnTypes: newTypes });
                         }}
                         className="h-8 w-20 text-sm"
                       />
@@ -267,8 +295,29 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                   placeholder={`Column ${i + 1}`}
                                   className="w-full h-8 px-1.5 bg-transparent text-xs font-medium outline-none focus:bg-primary/5 focus:ring-1 focus:ring-primary/30 rounded-none"
                                 />
+                                <Select
+                                  value={getColumnType(field, i)}
+                                  onValueChange={(type) => setColumnType(i, type as TableColumnType)}
+                                >
+                                  <SelectTrigger
+                                    className="h-6 w-full rounded-none border-0 border-t bg-transparent px-1.5 text-[10px] font-normal text-muted-foreground shadow-none focus:ring-0 focus:ring-offset-0"
+                                    title="What applicants can enter in this column"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="text" className="text-xs">Text</SelectItem>
+                                    <SelectItem value="number" className="text-xs">Number</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </th>
                             ))}
+                            {activeTotals?.columnLabel && (
+                              <th className="border-b p-0 text-left font-medium">
+                                <div className="h-8 px-1.5 flex items-center text-xs font-semibold">{activeTotals.columnLabel}</div>
+                                <div className="h-6 px-1.5 flex items-center border-t text-[10px] font-normal text-muted-foreground">Auto sum</div>
+                              </th>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
@@ -296,11 +345,84 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                   </div>
                                 </td>
                               ))}
+                              {activeTotals?.columnLabel && (
+                                <td className="border-b p-1 text-center text-[10px] text-muted-foreground/60 bg-muted/40">auto</td>
+                              )}
                             </tr>
                           ))}
+                          {activeTotals?.rowLabel && (
+                            <tr className="bg-muted/40">
+                              <td className="border-r p-1.5 text-xs font-semibold text-muted-foreground">{activeTotals.rowLabel}</td>
+                              {Array.from({ length: field.columns || 2 }, (_, c) => (
+                                <td key={c} className="border-r p-1.5 text-center text-[10px] text-muted-foreground/60">auto</td>
+                              ))}
+                              {activeTotals.columnLabel && (
+                                <td className="p-1.5 text-center text-[10px] text-muted-foreground/60">auto</td>
+                              )}
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
+                  </div>
+
+                  {/* Auto-totals: only offered when every column is a number column */}
+                  <div className="space-y-2 rounded-md border bg-background p-3">
+                    <Label className="text-xs font-semibold">Auto-totals (sum)</Label>
+                    {isNumberTable(field) ? (
+                      <div className="space-y-2">
+                        <div className="space-y-1.5">
+                          <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <Checkbox
+                              checked={!!field.autoTotals?.row?.enabled}
+                              onCheckedChange={(checked) =>
+                                updateAutoTotals("row", {
+                                  enabled: checked === true,
+                                  label: field.autoTotals?.row?.label ?? DEFAULT_TOTALS_ROW_LABEL,
+                                })
+                              }
+                            />
+                            Totals row at the bottom (sums each column)
+                          </label>
+                          {field.autoTotals?.row?.enabled && (
+                            <Input
+                              value={field.autoTotals.row.label ?? ""}
+                              onChange={(e) => updateAutoTotals("row", { label: e.target.value })}
+                              placeholder={DEFAULT_TOTALS_ROW_LABEL}
+                              maxLength={100}
+                              className="h-8 w-48 ml-6 text-xs"
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <Checkbox
+                              checked={!!field.autoTotals?.column?.enabled}
+                              onCheckedChange={(checked) =>
+                                updateAutoTotals("column", {
+                                  enabled: checked === true,
+                                  label: field.autoTotals?.column?.label ?? DEFAULT_TOTALS_COLUMN_LABEL,
+                                })
+                              }
+                            />
+                            Totals column on the right (sums each row)
+                          </label>
+                          {field.autoTotals?.column?.enabled && (
+                            <Input
+                              value={field.autoTotals.column.label ?? ""}
+                              onChange={(e) => updateAutoTotals("column", { label: e.target.value })}
+                              placeholder={DEFAULT_TOTALS_COLUMN_LABEL}
+                              maxLength={100}
+                              className="h-8 w-48 ml-6 text-xs"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">
+                        Set every column to <strong>Number</strong> (dropdown under each column header) to add a totals row or column.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

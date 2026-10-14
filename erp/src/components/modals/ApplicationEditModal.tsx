@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ProfilePhotoBox, photoSrc } from '../formbuilder/ProfilePhotoBox';
 import { applications as applicationsApi } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { computeTableTotals, formatTotal, getActiveTotals, getColumnType } from '@/lib/tableTotals';
 
 interface ApplicationEditModalProps {
   isOpen: boolean;
@@ -246,9 +247,13 @@ export const ApplicationEditModal: React.FC<ApplicationEditModalProps> = ({
           Array.isArray(draft[metaKey]) && draft[metaKey].length > 0 ? draft[metaKey] : null;
         const table = toTable(value, rowMeta ? rowMeta.length : field.rows || 2, cols);
         const rowTitles: string[] = field.rowTitles || [];
-        const hasRowLabels = rowTitles.some(Boolean);
+        const totals = getActiveTotals(field);
+        // A totals row needs the label column even when no row has a title
+        const hasRowLabels = rowTitles.some(Boolean) || !!totals?.rowLabel;
+        const { columnTotals, rowTotals, grandTotal } = computeTableTotals(table, cols);
         const rowLabel = (r: number) => {
           const meta = rowMeta?.[r];
+          if (!rowTitles.some(Boolean)) return '';
           const base = rowTitles[meta ? meta.sourceRow : r] || `Row ${r + 1}`;
           return meta && meta.duplicateIndex > 0 ? `${base} (${meta.duplicateIndex})` : base;
         };
@@ -270,6 +275,7 @@ export const ApplicationEditModal: React.FC<ApplicationEditModalProps> = ({
                         {field.columnTitles?.[c] || `Column ${c + 1}`}
                       </th>
                     ))}
+                    {totals?.columnLabel && <th className="border-r border-b p-2 text-left font-semibold">{totals.columnLabel}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -281,14 +287,29 @@ export const ApplicationEditModal: React.FC<ApplicationEditModalProps> = ({
                       {Array.from({ length: cols }, (_, c) => (
                         <td key={c} className="border-r border-b p-1">
                           <Input
+                            type={getColumnType(field, c) === 'number' ? 'number' : 'text'}
+                            inputMode={getColumnType(field, c) === 'number' ? 'decimal' : undefined}
+                            step={getColumnType(field, c) === 'number' ? 'any' : undefined}
                             value={row[c] ?? ''}
                             onChange={(e) => updateCell(r, c, e.target.value)}
                             className="h-8 text-xs border-0 shadow-none focus-visible:ring-1"
                           />
                         </td>
                       ))}
+                      {totals?.columnLabel && (
+                        <td className="border-r border-b p-2 font-medium bg-muted/40 whitespace-nowrap">{formatTotal(rowTotals[r])}</td>
+                      )}
                     </tr>
                   ))}
+                  {totals?.rowLabel && (
+                    <tr className="bg-muted/60 font-semibold">
+                      <td className="border-r p-2 whitespace-nowrap">{totals.rowLabel}</td>
+                      {Array.from({ length: cols }, (_, c) => (
+                        <td key={c} className="border-r p-2">{formatTotal(columnTotals[c])}</td>
+                      ))}
+                      {totals.columnLabel && <td className="border-r p-2">{formatTotal(grandTotal)}</td>}
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

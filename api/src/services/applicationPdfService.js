@@ -2,6 +2,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const orgConfig = require('../config/orgConfig');
+const { getActiveTotals, computeTableTotals } = require('../utils/tableTotals');
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 // A4 portrait, bordered-table layout: centred letterhead with the logo at the
@@ -691,7 +692,10 @@ class ApplicationPdfService {
     const isMatrix = field.type === 'row' || field.type === 'column';
     const columnTitles = Array.isArray(field.columnTitles) ? field.columnTitles : [];
     const rowTitles = Array.isArray(field.rowTitles) ? field.rowTitles : [];
+    const totals = isMatrix ? getActiveTotals(field) : null;
+    // A totals row needs the label column even when no row has a title
     const hasRowLabels = rowTitles.some(t => t);
+    const showLabelCol = hasRowLabels || !!(totals && totals.rowLabel);
     const firstColumnHeader = field.firstColumnHeader || '';
 
     const raw = entry.value;
@@ -719,8 +723,12 @@ class ApplicationPdfService {
 
     // Row-label column hugs its longest label ("Sl. No." stays narrow, "Qualification" gets room)
     let labelColW = 0;
-    if (hasRowLabels) {
-      const labels = [firstColumnHeader, ...Array.from({ length: rowCount }, (_, i) => getRowLabel(i))];
+    if (showLabelCol) {
+      const labels = [
+        firstColumnHeader,
+        ...(hasRowLabels ? Array.from({ length: rowCount }, (_, i) => getRowLabel(i)) : []),
+        ...(totals && totals.rowLabel ? [totals.rowLabel] : [])
+      ];
       const widest = Math.max(...labels.map(t => {
         const str = String(t || '');
         doc.font(this._hasMalayalam(str) ? 'Regular' : 'Helvetica').fontSize(FS.label);
@@ -728,21 +736,41 @@ class ApplicationPdfService {
       }));
       labelColW = Math.min(120, Math.max(48, widest + PAD_X * 2 + 6));
     }
-    const colW = (TW - labelColW) / colCount;
-    const widths = hasRowLabels ? [labelColW, ...Array(colCount).fill(colW)] : Array(colCount).fill(colW);
+    const totalsColCount = totals && totals.columnLabel ? 1 : 0;
+    const colW = (TW - labelColW) / (colCount + totalsColCount);
+    const widths = [
+      ...(showLabelCol ? [labelColW] : []),
+      ...Array(colCount + totalsColCount).fill(colW)
+    ];
 
     const headers = [];
-    if (hasRowLabels) headers.push(firstColumnHeader);
+    if (showLabelCol) headers.push(firstColumnHeader);
     for (let i = 0; i < colCount; i++) headers.push(columnTitles[i] || `Column ${i + 1}`);
+    if (totalsColCount) headers.push(totals.columnLabel);
+
+    // Auto-totals are derived from the submitted cells, never stored
+    const sums = totals && !isBlank
+      ? computeTableTotals(data.slice(0, rowCount), Number(field.columns) || 2, colCount)
+      : null;
+    const fmt = n => (n === null || n === undefined ? '' : String(n));
 
     const rows = [{ cells: headers.map(h => this._headCell(h)) }];
     for (let r = 0; r < rowCount; r++) {
       const cells = [];
-      if (hasRowLabels) cells.push(this._valueCell(getRowLabel(r)));
+      if (showLabelCol) cells.push(this._valueCell(hasRowLabels ? getRowLabel(r) : ''));
       for (let c = 0; c < colCount; c++) {
         const v = isBlank ? '' : (data[r]?.[c] || '');
         cells.push(this._valueCell(v || (isBlank ? '' : '—')));
       }
+      if (totalsColCount) cells.push(this._valueCell(sums ? fmt(sums.rowTotals[r]) : '', { bold: true, bg: C.labelBg }));
+      rows.push({ cells, minH: isBlank ? BLANK_ROW_H : 0 });
+    }
+    if (totals && totals.rowLabel) {
+      const cells = [this._valueCell(totals.rowLabel, { bold: true, bg: C.labelBg })];
+      for (let c = 0; c < colCount; c++) {
+        cells.push(this._valueCell(sums ? fmt(sums.columnTotals[c]) : '', { bold: true, bg: C.labelBg }));
+      }
+      if (totalsColCount) cells.push(this._valueCell(sums ? fmt(sums.grandTotal) : '', { bold: true, bg: C.labelBg }));
       rows.push({ cells, minH: isBlank ? BLANK_ROW_H : 0 });
     }
 

@@ -21,6 +21,14 @@ import {
   type FieldAutoFill,
   buildProfileAutoFillUpdates,
 } from "@/lib/profileAutoFill";
+import {
+  type TableColumnType,
+  type TableTotalsConfig,
+  computeTableTotals,
+  formatTotal,
+  getActiveTotals,
+  getColumnType,
+} from "@/lib/tableTotals";
 
 interface FormField {
   id: number;
@@ -44,6 +52,8 @@ interface FormField {
   rows?: number;
   rowTitles?: string[];
   firstColumnHeader?: string;
+  columnTypes?: TableColumnType[];
+  autoTotals?: TableTotalsConfig;
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -525,10 +535,21 @@ export default function BeneficiaryApplication() {
 
     // Table (row/column) validation: check that at least one cell has data
     if (field.type === "row" || field.type === "column") {
+      const tableValue = Array.isArray(value) ? value : [];
       if (field.required) {
-        const tableValue = Array.isArray(value) ? value : [];
         if (!tableValue.some((row: string[]) => row?.some((cell: string) => cell?.trim()))) {
           return `${field.label} is required — please fill in at least one cell`;
+        }
+      }
+      // Number columns only accept numbers (cells left empty are fine)
+      for (let c = 0; c < (field.columns || 2); c++) {
+        if (getColumnType(field, c) !== "number") continue;
+        const hasBadCell = tableValue.some((row: string[]) => {
+          const cell = String(row?.[c] ?? "").trim();
+          return cell !== "" && !Number.isFinite(Number(cell.replace(/,/g, "")));
+        });
+        if (hasBadCell) {
+          return `${field.columnTitles?.[c] || `Column ${c + 1}`} accepts numbers only`;
         }
       }
       return "";
@@ -970,6 +991,9 @@ export default function BeneficiaryApplication() {
         const colCount = field.columns || 2;
         const baseRowCount = field.rows || 3;
         const hasRowLabels = field.rowTitles?.some(t => t) ?? false;
+        const totals = getActiveTotals(field);
+        // A totals row needs the label column even when no row has a title
+        const showLabelColumn = hasRowLabels || !!totals?.rowLabel;
         const metaKey = `${fieldKey}__rowMeta`;
 
         // Initialize or restore row metadata
@@ -989,6 +1013,9 @@ export default function BeneficiaryApplication() {
         while (tableData.length < actualRowCount) {
           tableData.push(Array(colCount).fill(""));
         }
+
+        // Auto-totals are derived from the cells on every render, never stored
+        const { columnTotals, rowTotals, grandTotal } = computeTableTotals(tableData.slice(0, actualRowCount), colCount);
 
         // Compute row label from metadata
         const getRowLabel = (meta: { sourceRow: number; duplicateIndex: number }) => {
@@ -1036,26 +1063,32 @@ export default function BeneficiaryApplication() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted">
-                    {hasRowLabels && <th className="border-r border-b p-2 text-left font-medium text-xs">{field.firstColumnHeader || ""}</th>}
+                    {showLabelColumn && <th className="border-r border-b p-2 text-left font-medium text-xs">{field.firstColumnHeader || ""}</th>}
                     {Array.from({ length: colCount }, (_, i) => (
                       <th key={i} className="border-r border-b p-2 text-left font-medium text-xs">
                         {field.columnTitles?.[i] || `Column ${i + 1}`}
                       </th>
                     ))}
+                    {totals?.columnLabel && (
+                      <th className="border-r border-b p-2 text-left font-semibold text-xs">{totals.columnLabel}</th>
+                    )}
                     <th className="border-b p-2 text-center font-medium text-xs w-[70px]"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rowMeta.map((meta, r) => (
                     <tr key={`${meta.sourceRow}-${meta.duplicateIndex}-${r}`} className={r % 2 === 0 ? "" : "bg-muted/30"}>
-                      {hasRowLabels && (
+                      {showLabelColumn && (
                         <td className="border-r border-b p-2 font-medium text-xs text-muted-foreground bg-muted/50 whitespace-nowrap">
-                          {getRowLabel(meta)}
+                          {hasRowLabels ? getRowLabel(meta) : ""}
                         </td>
                       )}
                       {Array.from({ length: colCount }, (_, c) => (
                         <td key={c} className="border-r border-b p-1">
                           <Input
+                            type={getColumnType(field, c) === "number" ? "number" : "text"}
+                            inputMode={getColumnType(field, c) === "number" ? "decimal" : undefined}
+                            step={getColumnType(field, c) === "number" ? "any" : undefined}
                             value={tableData[r]?.[c] || ""}
                             onChange={(e) => {
                               const newData = tableData.map((row, ri) =>
@@ -1070,6 +1103,11 @@ export default function BeneficiaryApplication() {
                           />
                         </td>
                       ))}
+                      {totals?.columnLabel && (
+                        <td className="border-r border-b p-2 text-sm font-medium bg-muted/40 whitespace-nowrap">
+                          {formatTotal(rowTotals[r])}
+                        </td>
+                      )}
                       <td className="border-b p-1 text-center w-[70px]">
                         <div className="flex items-center justify-center gap-0.5">
                           <Button
@@ -1098,6 +1136,16 @@ export default function BeneficiaryApplication() {
                       </td>
                     </tr>
                   ))}
+                  {totals?.rowLabel && (
+                    <tr className="bg-muted/60 font-semibold">
+                      <td className="border-r p-2 text-xs whitespace-nowrap">{totals.rowLabel}</td>
+                      {Array.from({ length: colCount }, (_, c) => (
+                        <td key={c} className="border-r p-2 text-sm">{formatTotal(columnTotals[c])}</td>
+                      ))}
+                      {totals.columnLabel && <td className="border-r p-2 text-sm">{formatTotal(grandTotal)}</td>}
+                      <td />
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1147,6 +1195,9 @@ export default function BeneficiaryApplication() {
                           {field.columnTitles?.[c] || `Column ${c + 1}`}
                         </p>
                         <Input
+                          type={getColumnType(field, c) === "number" ? "number" : "text"}
+                          inputMode={getColumnType(field, c) === "number" ? "decimal" : undefined}
+                          step={getColumnType(field, c) === "number" ? "any" : undefined}
                           value={tableData[r]?.[c] || ""}
                           onChange={(e) => {
                             const newData = tableData.map((row, ri) =>
@@ -1161,9 +1212,34 @@ export default function BeneficiaryApplication() {
                         />
                       </div>
                     ))}
+                    {totals?.columnLabel && (
+                      <div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+                        <span>{totals.columnLabel}</span>
+                        <span>{formatTotal(rowTotals[r])}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
+              {totals?.rowLabel && (
+                <div className="border rounded-lg overflow-hidden bg-muted/40">
+                  <div className="bg-muted px-3 py-2 text-xs font-semibold">{totals.rowLabel}</div>
+                  <div className="p-3 space-y-1.5 text-sm">
+                    {Array.from({ length: colCount }, (_, c) => (
+                      <div key={c} className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">{field.columnTitles?.[c] || `Column ${c + 1}`}</span>
+                        <span className="font-semibold">{formatTotal(columnTotals[c])}</span>
+                      </div>
+                    ))}
+                    {totals.columnLabel && (
+                      <div className="flex items-center justify-between border-t pt-1.5 font-semibold">
+                        <span>{totals.columnLabel}</span>
+                        <span>{formatTotal(grandTotal)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}

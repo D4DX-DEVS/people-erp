@@ -74,6 +74,24 @@ const fieldSchema = new mongoose.Schema({
     maxlength: [200, 'First column header cannot exceed 200 characters'],
     default: ''
   },
+  // Row/column (table) fields: per-column cell type, 'text' unless set to 'number'
+  columnTypes: [{
+    type: String,
+    enum: ['text', 'number']
+  }],
+  // Row/column (table) fields whose columns are all numbers: optional totals row
+  // (sums each column) and totals column (sums each row). Totals are derived at
+  // render time, never stored. See utils/tableTotals.js.
+  autoTotals: {
+    row: {
+      enabled: Boolean,
+      label: { type: String, maxlength: [100, 'Totals row label cannot exceed 100 characters'] }
+    },
+    column: {
+      enabled: Boolean,
+      label: { type: String, maxlength: [100, 'Totals column label cannot exceed 100 characters'] }
+    }
+  },
   conditionalLogic: {
     field: Number,
     operator: {

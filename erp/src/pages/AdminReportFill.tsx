@@ -23,6 +23,14 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { adminReports } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  type TableColumnType,
+  type TableTotalsConfig,
+  computeTableTotals,
+  formatTotal,
+  getActiveTotals,
+  getColumnType,
+} from "@/lib/tableTotals";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +56,8 @@ interface FormField {
   rows?: number;
   rowTitles?: string[];
   firstColumnHeader?: string;
+  columnTypes?: TableColumnType[];
+  autoTotals?: TableTotalsConfig;
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -101,11 +111,20 @@ function validateField(field: FormField, value: any): string {
     return !value ? `${field.label} is required` : "";
   }
   if (field.type === "row" || field.type === "column") {
+    const t = Array.isArray(value) ? value : [];
     if (field.required) {
-      const t = Array.isArray(value) ? value : [];
       if (!t.some((row: string[]) => row?.some((c: string) => c?.trim()))) {
         return `${field.label} is required — fill at least one cell`;
       }
+    }
+    // Number columns only accept numbers (cells left empty are fine)
+    for (let c = 0; c < (field.columns || 2); c++) {
+      if (getColumnType(field, c) !== "number") continue;
+      const hasBadCell = t.some((row: string[]) => {
+        const cell = String(row?.[c] ?? "").trim();
+        return cell !== "" && !Number.isFinite(Number(cell.replace(/,/g, "")));
+      });
+      if (hasBadCell) return `${field.columnTitles?.[c] || `Column ${c + 1}`} accepts numbers only`;
     }
     return "";
   }
@@ -175,6 +194,11 @@ function FieldRenderer({ field, value, error, onChange }: FieldProps) {
       onChange(copy);
     };
 
+    // Auto-totals are derived from the cells on every render, never stored
+    const totals = getActiveTotals(field);
+    const showLabelColumn = rowTitles.length > 0 || !!totals?.rowLabel;
+    const { columnTotals, rowTotals, grandTotal } = computeTableTotals(tableData.slice(0, rows), cols);
+
     return (
       <div className="space-y-1">
         <Label>{label}{required && <span className="text-red-500 ml-1">*</span>}</Label>
@@ -183,7 +207,7 @@ function FieldRenderer({ field, value, error, onChange }: FieldProps) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {rowTitles.length > 0 && (
+                {showLabelColumn && (
                   <th className="border border-border bg-muted px-2 py-1 text-left text-xs font-medium">
                     {field.firstColumnHeader || ""}
                   </th>
@@ -193,20 +217,27 @@ function FieldRenderer({ field, value, error, onChange }: FieldProps) {
                     {colTitles[c] || `Col ${c + 1}`}
                   </th>
                 ))}
+                {totals?.columnLabel && (
+                  <th className="border border-border bg-muted px-2 py-1 text-left text-xs font-semibold">
+                    {totals.columnLabel}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {Array.from({ length: rows }).map((_, r) => (
                 <tr key={r}>
-                  {rowTitles.length > 0 && (
+                  {showLabelColumn && (
                     <td className="border border-border bg-muted/50 px-2 py-1 text-xs font-medium whitespace-nowrap">
-                      {rowTitles[r] || `Row ${r + 1}`}
+                      {rowTitles.length > 0 ? rowTitles[r] || `Row ${r + 1}` : ""}
                     </td>
                   )}
                   {Array.from({ length: cols }).map((_, c) => (
                     <td key={c} className="border border-border p-0.5">
                       <input
-                        type="text"
+                        type={getColumnType(field, c) === "number" ? "number" : "text"}
+                        inputMode={getColumnType(field, c) === "number" ? "decimal" : undefined}
+                        step={getColumnType(field, c) === "number" ? "any" : undefined}
                         value={tableData[r]?.[c] || ""}
                         onChange={(e) => handleCell(r, c, e.target.value)}
                         className="w-full px-2 py-1 text-xs bg-transparent outline-none"
@@ -214,8 +245,24 @@ function FieldRenderer({ field, value, error, onChange }: FieldProps) {
                       />
                     </td>
                   ))}
+                  {totals?.columnLabel && (
+                    <td className="border border-border bg-muted/40 px-2 py-1 text-xs font-medium whitespace-nowrap">
+                      {formatTotal(rowTotals[r])}
+                    </td>
+                  )}
                 </tr>
               ))}
+              {totals?.rowLabel && (
+                <tr className="bg-muted/60 font-semibold">
+                  <td className="border border-border px-2 py-1 text-xs whitespace-nowrap">{totals.rowLabel}</td>
+                  {Array.from({ length: cols }).map((_, c) => (
+                    <td key={c} className="border border-border px-2 py-1 text-xs">{formatTotal(columnTotals[c])}</td>
+                  ))}
+                  {totals.columnLabel && (
+                    <td className="border border-border px-2 py-1 text-xs">{formatTotal(grandTotal)}</td>
+                  )}
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
