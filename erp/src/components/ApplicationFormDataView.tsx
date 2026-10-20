@@ -2,6 +2,7 @@ import React from 'react';
 import { Download, FileText } from 'lucide-react';
 import { ProfilePhotoBox, photoSrc, profilePhotoFields } from '@/components/formbuilder/ProfilePhotoBox';
 import { computeTableTotals, formatTotal, getActiveTotals } from '@/lib/tableTotals';
+import { applyAutoSums } from '@/lib/autoSum';
 
 interface ApplicationFormDataViewProps {
   formData: any;
@@ -201,8 +202,8 @@ const FieldValueView: React.FC<{ value: any; fieldConfig: any }> = ({ value, fie
 
 // --- main component ---
 
-const ApplicationFormDataView: React.FC<ApplicationFormDataViewProps> = ({ formData, formConfig }) => {
-  if (!formData || typeof formData !== 'object') {
+const ApplicationFormDataView: React.FC<ApplicationFormDataViewProps> = ({ formData: submittedData, formConfig }) => {
+  if (!submittedData || typeof submittedData !== 'object') {
     return (
       <div className="text-center py-8">
         <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
@@ -210,6 +211,9 @@ const ApplicationFormDataView: React.FC<ApplicationFormDataViewProps> = ({ formD
       </div>
     );
   }
+
+  // Auto-sum fields show the total of the current answers
+  const formData = applyAutoSums(submittedData, formConfig);
 
   const getFieldConfig = (fieldKey: string): any | null => {
     if (!formConfig?.pages) return null;

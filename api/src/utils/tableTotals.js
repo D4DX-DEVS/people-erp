@@ -48,4 +48,4 @@ function computeTableTotals(table, configuredColumns, displayedColumns = configu
   return { columnTotals, rowTotals, grandTotal: tidy(rowTotals.reduce((a, b) => a + b, 0)) };
 }
 
-module.exports = { getActiveTotals, computeTableTotals, parseCellNumber };
+module.exports = { getActiveTotals, computeTableTotals, parseCellNumber, tidy };

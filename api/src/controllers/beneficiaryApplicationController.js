@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const notificationService = require('../services/notificationService');
 const { getApplicationStagesFromScheme } = require('./applicationController');
 const { calculateApplicationScore } = require('../utils/scoringEngine');
+const { applyAutoSums } = require('../utils/autoSum');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
 
 class BeneficiaryApplicationController {
@@ -375,7 +376,8 @@ class BeneficiaryApplicationController {
    */
   async submitApplication(req, res) {
     try {
-      const { schemeId, formData, documents } = req.body;
+      const { schemeId, documents } = req.body;
+      let { formData } = req.body;
       const userId = req.user._id;
 
       // Validate input
@@ -396,6 +398,15 @@ class BeneficiaryApplicationController {
       if (scheme.status !== 'active') {
         return ResponseHelper.error(res, 'Scheme is not currently accepting applications', 400);
       }
+
+      // Auto-sum fields are recalculated from the answers, never taken from the client
+      const sumFormConfig = await FormConfiguration.findOne({
+        scheme: schemeId,
+        franchise: req.franchiseId,
+        enabled: true,
+        isRenewalForm: { $ne: true }
+      }).select('pages').lean();
+      formData = applyAutoSums(formData, sumFormConfig);
 
       // Get user's profile location data
       const user = await User.findById(userId).select('profile');
@@ -1251,7 +1262,8 @@ class BeneficiaryApplicationController {
   async submitRenewal(req, res) {
     try {
       const { id } = req.params;
-      const { formData, documents } = req.body;
+      const { documents } = req.body;
+      let { formData } = req.body;
 
       if (!formData || typeof formData !== 'object') {
         return ResponseHelper.error(res, 'Form data is required', 400);
@@ -1295,6 +1307,19 @@ class BeneficiaryApplicationController {
           return ResponseHelper.error(res, `Maximum renewals (${scheme.renewalSettings.maxRenewals}) reached`, 400);
         }
       }
+
+      // Auto-sum fields are recalculated from the answers, never taken from the
+      // client. Same form the applicant filled: the renewal form, else the original.
+      const sumFormConfig = await FormConfiguration.findOne({
+        scheme: scheme._id,
+        ...buildFranchiseReadFilter(req),
+        isRenewalForm: true
+      }).select('pages').lean() || await FormConfiguration.findOne({
+        scheme: scheme._id,
+        ...buildFranchiseReadFilter(req),
+        isRenewalForm: { $ne: true }
+      }).select('pages').lean();
+      formData = applyAutoSums(formData, sumFormConfig);
 
       // Check if there's already a pending renewal
       const existingRenewal = await Application.findOne({

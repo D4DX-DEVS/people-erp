@@ -4,13 +4,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { 
   Type, AlignLeft, Hash, Mail, Phone, Calendar, 
   CheckSquare, List, Circle, Upload, Heading1,
-  Code, Users, Table, Layout, UserSquare
+  Code, Users, Table, Layout, UserSquare, Sigma
 } from "lucide-react";
+
+/**
+ * Types only scheme application forms support: admin-report forms have no
+ * applicant (profile photo) and their config schema has no auto sum.
+ */
+const SCHEME_ONLY_FIELD_TYPES = ["profile_photo", "auto_sum"];
 
 interface AddFieldPopoverProps {
   onAddField: (fieldType: string) => void;
-  /** Admin-report forms have no applicant, so no profile photo */
-  hideProfilePhoto?: boolean;
+  /** Admin-report forms: hide SCHEME_ONLY_FIELD_TYPES */
+  hideSchemeOnlyTypes?: boolean;
 }
 
 const fieldTypes = [
@@ -29,10 +35,13 @@ const fieldTypes = [
   // { type: "html", label: "HTML", icon: Code },
   // { type: "group", label: "Group", icon: Users },
   { type: "row", label: "Row/Column", icon: Table },
+  { type: "auto_sum", label: "Auto Sum", icon: Sigma },
 ];
 
-export function AddFieldPopover({ onAddField, hideProfilePhoto = false }: AddFieldPopoverProps) {
-  const visibleTypes = hideProfilePhoto ? fieldTypes.filter((t) => t.type !== "profile_photo") : fieldTypes;
+export function AddFieldPopover({ onAddField, hideSchemeOnlyTypes = false }: AddFieldPopoverProps) {
+  const visibleTypes = hideSchemeOnlyTypes
+    ? fieldTypes.filter((t) => !SCHEME_ONLY_FIELD_TYPES.includes(t.type))
+    : fieldTypes;
   return (
     <Popover>
       <PopoverTrigger asChild>

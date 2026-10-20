@@ -14,7 +14,13 @@ function scoringSignature(config) {
   return JSON.stringify({
     scoringConfig: config.scoringConfig || null,
     fields: (config.pages || []).flatMap(page =>
-      (page.fields || []).map(field => ({ id: field.id, type: field.type, scoring: field.scoring || null }))
+      (page.fields || []).map(field => ({
+        id: field.id,
+        type: field.type,
+        scoring: field.scoring || null,
+        // A scored auto-sum's value depends on which fields it adds up
+        sumFields: field.type === 'auto_sum' && field.scoring?.enabled ? (field.sumFields || []) : undefined
+      }))
     )
   });
 }

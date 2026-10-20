@@ -16,7 +16,7 @@ const fieldSchema = new mongoose.Schema({
   type: {
     type: String,
     required: [true, 'Field type is required'],
-    enum: ['text', 'email', 'phone', 'number', 'date', 'datetime', 'textarea', 'select', 'radio', 'checkbox', 'file', 'profile_photo', 'url', 'password', 'title', 'html', 'group', 'page', 'row', 'column', 'dropdown', 'multiselect', 'yesno', 'time']
+    enum: ['text', 'email', 'phone', 'number', 'date', 'datetime', 'textarea', 'select', 'radio', 'checkbox', 'file', 'profile_photo', 'url', 'password', 'title', 'html', 'group', 'page', 'row', 'column', 'dropdown', 'multiselect', 'yesno', 'time', 'auto_sum']
   },
   required: {
     type: Boolean,
@@ -91,6 +91,13 @@ const fieldSchema = new mongoose.Schema({
       enabled: Boolean,
       label: { type: String, maxlength: [100, 'Totals column label cannot exceed 100 characters'] }
     }
+  },
+  // Auto-sum fields: ids of the number fields (any page) whose answers are added
+  // up. The value is recalculated server-side, never trusted from the client.
+  // See utils/autoSum.js.
+  sumFields: {
+    type: [Number],
+    default: undefined
   },
   conditionalLogic: {
     field: Number,

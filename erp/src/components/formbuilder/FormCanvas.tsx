@@ -7,6 +7,7 @@ import { FieldEditor } from "./FieldEditor";
 import { AddFieldPopover } from "./AddFieldPopover";
 import { type FieldAutoFill } from "@/lib/profileAutoFill";
 import { type TableColumnType, type TableTotalsConfig } from "@/lib/tableTotals";
+import { AUTO_SUM_TYPE, DEFAULT_AUTO_SUM_LABEL, isSummableField } from "@/lib/autoSum";
 
 interface Field {
   id: number;
@@ -23,6 +24,7 @@ interface Field {
   rowTitles?: string[];
   columnTypes?: TableColumnType[];
   autoTotals?: TableTotalsConfig;
+  sumFields?: number[];
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -47,11 +49,11 @@ interface FormCanvasProps {
   pages: Page[];
   onUpdatePages: (pages: Page[]) => void;
   onAddField: (pageId: number, field: Field) => void;
-  /** Admin-report forms have no applicant, so no profile photo */
-  hideProfilePhoto?: boolean;
+  /** Admin-report forms: hide the field types only scheme forms support */
+  hideSchemeOnlyTypes?: boolean;
 }
 
-export function FormCanvas({ pages, onUpdatePages, onAddField, hideProfilePhoto = false }: FormCanvasProps) {
+export function FormCanvas({ pages, onUpdatePages, onAddField, hideSchemeOnlyTypes = false }: FormCanvasProps) {
   const [activePage, setActivePage] = useState(0);
   const [dragStartIdx, setDragStartIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -115,15 +117,13 @@ export function FormCanvas({ pages, onUpdatePages, onAddField, hideProfilePhoto 
   };
 
   const deleteField = (pageId: number, fieldId: number) => {
-    const newPages = pages.map(page => {
-      if (page.id === pageId) {
-        return {
-          ...page,
-          fields: page.fields.filter(f => f.id !== fieldId)
-        };
-      }
-      return page;
-    });
+    const newPages = pages.map(page => ({
+      ...page,
+      fields: page.fields
+        .filter(f => !(page.id === pageId && f.id === fieldId))
+        // Field ids get reused (max + 1), so auto-sums must forget a deleted source
+        .map(f => f.sumFields?.includes(fieldId) ? { ...f, sumFields: f.sumFields.filter(id => id !== fieldId) } : f)
+    }));
     onUpdatePages(newPages);
   };
 
@@ -156,6 +156,7 @@ export function FormCanvas({ pages, onUpdatePages, onAddField, hideProfilePhoto 
       enabled: true,
       pageId,
       ...(fieldType === 'profile_photo' ? { label: 'Profile Photo' } : {}),
+      ...(fieldType === AUTO_SUM_TYPE ? { label: DEFAULT_AUTO_SUM_LABEL, sumFields: [] } : {}),
       ...(['select', 'radio', 'checkbox', 'dropdown', 'multiselect'].includes(fieldType) ? {
         options: [
           { label: 'Option 1', value: 'option_1' },
@@ -185,6 +186,13 @@ export function FormCanvas({ pages, onUpdatePages, onAddField, hideProfilePhoto 
     });
     onUpdatePages(newPages);
   };
+
+  // Number fields from every page, offered as sources to auto-sum fields
+  const summableFields = pages.flatMap((page, pageIdx) =>
+    page.fields
+      .filter(isSummableField)
+      .map(f => ({ id: f.id, label: f.label, pageId: page.id, pageTitle: page.title || `Page ${pageIdx + 1}` }))
+  );
 
   return (
     <div className="space-y-4">
@@ -249,7 +257,7 @@ export function FormCanvas({ pages, onUpdatePages, onAddField, hideProfilePhoto 
                 {page.fields.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground mb-4">No fields added yet</p>
-                    <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type)} hideProfilePhoto={hideProfilePhoto} />
+                    <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type)} hideSchemeOnlyTypes={hideSchemeOnlyTypes} />
                   </div>
                 ) : (
                   <>
@@ -257,14 +265,15 @@ export function FormCanvas({ pages, onUpdatePages, onAddField, hideProfilePhoto 
                       <div key={field.id} className="space-y-2">
                         <FieldEditor
                           field={field}
-                          hideProfilePhoto={hideProfilePhoto}
+                          hideSchemeOnlyTypes={hideSchemeOnlyTypes}
+                          summableFields={summableFields}
                           onUpdate={(f) => updateField(page.id, f)}
                           onDelete={(id) => deleteField(page.id, id)}
                           onMoveUp={fieldIdx > 0 ? () => moveField(page.id, field.id, 'up') : undefined}
                           onMoveDown={fieldIdx < page.fields.length - 1 ? () => moveField(page.id, field.id, 'down') : undefined}
                           availableFields={pages.flatMap(p => p.fields).filter(f => f.id !== field.id)}
                         />
-                        <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type, field.id)} hideProfilePhoto={hideProfilePhoto} />
+                        <AddFieldPopover onAddField={(type) => addFieldAtPosition(page.id, type, field.id)} hideSchemeOnlyTypes={hideSchemeOnlyTypes} />
                       </div>
                     ))}
                   </>

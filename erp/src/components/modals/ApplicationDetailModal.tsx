@@ -19,6 +19,7 @@ import { canTransferApplication } from '@/utils/transferEligibility';
 import { TransferApplicationModal } from './TransferApplicationModal';
 import { ApplicationEditModal } from './ApplicationEditModal';
 import { computeTableTotals, formatTotal, getActiveTotals } from '@/lib/tableTotals';
+import { applyAutoSums } from '@/lib/autoSum';
 
 // Button that auto-syncs application top-level status based on current stage states
 const SyncStatusButton: React.FC<{ applicationId: string; onSynced: () => void }> = ({ applicationId, onSynced }) => {
@@ -1394,8 +1395,8 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
     return cleanLabel || fieldKey;
   };
 
-  const renderFormData = (formData: any) => {
-    if (!formData || typeof formData !== 'object') {
+  const renderFormData = (submittedData: any) => {
+    if (!submittedData || typeof submittedData !== 'object') {
       return (
         <div className="text-center py-8 bg-muted/50 rounded-lg">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
@@ -1406,6 +1407,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
         </div>
       );
     }
+
+    // Auto-sum fields show the total of the current answers
+    const formData = applyAutoSums(submittedData, formConfig);
 
     // Profile photo fields are shown in the top-right frame, not in the grid
     const photoFields = profilePhotoFields(formConfig);

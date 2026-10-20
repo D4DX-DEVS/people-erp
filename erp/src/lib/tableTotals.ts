@@ -63,7 +63,7 @@ export function parseCellNumber(value: unknown): number {
 }
 
 // Strip binary floating point noise (0.1 + 0.2 -> 0.3)
-const tidy = (n: number): number => parseFloat(n.toFixed(8));
+export const tidy = (n: number): number => parseFloat(n.toFixed(8));
 
 export interface TableTotals {
   /** One entry per displayed column; null for columns beyond the configured ones */

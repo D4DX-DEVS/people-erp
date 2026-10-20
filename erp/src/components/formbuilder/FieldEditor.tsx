@@ -1,4 +1,4 @@
-import { Trash2, Settings, ChevronDown, ChevronUp, Zap, Target, Plus, X, UserCheck } from "lucide-react";
+import { Trash2, Settings, ChevronDown, ChevronUp, Zap, Target, Plus, X, UserCheck, Sigma } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,7 @@ import {
   getColumnType,
   isNumberTable,
 } from "@/lib/tableTotals";
+import { AUTO_SUM_TYPE, DEFAULT_AUTO_SUM_LABEL } from "@/lib/autoSum";
 
 interface Field {
   id: number;
@@ -47,6 +48,7 @@ interface Field {
   firstColumnHeader?: string;
   columnTypes?: TableColumnType[];
   autoTotals?: TableTotalsConfig;
+  sumFields?: number[];
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -68,11 +70,13 @@ interface FieldEditorProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   availableFields?: Field[];
-  /** Admin-report forms have no applicant, so no profile photo */
-  hideProfilePhoto?: boolean;
+  /** Admin-report forms: hide the field types only scheme forms support */
+  hideSchemeOnlyTypes?: boolean;
+  /** Number fields of the whole form, offered as sources when this is an auto-sum field */
+  summableFields?: { id: number; label: string; pageId: number; pageTitle: string }[];
 }
 
-export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, availableFields = [], hideProfilePhoto = false }: FieldEditorProps) {
+export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, availableFields = [], hideSchemeOnlyTypes = false, summableFields = [] }: FieldEditorProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showConditional, setShowConditional] = useState(false);
   const [showScoring, setShowScoring] = useState(false);
@@ -81,6 +85,28 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
   const autoFillEnabled = !!field.autoFill?.enabled && !!field.autoFill?.source;
   const tableColumnCount = field.columns || 2;
   const activeTotals = getActiveTotals(field);
+  const isAutoSum = field.type === AUTO_SUM_TYPE;
+  // Auto-sum fields are scored on their total, exactly like a number field
+  const isNumericScoring = field.type === "number" || isAutoSum;
+  // Selected sources still present as number fields, in form order
+  const sumSources = summableFields.filter((f) => field.sumFields?.includes(f.id));
+  const sumSourceGroups = summableFields.reduce<{ pageId: number; pageTitle: string; fields: typeof summableFields }[]>(
+    (groups, f) => {
+      const group = groups.find((g) => g.pageId === f.pageId);
+      if (group) group.fields.push(f);
+      else groups.push({ pageId: f.pageId, pageTitle: f.pageTitle, fields: [f] });
+      return groups;
+    },
+    [],
+  );
+
+  const toggleSumSource = (id: number, checked: boolean) => {
+    const selected = new Set(sumSources.map((f) => f.id));
+    if (checked) selected.add(id);
+    else selected.delete(id);
+    // Rebuilt from the current number fields, so stale ids drop out
+    onUpdate({ ...field, sumFields: summableFields.filter((f) => selected.has(f.id)).map((f) => f.id) });
+  };
 
   const setColumnType = (index: number, type: TableColumnType) => {
     const types = Array.from({ length: tableColumnCount }, (_, i) => getColumnType(field, i));
@@ -112,7 +138,9 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                 onValueChange={(type) => {
                   // Drop the profile mapping when the new type cannot hold that value
                   const autoFill = supportsProfileAutoFill(type) ? field.autoFill : undefined;
-                  onUpdate({ ...field, type, autoFill });
+                  // An auto sum always has a value, so it is never "required"
+                  const required = type === AUTO_SUM_TYPE ? false : field.required;
+                  onUpdate({ ...field, type, autoFill, required });
                 }}
               >
                 <SelectTrigger className="h-8 text-sm">
@@ -130,11 +158,12 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                   <SelectItem value="multiselect">Multi-Select</SelectItem>
                   <SelectItem value="radio">Radio</SelectItem>
                   <SelectItem value="file">File Upload</SelectItem>
-                  {!hideProfilePhoto && <SelectItem value="profile_photo">Profile Photo</SelectItem>}
+                  {!hideSchemeOnlyTypes && <SelectItem value="profile_photo">Profile Photo</SelectItem>}
                   <SelectItem value="title">Title/Heading</SelectItem>
                   {/* <SelectItem value="html">HTML Editor</SelectItem> */}
                   {/* <SelectItem value="group">Field Group</SelectItem> */}
                   <SelectItem value="row">Row/Column</SelectItem>
+                  {!hideSchemeOnlyTypes && <SelectItem value={AUTO_SUM_TYPE}>Auto Sum</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -150,14 +179,16 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                   <span className="truncate">{getProfileSourceLabel(field.autoFill?.source)}</span>
                 </span>
               )}
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">Req</label>
-                <Switch
-                  checked={field.required}
-                  onCheckedChange={(required) => onUpdate({ ...field, required })}
-                  className="scale-75"
-                />
-              </div>
+              {!isAutoSum && (
+                <div className="flex items-center gap-1">
+                  <label className="text-xs text-muted-foreground whitespace-nowrap">Req</label>
+                  <Switch
+                    checked={field.required}
+                    onCheckedChange={(required) => onUpdate({ ...field, required })}
+                    className="scale-75"
+                  />
+                </div>
+              )}
               <div className="flex gap-1 ml-1">
                 {onMoveUp && (
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveUp}>
@@ -191,15 +222,68 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
             </div>
           </div>
 
+          {/* Auto sum: which number fields to add up (the label above is the field's label) */}
+          {isAutoSum && (
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-semibold flex items-center gap-1">
+                  <Sigma className="h-3 w-3" />
+                  Fields to add up
+                </Label>
+                {summableFields.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {sumSources.length} of {summableFields.length} selected
+                  </span>
+                )}
+              </div>
+              {summableFields.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Add a <strong>Number</strong> field to this form first. Only number fields can be summed.
+                </p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-2 rounded border bg-background p-2">
+                  {sumSourceGroups.map((group) => (
+                    <div key={group.pageId} className="space-y-1">
+                      {sumSourceGroups.length > 1 && (
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{group.pageTitle}</p>
+                      )}
+                      {group.fields.map((f) => (
+                        <label key={f.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={sumSources.some((s) => s.id === f.id)}
+                            onCheckedChange={(checked) => toggleSumSource(f.id, checked === true)}
+                          />
+                          <span className="truncate">{f.label || `Field ${f.id}`}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sumSources.length > 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  <strong>{field.label || DEFAULT_AUTO_SUM_LABEL}</strong> = {sumSources.map((f) => f.label || `Field ${f.id}`).join(" + ")}.
+                  Filled in automatically; applicants cannot edit it.
+                </p>
+              ) : summableFields.length > 0 ? (
+                <p className="text-[11px] text-amber-600">
+                  Select at least one number field. Until then this field always shows 0.
+                </p>
+              ) : null}
+            </div>
+          )}
+
           {/* Advanced Settings */}
           {showAdvanced && (
             <div className="space-y-2 pt-2 border-t animate-fade-in">
-              <Input
-                value={field.placeholder || ""}
-                onChange={(e) => onUpdate({ ...field, placeholder: e.target.value })}
-                placeholder="Placeholder text"
-                className="h-8 text-sm"
-              />
+              {!isAutoSum && (
+                <Input
+                  value={field.placeholder || ""}
+                  onChange={(e) => onUpdate({ ...field, placeholder: e.target.value })}
+                  placeholder="Placeholder text"
+                  className="h-8 text-sm"
+                />
+              )}
               
               {(field.type === "select" || field.type === "multiselect" || field.type === "radio" || field.type === "checkbox") && (
                 <Textarea
@@ -715,7 +799,7 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                       {!isOptionBasedType(field.type) && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <Label className="text-xs font-medium text-green-700">Rules <span className="font-normal text-green-600">({field.type === 'number' ? 'all matches add up' : 'first match wins'})</span></Label>
+                            <Label className="text-xs font-medium text-green-700">Rules <span className="font-normal text-green-600">({isNumericScoring ? 'all matches add up' : 'first match wins'})</span></Label>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -776,8 +860,8 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                 <div className="flex items-center gap-1">
                                   {needsValue ? (
                                     <Input
-                                      type={['number', 'date', 'datetime'].includes(field.type) && !['contains', 'equals'].includes(rule.condition) ? (field.type === 'number' ? 'number' : 'date') : 'text'}
-                                      step={field.type === 'number' ? 'any' : undefined}
+                                      type={(isNumericScoring || ['date', 'datetime'].includes(field.type)) && !['contains', 'equals'].includes(rule.condition) ? (isNumericScoring ? 'number' : 'date') : 'text'}
+                                      step={isNumericScoring ? 'any' : undefined}
                                       value={rule.value || ''}
                                       onChange={(e) => {
                                         const scoring = { ...field.scoring! };
@@ -793,8 +877,8 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                                   )}
                                   {isBetween && (
                                     <Input
-                                      type={field.type === 'number' ? 'number' : 'date'}
-                                      step={field.type === 'number' ? 'any' : undefined}
+                                      type={isNumericScoring ? 'number' : 'date'}
+                                      step={isNumericScoring ? 'any' : undefined}
                                       value={rule.value2 || ''}
                                       onChange={(e) => {
                                         const scoring = { ...field.scoring! };

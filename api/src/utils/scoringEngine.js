@@ -6,6 +6,8 @@
  * and returns a total score with per-field breakdown.
  */
 
+const { applyAutoSums } = require('./autoSum');
+
 // Field types that are not scorable (layout/display elements)
 const NON_SCORABLE_TYPES = ['title', 'html', 'page', 'group', 'row', 'column'];
 
@@ -37,7 +39,8 @@ function evaluateField(value, field) {
   }
 
   switch (type) {
-    case 'number': {
+    case 'number':
+    case 'auto_sum': {
       const numValue = parseFloat(value);
       if (isNaN(numValue)) return { earnedPoints: 0, appliedRule: 'Invalid number' };
 
@@ -248,6 +251,9 @@ function calculateApplicationScore(formData, formConfig) {
   if (!hasScoringFields) {
     return defaultResult;
   }
+
+  // Score auto-sum fields on their recalculated value, never a stored one
+  formData = applyAutoSums(formData, formConfig);
 
   const fieldScores = [];
   let totalEarnedPoints = 0;

@@ -10,6 +10,7 @@ const notificationService = require('../services/notificationService');
 const recurringPaymentService = require('../services/recurringPaymentService');
 const applicationPdfService = require('../services/applicationPdfService');
 const { calculateApplicationScore } = require('../utils/scoringEngine');
+const { applyAutoSums } = require('../utils/autoSum');
 const { getFilterableFields, buildFormDataFilter } = require('../utils/formDataFilter');
 const { validationResult } = require('express-validator');
 const RBACMiddleware = require('../middleware/rbacMiddleware');
@@ -458,7 +459,7 @@ const createApplication = async (req, res) => {
         if (formConfig) {
           const scoreResult = calculateApplicationScore(req.body.formData, formConfig);
           application.eligibilityScore = scoreResult;
-          application.formData = req.body.formData;
+          application.formData = applyAutoSums(req.body.formData, formConfig);
         }
       } catch (scoringError) {
         console.error('Scoring calculation failed:', scoringError.message);
@@ -516,7 +517,8 @@ const updateApplication = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { requestedAmount, documents, status, formData } = req.body;
+    const { requestedAmount, documents, status } = req.body;
+    let { formData } = req.body;
 
     // Only allow certain status transitions
     if (status && !isValidStatusTransition(application.status, status)) {
@@ -553,6 +555,17 @@ const updateApplication = async (req, res) => {
 
     let changedFields = [];
     if (formData !== undefined) {
+      // Auto-sum fields are recalculated from the answers, never taken from the
+      // client. A renewal was filled on the renewal form when the scheme has one.
+      const sumFormConfig = (application.isRenewal && await FormConfiguration.findOne({
+        scheme: application.scheme,
+        isRenewalForm: true
+      }).select('pages').lean()) || await FormConfiguration.findOne({
+        scheme: application.scheme,
+        isRenewalForm: { $ne: true }
+      }).select('pages').lean();
+      formData = applyAutoSums(formData, sumFormConfig);
+
       const previous = application.formData || {};
       const keys = new Set([...Object.keys(previous), ...Object.keys(formData)]);
       changedFields = [...keys].filter(k => JSON.stringify(previous[k]) !== JSON.stringify(formData[k]));

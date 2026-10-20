@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, FileText, AlertCircle, CheckCircle, Loader2, RefreshCw, Save, Clock, CopyPlus, Trash2, Download } from "lucide-react";
+import { ArrowLeft, Upload, FileText, AlertCircle, CheckCircle, Loader2, RefreshCw, Save, Clock, CopyPlus, Trash2, Download, Sigma } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { beneficiaryApi } from "@/services/beneficiaryApi";
@@ -29,6 +29,7 @@ import {
   getActiveTotals,
   getColumnType,
 } from "@/lib/tableTotals";
+import { AUTO_SUM_TYPE, applyAutoSums, computeAutoSum, getSumSources } from "@/lib/autoSum";
 
 interface FormField {
   id: number;
@@ -54,6 +55,7 @@ interface FormField {
   firstColumnHeader?: string;
   columnTypes?: TableColumnType[];
   autoTotals?: TableTotalsConfig;
+  sumFields?: number[];
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -514,7 +516,8 @@ export default function BeneficiaryApplication() {
 
   const validateField = (field: FormField, value: any): string => {
     // Skip validation for layout-only field types (they don't collect input)
-    if (["title", "html", "group", "page"].includes(field.type)) {
+    // and auto sums (calculated, never typed)
+    if (["title", "html", "group", "page", AUTO_SUM_TYPE].includes(field.type)) {
       return "";
     }
 
@@ -679,7 +682,7 @@ export default function BeneficiaryApplication() {
       if (isRenewalMode && parentApplicationId) {
         // Submit as renewal
         const response = await beneficiaryApi.submitRenewal(parentApplicationId, {
-          formData,
+          formData: applyAutoSums(formData, scheme.formConfig),
           documents: []
         });
         
@@ -699,7 +702,7 @@ export default function BeneficiaryApplication() {
       } else {
         const applicationData = {
           schemeId: scheme._id,
-          formData,
+          formData: applyAutoSums(formData, scheme.formConfig),
           documents: []
         };
 
@@ -1251,6 +1254,32 @@ export default function BeneficiaryApplication() {
       case "page":
         // Layout containers - skip rendering as input fields
         return null;
+
+      case AUTO_SUM_TYPE: {
+        // Recalculated from the source answers on every render; not editable
+        const sources = getSumSources(field, scheme.formConfig);
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label htmlFor={fieldKey}>{field.label}</Label>
+            <Input
+              id={fieldKey}
+              value={String(computeAutoSum(field, scheme.formConfig, formData))}
+              readOnly
+              aria-readonly="true"
+              tabIndex={-1}
+              className="bg-muted font-semibold cursor-default focus-visible:ring-0"
+            />
+            <p className="text-xs text-muted-foreground flex items-start gap-1">
+              <Sigma className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>
+                Calculated automatically
+                {sources.length > 0 && <>: {sources.map((f) => f.label).join(" + ")}</>}
+              </span>
+            </p>
+            {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+          </div>
+        );
+      }
 
       case "date":
       case "datetime":

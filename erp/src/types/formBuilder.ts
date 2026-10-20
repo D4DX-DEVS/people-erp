@@ -55,6 +55,8 @@ export interface FormField {
   autoFill?: FieldAutoFill;
   /** Dropdown fields only: expose options as an admin application-list filter */
   filterable?: boolean;
+  /** Auto-sum fields only: ids of the number fields to add up (see lib/autoSum.ts) */
+  sumFields?: number[];
 }
 
 // Row metadata for dynamic row duplication in table fields
@@ -102,14 +104,18 @@ export interface EligibilityScore {
   calculatedAt: string;
 }
 
+const NUMBER_SCORING_CONDITIONS = [
+  { value: 'greater_than', label: 'Greater than' },
+  { value: 'less_than', label: 'Less than' },
+  { value: 'between', label: 'Between' },
+  { value: 'equals', label: 'Equals' },
+];
+
 // Conditions available per field type for scoring
 export const SCORING_CONDITIONS_BY_TYPE: Record<string, { value: string; label: string }[]> = {
-  number: [
-    { value: 'greater_than', label: 'Greater than' },
-    { value: 'less_than', label: 'Less than' },
-    { value: 'between', label: 'Between' },
-    { value: 'equals', label: 'Equals' },
-  ],
+  number: NUMBER_SCORING_CONDITIONS,
+  // Scored on the recalculated sum, exactly like a number field
+  auto_sum: NUMBER_SCORING_CONDITIONS,
   text: [
     { value: 'is_not_empty', label: 'Is filled' },
     { value: 'equals', label: 'Equals' },

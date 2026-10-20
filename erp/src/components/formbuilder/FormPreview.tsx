@@ -8,11 +8,12 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import { CopyPlus, Info, UserCheck } from "lucide-react";
+import { CopyPlus, Info, Sigma, UserCheck } from "lucide-react";
 import { FileUploadField } from "./FileUploadField";
 import { ProfilePhotoBox } from "./ProfilePhotoBox";
 import { type FieldAutoFill, getProfileSourceLabel } from "@/lib/profileAutoFill";
 import { type TableColumnType, type TableTotalsConfig, getActiveTotals, getColumnType } from "@/lib/tableTotals";
+import { AUTO_SUM_TYPE, getSumSources } from "@/lib/autoSum";
 
 interface Field {
   id: number;
@@ -30,6 +31,7 @@ interface Field {
   columnTypes?: TableColumnType[];
   autoTotals?: TableTotalsConfig;
   autoFill?: FieldAutoFill;
+  sumFields?: number[];
 }
 
 interface Page {
@@ -322,6 +324,24 @@ export function FormPreview({ formTitle, formDescription, pages, instructions, s
                 </tbody>
               </table>
             </div>
+          </div>
+        );
+      }
+
+      case AUTO_SUM_TYPE: {
+        const sources = getSumSources(field, { pages });
+        return (
+          <div key={field.id} className="space-y-2">
+            {label}
+            <Input value="0" readOnly disabled className="bg-muted font-semibold" />
+            <p className="text-xs text-muted-foreground flex items-start gap-1">
+              <Sigma className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>
+                {sources.length > 0
+                  ? `Calculated automatically: ${sources.map((f) => toDisplayText(f.label, `Field ${f.id}`)).join(" + ")}`
+                  : "Calculated automatically (no fields selected yet)"}
+              </span>
+            </p>
           </div>
         );
       }

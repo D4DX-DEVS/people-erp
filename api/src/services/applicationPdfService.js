@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const orgConfig = require('../config/orgConfig');
 const { getActiveTotals, computeTableTotals } = require('../utils/tableTotals');
+const { applyAutoSums } = require('../utils/autoSum');
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 // A4 portrait, bordered-table layout: centred letterhead with the logo at the
@@ -512,7 +513,8 @@ class ApplicationPdfService {
    */
   _addFormData(doc, formConfig, formData, isBlank) {
     const configPages = (formConfig && Array.isArray(formConfig.pages)) ? formConfig.pages : [];
-    const data = formData || {};
+    // Auto-sum fields print their recalculated value (blank forms leave the box empty)
+    const data = isBlank ? (formData || {}) : applyAutoSums(formData || {}, formConfig);
     const consumed = new Set();
     const files = [];
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Save, Loader2, Upload, Trash2, Pencil, FileText, AlertCircle } from 'lucide-react';
+import { X, Save, Loader2, Upload, Trash2, Pencil, FileText, AlertCircle, Sigma } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -11,6 +11,7 @@ import { ProfilePhotoBox, photoSrc } from '../formbuilder/ProfilePhotoBox';
 import { applications as applicationsApi } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { computeTableTotals, formatTotal, getActiveTotals, getColumnType } from '@/lib/tableTotals';
+import { AUTO_SUM_TYPE, applyAutoSums, computeAutoSum, getSumSources } from '@/lib/autoSum';
 
 interface ApplicationEditModalProps {
   isOpen: boolean;
@@ -111,7 +112,7 @@ export const ApplicationEditModal: React.FC<ApplicationEditModalProps> = ({
     if (!application?._id) return;
     setSaving(true);
     try {
-      await applicationsApi.update(application._id, { formData: draft });
+      await applicationsApi.update(application._id, { formData: applyAutoSums(draft, formConfig) });
       toast({ title: 'Application updated', description: 'The submitted data has been saved.' });
       onSaved();
       onClose();
@@ -145,6 +146,30 @@ export const ApplicationEditModal: React.FC<ApplicationEditModalProps> = ({
       case 'group':
       case 'page':
         return null;
+
+      case AUTO_SUM_TYPE: {
+        // Follows the edited answers; never edited directly
+        const sources = getSumSources(field, formConfig);
+        return (
+          <div key={key} className="space-y-1">
+            <Label htmlFor={key} className="text-xs">{field.label}</Label>
+            <Input
+              id={key}
+              value={String(computeAutoSum(field, formConfig, draft))}
+              readOnly
+              tabIndex={-1}
+              className="bg-muted font-semibold cursor-default focus-visible:ring-0"
+            />
+            <p className="text-[11px] text-muted-foreground flex items-start gap-1">
+              <Sigma className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>
+                Calculated automatically
+                {sources.length > 0 && <>: {sources.map((f) => f.label).join(' + ')}</>}
+              </span>
+            </p>
+          </div>
+        );
+      }
 
       case 'textarea':
         return (
