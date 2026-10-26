@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const ctrl = require('../controllers/adminReportController');
+const { TARGET_ROLES } = require('../models/AdminReport');
 
 const SUPER = ['super_admin'];
-const ADMIN_ROLES = ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'area_president'];
+const ADMIN_ROLES = ['super_admin', ...TARGET_ROLES];
 
 // ── Report CRUD ───────────────────────────────────────────────────────────────
 router.get('/', authenticate, authorize(...ADMIN_ROLES), ctrl.getAdminReports);

@@ -30,6 +30,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminReports, locations } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import ApplicationFormDataView from "@/components/ApplicationFormDataView";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,16 +46,25 @@ interface AdminReport {
   createdAt: string;
   updatedAt: string;
   createdBy?: { name: string; email: string };
+  // Fillers only: their own submission for this report, if any
+  mySubmission?: { status: "draft" | "submitted"; submittedAt?: string; updatedAt?: string } | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+// Every franchise role except super admin (report owner) and beneficiary
 const USER_TYPE_LABELS: Record<string, string> = {
   unit_admin: "Unit Admin",
   area_admin: "Area Admin",
+  area_president: "Area President",
   district_admin: "District Admin",
   state_admin: "State Admin",
+  project_coordinator: "Project Coordinator",
+  scheme_coordinator: "Scheme Coordinator",
 };
+
+// Coordinators have no location — they are shown by the projects/schemes they coordinate
+const COORDINATOR_TYPES = ["project_coordinator", "scheme_coordinator"];
 
 const STATUS_CONFIG: Record<string, { color: string; icon: React.ReactNode }> = {
   draft: {
@@ -120,8 +130,8 @@ function ReportFormModal({ open, mode, report, onClose, onSaved }: ReportFormMod
       }
       onSaved();
       onClose();
-    } catch {
-      toast({ title: "Failed to save report", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Failed to save report", description: err?.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -378,7 +388,7 @@ export default function AdminReports() {
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>User Type</TableHead>
-                    <TableHead>Form</TableHead>
+                    <TableHead>{isSuper ? "Form" : "Your Status"}</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -419,7 +429,28 @@ export default function AdminReports() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {report.isFormPublished ? (
+                          {!isSuper ? (
+                            report.mySubmission?.status === "submitted" ? (
+                              <div>
+                                <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-200">
+                                  <CheckCircle className="h-3 w-3 mr-1" /> Submitted
+                                </Badge>
+                                {report.mySubmission.submittedAt && (
+                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                    {new Date(report.mySubmission.submittedAt).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            ) : report.mySubmission?.status === "draft" ? (
+                              <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-700 border-yellow-200">
+                                <Clock className="h-3 w-3 mr-1" /> Draft saved
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+                                Not submitted
+                              </Badge>
+                            )
+                          ) : report.isFormPublished ? (
                             <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                               Published
                             </Badge>
@@ -473,9 +504,16 @@ export default function AdminReports() {
                               report.status === "active" && report.isFormPublished && (
                                 <Button
                                   size="sm"
+                                  variant={report.mySubmission?.status === "submitted" ? "outline" : "default"}
                                   onClick={() => navigate(`/admin-reports/fill?reportId=${report._id}&reportTitle=${encodeURIComponent(report.title)}`)}
                                 >
-                                  <Send className="h-3.5 w-3.5 mr-1" /> Fill Report
+                                  {report.mySubmission?.status === "submitted" ? (
+                                    <><Eye className="h-3.5 w-3.5 mr-1" /> View Submission</>
+                                  ) : report.mySubmission?.status === "draft" ? (
+                                    <><Edit className="h-3.5 w-3.5 mr-1" /> Continue Draft</>
+                                  ) : (
+                                    <><Send className="h-3.5 w-3.5 mr-1" /> Fill Report</>
+                                  )}
                                 </Button>
                               )
                             )}
@@ -564,13 +602,15 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
   const [totalPages, setTotalPages] = useState(1);
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedSub, setSelectedSub] = useState<any | null>(null);
-  const [fieldMap, setFieldMap] = useState<Record<string, { label: string; type: string }>>({});
+  const [formConfig, setFormConfig] = useState<any>(null);
 
   // Location filters — which ones show depends on the report's target level:
-  // unit_admin → district + area + search, area_admin → district + search,
-  // district_admin / state_admin → search only.
-  const showDistrictFilter = isSuper && (report?.targetUserType === "unit_admin" || report?.targetUserType === "area_admin");
-  const showAreaFilter = isSuper && report?.targetUserType === "unit_admin";
+  // unit_admin → district + area + search, area_admin / area_president → district + search,
+  // district_admin / state_admin / coordinators → search only.
+  const targetType = report?.targetUserType || "";
+  const showDistrictFilter = isSuper && ["unit_admin", "area_admin", "area_president"].includes(targetType);
+  const showAreaFilter = isSuper && targetType === "unit_admin";
+  const isCoordinatorReport = COORDINATOR_TYPES.includes(targetType);
   const [filterDistrict, setFilterDistrict] = useState("all");
   const [filterArea, setFilterArea] = useState("all");
   const [districtOptions, setDistrictOptions] = useState<Array<{ _id: string; name: string }>>([]);
@@ -621,15 +661,9 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
     setView("submissions");
     setStats(null);
     setNonSubmitters([]);
+    setFormConfig(null);
     adminReports.getFormConfig(report._id).then((res) => {
-      const pages: any[] = res.data?.formConfiguration?.pages || [];
-      const map: Record<string, { label: string; type: string }> = {};
-      pages.forEach((pg: any) => {
-        (pg.fields || []).forEach((f: any) => {
-          map[`field_${f.id}`] = { label: f.label, type: f.type };
-        });
-      });
-      setFieldMap(map);
+      setFormConfig(res.data?.formConfiguration || null);
     }).catch(() => {});
   }, [open, report]);
 
@@ -766,7 +800,7 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name or location..."
+                  placeholder={isCoordinatorReport ? "Search by name..." : "Search by name or location..."}
                   className="pl-8 h-8"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
@@ -785,14 +819,14 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
               nonSubmitters.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground text-sm">
                   <CheckCircle className="mx-auto h-8 w-8 mb-2 opacity-40" />
-                  All targeted admins have submitted.
+                  All targeted users have submitted.
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Location</TableHead>
+                      <TableHead>{isCoordinatorReport ? "Assigned To" : "Location"}</TableHead>
                       <TableHead>Phone</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -811,6 +845,8 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
                               <div>{u.location.name}</div>
                               <div className="text-xs text-muted-foreground capitalize">{u.location.type}</div>
                             </div>
+                          ) : u.assignments?.length ? (
+                            <div className="text-sm">{u.assignments.join(", ")}</div>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
@@ -833,7 +869,7 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Submitted By</TableHead>
-                    <TableHead>Location</TableHead>
+                    <TableHead>{isCoordinatorReport ? "Assigned To" : "Location"}</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -854,6 +890,8 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
                             <div>{sub.location.name}</div>
                             <div className="text-xs text-muted-foreground capitalize">{sub.location.type}</div>
                           </div>
+                        ) : sub.assignments?.length ? (
+                          <div className="text-sm">{sub.assignments.join(", ")}</div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
@@ -911,7 +949,7 @@ function SubmissionsDialog({ open, report, onClose }: SubmissionsDialogProps) {
           open={!!selectedSub}
           submission={selectedSub}
           reportTitle={report?.title || ""}
-          fieldMap={fieldMap}
+          formConfig={formConfig}
           onBack={() => setSelectedSub(null)}
           onClose={() => { setSelectedSub(null); onClose(); }}
         />
@@ -926,22 +964,13 @@ interface SubmissionDetailDialogProps {
   open: boolean;
   submission: any;
   reportTitle: string;
-  fieldMap: Record<string, { label: string; type: string }>;
+  formConfig: any;
   onBack: () => void;
   onClose: () => void;
 }
 
-function SubmissionDetailDialog({ open, submission, reportTitle, fieldMap, onBack, onClose }: SubmissionDetailDialogProps) {
+function SubmissionDetailDialog({ open, submission, reportTitle, formConfig, onBack, onClose }: SubmissionDetailDialogProps) {
   const sub = submission;
-  const formEntries = sub.formData ? Object.entries(sub.formData) : [];
-
-  const getDisplayValue = (value: any): string => {
-    if (Array.isArray(value)) return value.join(", ");
-    if (value === true) return "Yes";
-    if (value === false) return "No";
-    if (value == null || value === "") return "—";
-    return String(value);
-  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -994,6 +1023,14 @@ function SubmissionDetailDialog({ open, submission, reportTitle, fieldMap, onBac
                   <p>{sub.submittedBy.email}</p>
                 </div>
               )}
+              {sub.assignments?.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground font-medium">
+                    {sub.submitterRole === "project_coordinator" ? "Projects" : "Schemes"}
+                  </p>
+                  <p>{sub.assignments.join(", ")}</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Submitted Date</p>
                 <p>{sub.submittedAt
@@ -1036,25 +1073,8 @@ function SubmissionDetailDialog({ open, submission, reportTitle, fieldMap, onBac
               Form Data
             </div>
             <Separator />
-            {formEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No form data recorded.</p>
-            ) : (
-              <div className="divide-y divide-border/60">
-                {formEntries.map(([key, value]) => {
-                  const info = fieldMap[key];
-                  const label = info?.label || key;
-                  const displayValue = getDisplayValue(value);
-                  return (
-                    <div key={key} className="flex gap-4 py-2.5 text-sm">
-                      <span className="text-muted-foreground font-medium min-w-[160px] max-w-[200px] shrink-0">
-                        {label}
-                      </span>
-                      <span className="text-foreground break-words flex-1">{displayValue}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Same renderer as application form data: file links/previews, tables with totals */}
+            <ApplicationFormDataView formData={sub.formData} formConfig={formConfig} />
           </div>
         </div>
 

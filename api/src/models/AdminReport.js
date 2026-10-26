@@ -1,6 +1,18 @@
 const mongoose = require('mongoose');
 const franchisePlugin = require('../utils/franchisePlugin');
 
+// Roles a report can be assigned to: every franchise role except super_admin
+// (the report creator/reviewer) and beneficiary
+const TARGET_ROLES = [
+  'state_admin',
+  'district_admin',
+  'area_admin',
+  'area_president',
+  'unit_admin',
+  'project_coordinator',
+  'scheme_coordinator'
+];
+
 const adminReportSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -17,7 +29,7 @@ const adminReportSchema = new mongoose.Schema({
   targetUserType: {
     type: String,
     required: [true, 'Target user type is required'],
-    enum: ['unit_admin', 'area_admin', 'district_admin', 'state_admin']
+    enum: TARGET_ROLES
   },
   // Optional: narrow down to specific locations (districts / areas / units)
   // When empty, ALL locations of targetUserType are targeted
@@ -63,3 +75,4 @@ adminReportSchema.index({ targetLocations: 1 });
 adminReportSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('AdminReport', adminReportSchema);
+module.exports.TARGET_ROLES = TARGET_ROLES;

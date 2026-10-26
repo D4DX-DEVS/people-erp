@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const franchisePlugin = require('../utils/franchisePlugin');
+const { TARGET_ROLES } = require('./AdminReport');
 
 const adminReportSubmissionSchema = new mongoose.Schema({
   adminReport: {
@@ -15,7 +16,7 @@ const adminReportSubmissionSchema = new mongoose.Schema({
   // Role at the time of submission
   submitterRole: {
     type: String,
-    enum: ['unit_admin', 'area_admin', 'district_admin', 'state_admin']
+    enum: TARGET_ROLES
   },
   // The location (district / area / unit) the submitter belongs to
   location: {

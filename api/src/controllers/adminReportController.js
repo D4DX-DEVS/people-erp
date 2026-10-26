@@ -27,6 +27,18 @@ const scopeLocationForRole = (role, scope) => {
   return (field && scope[field]) || null;
 };
 
+// Coordinators have no location; they are identified by what they coordinate
+const ROLE_ASSIGNMENT_FIELD = {
+  project_coordinator: 'projects',
+  scheme_coordinator: 'schemes'
+};
+
+const assignmentNames = (role, scope) => {
+  const field = ROLE_ASSIGNMENT_FIELD[role];
+  if (!field) return [];
+  return (scope?.[field] || []).filter((a) => a && a.name).map((a) => a.name);
+};
+
 // The submitter's own location: franchise membership scope first, legacy User.adminScope second
 const resolveSubmitterLocation = (req) => {
   const role = effectiveRole(req);
@@ -34,6 +46,59 @@ const resolveSubmitterLocation = (req) => {
     scopeLocationForRole(role, req.userFranchise?.adminScope) ||
     scopeLocationForRole(role, req.user?.adminScope)
   );
+};
+
+// Non-super users may only write to a published, active report aimed at their role
+const fillDeniedReason = (req, report) => {
+  if (isSuperAdmin(req)) return null;
+  if (report.status !== 'active' || !report.isFormPublished) {
+    return { message: 'This report is not accepting submissions', status: 400 };
+  }
+  if (report.targetUserType !== effectiveRole(req)) {
+    return { message: 'You are not authorised to submit this report', status: 403 };
+  }
+  return null;
+};
+
+// Load the report a submission write targets; responds and returns null when the caller may not fill it
+const loadFillableReport = async (req, res) => {
+  const report = await AdminReport.findOne({
+    _id: req.params.id,
+    ...buildFranchiseReadFilter(req)
+  }).lean();
+  if (!report) {
+    ResponseHelper.error(res, 'Report not found', 404);
+    return null;
+  }
+  const denied = fillDeniedReason(req, report);
+  if (denied) {
+    ResponseHelper.error(res, denied.message, denied.status);
+    return null;
+  }
+  return report;
+};
+
+// Attach each coordinator submitter's assigned project/scheme names
+const attachSubmitterAssignments = async (submissions, franchise) => {
+  const coordinatorSubs = submissions.filter((s) => ROLE_ASSIGNMENT_FIELD[s.submitterRole] && s.submittedBy);
+  if (coordinatorSubs.length === 0) return;
+
+  const query = {
+    user: { $in: coordinatorSubs.map((s) => s.submittedBy._id) },
+    role: { $in: Object.keys(ROLE_ASSIGNMENT_FIELD) }
+  };
+  if (franchise) query.franchise = franchise;
+  const memberships = await UserFranchise.find(query)
+    .select('user role adminScope')
+    .populate('adminScope.projects', 'name')
+    .populate('adminScope.schemes', 'name')
+    .lean();
+
+  const byUserRole = new Map(memberships.map((m) => [`${m.user}:${m.role}`, m]));
+  for (const sub of coordinatorSubs) {
+    const m = byUserRole.get(`${sub.submittedBy._id}:${sub.submitterRole}`);
+    sub.assignments = assignmentNames(sub.submitterRole, m?.adminScope);
+  }
 };
 
 // Expand a location id to itself plus all descendants (district → areas → units)
@@ -95,12 +160,16 @@ const getTargetedMemberships = async (report) => {
   const query = { role: report.targetUserType, isActive: true };
   if (report.franchise) query.franchise = report.franchise;
   const scopeField = ROLE_SCOPE_FIELD[report.targetUserType];
+  const assignmentField = ROLE_ASSIGNMENT_FIELD[report.targetUserType];
 
   let membershipQuery = UserFranchise.find(query)
     .select('user role adminScope')
     .populate('user', 'name email phone');
   if (scopeField) {
     membershipQuery = membershipQuery.populate(`adminScope.${scopeField}`, 'name type');
+  }
+  if (assignmentField) {
+    membershipQuery = membershipQuery.populate(`adminScope.${assignmentField}`, 'name');
   }
   const memberships = await membershipQuery.lean();
 
@@ -117,7 +186,8 @@ const getTargetedMemberships = async (report) => {
       email: m.user.email,
       phone: m.user.phone,
       role: m.role,
-      location: scopeField ? (m.adminScope?.[scopeField] || null) : null
+      location: scopeField ? (m.adminScope?.[scopeField] || null) : null,
+      assignments: assignmentNames(m.role, m.adminScope)
     });
   }
   return result;
@@ -132,7 +202,11 @@ const filterMemberships = async (memberships, { district, area, search }) => {
   }
   if (search && search.trim()) {
     const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    result = result.filter((m) => regex.test(m.name || '') || regex.test(m.location?.name || ''));
+    result = result.filter((m) =>
+      regex.test(m.name || '') ||
+      regex.test(m.location?.name || '') ||
+      m.assignments.some((a) => regex.test(a))
+    );
   }
   return result;
 };
@@ -205,6 +279,25 @@ exports.getAdminReports = async (req, res) => {
       AdminReport.countDocuments(filter)
     ]);
 
+    // Fillers: tag each report with their own submission state (submitted wins over draft)
+    if (!isSuperAdmin(req) && reports.length > 0) {
+      const mine = await AdminReportSubmission.find({
+        adminReport: { $in: reports.map((r) => r._id) },
+        submittedBy: req.user._id
+      }).select('adminReport status submittedAt updatedAt').lean();
+      const byReport = new Map();
+      for (const sub of mine) {
+        const key = String(sub.adminReport);
+        if (!byReport.has(key) || sub.status === 'submitted') byReport.set(key, sub);
+      }
+      for (const report of reports) {
+        const sub = byReport.get(String(report._id));
+        report.mySubmission = sub
+          ? { status: sub.status, submittedAt: sub.submittedAt, updatedAt: sub.updatedAt }
+          : null;
+      }
+    }
+
     return ResponseHelper.success(res, {
       reports,
       pagination: {
@@ -264,6 +357,9 @@ exports.createAdminReport = async (req, res) => {
     if (!title || !targetUserType) {
       return ResponseHelper.error(res, 'Title and target user type are required', 400);
     }
+    if (!AdminReport.TARGET_ROLES.includes(targetUserType)) {
+      return ResponseHelper.error(res, 'Invalid target user type', 400);
+    }
 
     const franchiseId = getWriteFranchiseId(req);
 
@@ -301,6 +397,24 @@ exports.updateAdminReport = async (req, res) => {
     if (!report) return ResponseHelper.error(res, 'Report not found', 404);
 
     const { title, description, targetUserType, targetLocations, status } = req.body;
+
+    if (targetUserType !== undefined && targetUserType !== report.targetUserType) {
+      if (!AdminReport.TARGET_ROLES.includes(targetUserType)) {
+        return ResponseHelper.error(res, 'Invalid target user type', 400);
+      }
+      // Existing responses belong to the old audience — retargeting would orphan them
+      const submittedCount = await AdminReportSubmission.countDocuments({
+        adminReport: report._id,
+        status: 'submitted'
+      });
+      if (submittedCount > 0) {
+        return ResponseHelper.error(
+          res,
+          `Cannot change target user type: ${submittedCount} submission(s) already exist.`,
+          400
+        );
+      }
+    }
 
     if (title !== undefined) report.title = title.trim();
     if (description !== undefined) report.description = description?.trim();
@@ -592,6 +706,10 @@ exports.getSubmissions = async (req, res) => {
       AdminReportSubmission.countDocuments(filter)
     ]);
 
+    if (isSuperAdmin(req)) {
+      await attachSubmitterAssignments(submissions, report.franchise);
+    }
+
     return ResponseHelper.success(res, {
       submissions,
       pagination: {
@@ -700,24 +818,10 @@ exports.getNonSubmitters = async (req, res) => {
  */
 exports.saveSubmission = async (req, res) => {
   try {
-    const { formData, location } = req.body;
+    const { formData } = req.body;
     const userRole = effectiveRole(req);
 
-    const report = await AdminReport.findOne({
-      _id: req.params.id,
-      ...buildFranchiseReadFilter(req)
-    }).lean();
-
-    if (!report) return ResponseHelper.error(res, 'Report not found', 404);
-
-    if (!isSuperAdmin(req)) {
-      if (report.status !== 'active') {
-        return ResponseHelper.error(res, 'This report is not accepting submissions', 400);
-      }
-      if (report.targetUserType !== userRole) {
-        return ResponseHelper.error(res, 'You are not authorised to submit this report', 403);
-      }
-    }
+    if (!(await loadFillableReport(req, res))) return;
 
     const franchiseId = getWriteFranchiseId(req);
 
@@ -746,7 +850,8 @@ exports.saveSubmission = async (req, res) => {
         $set: {
           formData: formData || {},
           submitterRole: userRole,
-          location: location || resolveSubmitterLocation(req) || undefined,
+          // Always server-derived — never trust a client-sent location
+          location: resolveSubmitterLocation(req) || undefined,
           franchise: franchiseId
         },
         $setOnInsert: {
@@ -771,6 +876,8 @@ exports.saveSubmission = async (req, res) => {
 exports.submitSubmission = async (req, res) => {
   try {
     const { submissionId } = req.params;
+
+    if (!(await loadFillableReport(req, res))) return;
 
     const submission = await AdminReportSubmission.findOne({
       _id: submissionId,
@@ -835,6 +942,8 @@ exports.updateSubmission = async (req, res) => {
     const { submissionId } = req.params;
     const { formData } = req.body;
 
+    if (!(await loadFillableReport(req, res))) return;
+
     const submission = await AdminReportSubmission.findOne({
       _id: submissionId,
       adminReport: req.params.id,
@@ -868,6 +977,8 @@ exports.updateSubmission = async (req, res) => {
 exports.deleteSubmission = async (req, res) => {
   try {
     const { submissionId } = req.params;
+
+    if (!(await loadFillableReport(req, res))) return;
 
     const submission = await AdminReportSubmission.findOne({
       _id: submissionId,

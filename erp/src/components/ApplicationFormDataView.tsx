@@ -276,12 +276,12 @@ const ApplicationFormDataView: React.FC<ApplicationFormDataViewProps> = ({ formD
 
   for (const entry of entries) {
     const config = getFieldConfig(entry[0]);
-    if (
-      config?.type === 'row' ||
-      config?.type === 'column' ||
-      Array.isArray(entry[1]) ||
-      isFlatTableObject(entry[1])
-    ) {
+    // A known field type decides; shape-sniffing is only for unmapped keys, so
+    // multi-option checkbox arrays aren't mistaken for tables
+    const isTable = config
+      ? config.type === 'row' || config.type === 'column'
+      : Array.isArray(entry[1]) || isFlatTableObject(entry[1]);
+    if (isTable) {
       tableEntries.push(entry);
     } else {
       regularEntries.push(entry);

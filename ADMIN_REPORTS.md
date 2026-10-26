@@ -98,7 +98,7 @@ Two derived ratios matter most for an NGO:
 | Payments tracking | `/payment-tracking/*` | `finances.read.*` | Per-payment operational lists (overdue, due soon, processing, completed). |
 | Recurring payments | `/recurring-payments/*` | `finances.read.*` | Cycle schedules, forecast. |
 | Donors & Donations | `/donors/*` | `donors.read.*` | Donor CRM, donation history, follow-ups. |
-| Admin Report Forms | `/admin-reports` | All admins | Custom form-based reports admins fill (e.g. surveys) — `AdminReport*` models. |
+| Admin Report Forms | `/admin-reports` | Super admin creates; the targeted role fills (state/district/area/unit admins, area presidents, project/scheme coordinators) | Custom form-based periodic reports with file uploads — `AdminReport*` models. |
 | Program Reports | `/program-reports` | All admins | Event/program reporting. |
 | Per-application field reports | Application detail → Reports | Application-scoped | Interview/verification notes (`Report` model). |
 | Activity/Login/Error logs | `/activity-logs`, `/login-logs`, `/error-logs` | `activity_logs.read` | Audit trail. |

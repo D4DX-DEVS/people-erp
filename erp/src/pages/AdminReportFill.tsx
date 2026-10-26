@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Loader2, AlertCircle, Save, Send, CheckCircle, ChevronLeft, ChevronRight,
-  Edit, Trash2
+  Edit, Trash2, FileText, Upload, X
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,8 +21,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { adminReports } from "@/lib/api";
+import { adminReports, applications as applicationsApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import ApplicationFormDataView from "@/components/ApplicationFormDataView";
 import {
   type TableColumnType,
   type TableTotalsConfig,
@@ -99,8 +100,14 @@ function isFieldVisible(field: FormField, formData: Record<string, any>): boolea
   return action === "hide" ? !match : match;
 }
 
+const fileNameFromUrl = (url: string) =>
+  decodeURIComponent(url.split("/").pop()?.split("?")[0] || "file");
+
 function validateField(field: FormField, value: any): string {
   if (["title", "html", "group", "page"].includes(field.type)) return "";
+  if (field.type === "file") {
+    return field.required && !value ? `${field.label} is required — upload a file` : "";
+  }
   if (field.type === "checkbox") {
     if (!field.required) return "";
     // Multi-option checkbox: at least one must be selected
@@ -167,15 +174,77 @@ interface FieldProps {
   value: any;
   error?: string;
   onChange: (val: any) => void;
+  uploading?: boolean;
+  onFileSelect?: (file: File) => void;
 }
 
-function FieldRenderer({ field, value, error, onChange }: FieldProps) {
+function FieldRenderer({ field, value, error, onChange, uploading, onFileSelect }: FieldProps) {
   const { type, label, placeholder, helpText, options, required, enabled } = field;
   if (!enabled) return null;
   if (type === "title") return <h3 className="text-base font-semibold mt-2">{label}</h3>;
   if (type === "html") return <div className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: label }} />;
 
   const inputClass = `${error ? "border-red-500" : ""}`;
+
+  // File upload — the stored value is the uploaded file's URL
+  if (type === "file") {
+    const url = typeof value === "string" ? value : "";
+    return (
+      <div className="space-y-1">
+        <Label>{label}{required && <span className="text-red-500 ml-1">*</span>}</Label>
+        {helpText && <p className="text-xs text-muted-foreground">{helpText}</p>}
+        <div className={`flex items-center gap-3 rounded-md border p-2 ${inputClass}`}>
+          <FileText className="h-6 w-6 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block truncate text-sm text-blue-600 hover:underline"
+              >
+                {fileNameFromUrl(url)}
+              </a>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                {placeholder || "No file uploaded"}
+              </p>
+            )}
+          </div>
+          <Button type="button" size="sm" variant="outline" className="h-8 shrink-0" disabled={uploading} asChild>
+            <label className={uploading ? "pointer-events-none" : "cursor-pointer"}>
+              {uploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              {uploading ? "Uploading..." : url ? "Replace" : "Upload"}
+              <input
+                type="file"
+                className="hidden"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onFileSelect?.(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </Button>
+          {url && !uploading && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 shrink-0 text-destructive"
+              onClick={() => onChange("")}
+              title="Remove file"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        {error && <p className="text-xs text-red-500">{error}</p>}
+      </div>
+    );
+  }
 
   // Table / row / column field
   if (type === "row" || type === "column") {
@@ -457,6 +526,8 @@ export default function AdminReportFill() {
   const [isEditing, setIsEditing] = useState(false);       // editing an existing submitted submission
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const isUploading = Object.values(uploading).some(Boolean);
 
   // ── Load form config + existing draft ──────────────────────────────────────
 
@@ -481,6 +552,7 @@ export default function AdminReportFill() {
           if (submitted) {
             setViewMode(true);
             setViewedSubmission(submitted);
+            setSubmissionId(submitted._id);
             setFormData(submitted.formData || {});
             setLoading(false);
             return;
@@ -509,20 +581,38 @@ export default function AdminReportFill() {
 
   // ── Validate current page ──────────────────────────────────────────────────
 
-  const validatePage = useCallback((): boolean => {
-    if (!pages[currentPage]) return true;
-    const newErrors: Record<string, string> = {};
-    let valid = true;
-    pages[currentPage].fields.forEach((field) => {
+  const pageErrors = useCallback((page: FormPage | undefined): Record<string, string> => {
+    const found: Record<string, string> = {};
+    page?.fields.forEach((field) => {
       if (!field.enabled) return;
       if (!isFieldVisible(field, formData)) return;
       const key = `field_${field.id}`;
       const err = validateField(field, formData[key]);
-      if (err) { newErrors[key] = err; valid = false; }
+      if (err) found[key] = err;
     });
-    setErrors(newErrors);
-    return valid;
-  }, [pages, currentPage, formData]);
+    return found;
+  }, [formData]);
+
+  const validatePage = useCallback((): boolean => {
+    const found = pageErrors(pages[currentPage]);
+    setErrors(found);
+    return Object.keys(found).length === 0;
+  }, [pages, currentPage, pageErrors]);
+
+  // Before submit: every page must pass, not just the last one — jump to the first failing page
+  const validateAllPages = (): boolean => {
+    for (let i = 0; i < pages.length; i++) {
+      const found = pageErrors(pages[i]);
+      if (Object.keys(found).length > 0) {
+        setCurrentPage(i);
+        setErrors(found);
+        window.scrollTo(0, 0);
+        return false;
+      }
+    }
+    setErrors({});
+    return true;
+  };
 
   // ── Field change ───────────────────────────────────────────────────────────
 
@@ -530,6 +620,27 @@ export default function AdminReportFill() {
     const key = `field_${fieldId}`;
     setFormData((prev) => ({ ...prev, [key]: value }));
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }));
+  };
+
+  // ── File upload ────────────────────────────────────────────────────────────
+
+  const handleFileUpload = async (fieldId: number, file: File) => {
+    if (!reportId) return;
+    const key = `field_${fieldId}`;
+    setUploading((prev) => ({ ...prev, [key]: true }));
+    try {
+      const uploaded = await applicationsApi.uploadFormFile(file, `forms/admin-reports/${reportId}`);
+      handleFieldChange(fieldId, uploaded.url);
+      toast({ title: "File uploaded", description: file.name });
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Could not upload the file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading((prev) => ({ ...prev, [key]: false }));
+    }
   };
 
   // ── Save draft ─────────────────────────────────────────────────────────────
@@ -542,8 +653,8 @@ export default function AdminReportFill() {
       const sub = res.data?.submission;
       if (sub?._id) setSubmissionId(sub._id);
       if (!silent) toast({ title: "Draft saved" });
-    } catch {
-      if (!silent) toast({ title: "Failed to save draft", variant: "destructive" });
+    } catch (err: any) {
+      if (!silent) toast({ title: "Failed to save draft", description: err?.message, variant: "destructive" });
     } finally {
       setSavingDraft(false);
     }
@@ -552,7 +663,7 @@ export default function AdminReportFill() {
   // ── Submit / Update ────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
-    if (!validatePage()) {
+    if (!validateAllPages()) {
       toast({ title: "Please fix all errors before submitting", variant: "destructive" });
       return;
     }
@@ -561,7 +672,8 @@ export default function AdminReportFill() {
     try {
       if (isEditing && submissionId) {
         // Update an already-submitted submission
-        await adminReports.updateSubmission(reportId, submissionId, { formData });
+        const res: any = await adminReports.updateSubmission(reportId, submissionId, { formData });
+        if (res.data?.submission) setViewedSubmission(res.data.submission);
         toast({ title: "Report updated successfully" });
         setIsEditing(false);
         setViewMode(true);
@@ -577,8 +689,8 @@ export default function AdminReportFill() {
         await adminReports.submitForm(reportId, sid, { formData });
         setSubmitted(true);
       }
-    } catch {
-      toast({ title: "Failed to submit report", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Failed to submit report", description: err?.message, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -593,8 +705,8 @@ export default function AdminReportFill() {
       await adminReports.deleteSubmission(reportId, submissionId);
       toast({ title: "Submission deleted" });
       navigate("/admin-reports");
-    } catch {
-      toast({ title: "Failed to delete submission", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Failed to delete submission", description: err?.message, variant: "destructive" });
     } finally {
       setDeleting(false);
       setDeleteConfirmOpen(false);
@@ -683,33 +795,11 @@ export default function AdminReportFill() {
           </CardHeader>
         </Card>
 
-        {pages.map((page) => {
-          const visibleFields = page.fields.filter((f) => f.enabled);
-          if (visibleFields.length === 0) return null;
-          return (
-            <Card key={page.id}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{page.title}</CardTitle>
-                {page.description && <CardDescription>{page.description}</CardDescription>}
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {visibleFields.map((field) => {
-                  const key = `field_${field.id}`;
-                  const value = formData[key];
-                  const displayValue = Array.isArray(value)
-                    ? value.join(", ")
-                    : value === true ? "Yes" : value === false ? "No" : value != null ? String(value) : "—";
-                  return (
-                    <div key={field.id} className="space-y-0.5">
-                      <p className="text-xs font-medium text-muted-foreground">{field.label}</p>
-                      <p className="text-sm">{displayValue}</p>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          );
-        })}
+        <Card>
+          <CardContent className="pt-6">
+            <ApplicationFormDataView formData={formData} formConfig={{ pages }} />
+          </CardContent>
+        </Card>
 
         {/* Delete confirm dialog */}
         <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
@@ -832,6 +922,8 @@ export default function AdminReportFill() {
                   value={formData[`field_${field.id}`]}
                   error={errors[`field_${field.id}`]}
                   onChange={(v) => handleFieldChange(field.id, v)}
+                  uploading={!!uploading[`field_${field.id}`]}
+                  onFileSelect={(file) => handleFileUpload(field.id, file)}
                 />
               ))}
           </CardContent>
@@ -852,7 +944,7 @@ export default function AdminReportFill() {
           <Button
             variant="outline"
             onClick={() => saveDraft()}
-            disabled={savingDraft}
+            disabled={savingDraft || isUploading}
           >
             {savingDraft ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
             Save Draft
@@ -862,14 +954,21 @@ export default function AdminReportFill() {
         {isEditing && (
           <Button
             variant="outline"
-            onClick={() => { setIsEditing(false); setViewMode(true); setCurrentPage(0); }}
+            onClick={() => {
+              // Discard unsaved edits — show what was actually submitted
+              setFormData(viewedSubmission?.formData || {});
+              setErrors({});
+              setIsEditing(false);
+              setViewMode(true);
+              setCurrentPage(0);
+            }}
           >
             Cancel
           </Button>
         )}
 
         {isLastPage ? (
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button onClick={handleSubmit} disabled={submitting || isUploading}>
             {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
             {isEditing ? "Update Report" : "Submit Report"}
           </Button>
