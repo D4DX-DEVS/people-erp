@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const NewsEvent = require('../models/NewsEvent');
 const Blog = require('../models/Blog');
 const GalleryAlbum = require('../models/GalleryAlbum');
@@ -7,6 +8,7 @@ const ProjectPage = require('../models/ProjectPage');
 const Brochure = require('../models/Brochure');
 const Partner = require('../models/Partner');
 const FAQ = require('../models/Faq');
+const Testimonial = require('../models/Testimonial');
 
 // Helpers shared by the public website controllers (site pages, project pages, home).
 
@@ -121,22 +123,86 @@ async function resolveContentSource(source, limit, scope) {
     case 'faqs':
       return FAQ.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).limit(lim)
         .select('question answer category').lean();
+    case 'testimonials':
+      return Testimonial.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).limit(lim)
+        .select('name designation location comment photoUrl').lean();
     default:
       return [];
   }
 }
 
-/** Sort sections by `order` and fill `contentItems` on live-content sections. */
+/**
+ * Gallery albums picked on a 'gallery' section, in the order they were picked,
+ * with their photos. Inactive, deleted or other-franchise albums are skipped.
+ */
+async function resolveGalleryAlbums(ids, scope) {
+  const valid = (ids || []).map(String).filter(id => mongoose.Types.ObjectId.isValid(id));
+  if (!valid.length) return [];
+  const albums = await GalleryAlbum.find({ _id: { $in: valid }, status: 'active', ...scope })
+    .select('title images')
+    .lean();
+  const byId = new Map(albums.map(a => [String(a._id), a]));
+  return valid
+    .map(id => byId.get(id))
+    .filter(Boolean)
+    .map(a => ({
+      _id: a._id,
+      title: a.title,
+      images: (a.images || [])
+        .slice()
+        .sort((x, y) => (x.order || 0) - (y.order || 0))
+        .filter(img => img.imageUrl)
+        .map(img => ({ imageUrl: img.imageUrl, caption: img.caption || '' }))
+    }));
+}
+
+/**
+ * Sort sections by `order`, fill `contentItems` on live-content sections and
+ * `albums` on gallery sections that pull photos from Gallery albums.
+ */
 async function hydrateSections(sections, scope) {
   const sorted = (sections || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-  await Promise.all(
-    sorted
+  await Promise.all([
+    ...sorted
       .filter(s => s.type === 'content' && s.contentSource)
       .map(async s => {
         s.contentItems = await resolveContentSource(s.contentSource, s.contentLimit, scope);
+      }),
+    ...sorted
+      .filter(s => s.type === 'gallery' && s.galleryAlbums && s.galleryAlbums.length)
+      .map(async s => {
+        s.albums = await resolveGalleryAlbums(s.galleryAlbums, scope);
       })
-  );
+  ]);
   return sorted;
+}
+
+/**
+ * Project links sent with a multipart form (brochures, testimonials): the
+ * `showOnProjectPages` flag plus the chosen project ids. `projects` arrives as
+ * a JSON array string (FormData can't carry arrays) or an array. Ids that are
+ * malformed or name a project outside the caller's franchise are dropped.
+ * Returns undefined for fields the request didn't send, so updates leave them.
+ */
+async function parseProjectLinks(body, scope) {
+  const out = {};
+  if (body.showOnProjectPages !== undefined) {
+    out.showOnProjectPages = body.showOnProjectPages === true || body.showOnProjectPages === 'true';
+  }
+  if (body.projects !== undefined) {
+    let ids = body.projects;
+    if (typeof ids === 'string') {
+      try { ids = JSON.parse(ids); } catch { ids = ids.split(','); }
+    }
+    ids = (Array.isArray(ids) ? ids : [])
+      .map(String)
+      .filter(id => mongoose.Types.ObjectId.isValid(id));
+    const found = ids.length
+      ? await Project.find({ _id: { $in: ids }, ...scope }).select('_id').lean()
+      : [];
+    out.projects = found.map(p => p._id);
+  }
+  return out;
 }
 
 /** Collect every stored file key on a page (hero, sections, items, gallery) for cleanup. */
@@ -161,5 +227,6 @@ module.exports = {
   attachSchemePages,
   resolveContentSource,
   hydrateSections,
+  parseProjectLinks,
   collectImageKeys
 };

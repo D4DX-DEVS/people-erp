@@ -659,3 +659,18 @@ All colors MUST be HSL.
 .rich-content blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 1em; margin: 0 0 1em; font-style: italic; opacity: 0.85; }
 .rich-content a { color: hsl(var(--primary)); text-decoration: underline; }
 .rich-editor:empty::before { content: attr(data-placeholder); color: hsl(var(--muted-foreground)); pointer-events: none; }
+
+/* Tables from the editor's table tool. Look = data-style tokens:
+   grid (default) | striped | minimal, plus "compact" and "fit" (shrink to content). */
+.rich-content .rt-scroll { overflow-x: auto; margin: 0 0 1.25em; -webkit-overflow-scrolling: touch; }
+.rich-content .rt-scroll > table { margin: 0; }
+.rich-content table { width: 100%; border-collapse: collapse; margin: 0 0 1.25em; font-size: 0.95em; line-height: 1.5; overflow-wrap: normal; }
+.rich-content table[data-style~="fit"] { width: auto; }
+.rich-content th, .rich-content td { border: 1px solid hsl(var(--border)); padding: 0.6em 0.85em; text-align: left; vertical-align: top; min-width: 4em; }
+.rich-content table[data-style~="compact"] th, .rich-content table[data-style~="compact"] td { padding: 0.3em 0.55em; }
+.rich-content thead th { background: hsl(var(--primary) / 0.08); color: hsl(var(--foreground)); font-weight: 600; }
+.rich-content th p, .rich-content td p { margin: 0; }
+.rich-content table[data-style~="striped"] tbody tr:nth-child(even) td { background: hsl(var(--muted) / 0.7); }
+.rich-content table[data-style~="striped"] th, .rich-content table[data-style~="striped"] td { border-color: hsl(var(--border) / 0.6); }
+.rich-content table[data-style~="minimal"] th, .rich-content table[data-style~="minimal"] td { border-left: 0; border-right: 0; }
+.rich-content table[data-style~="minimal"] thead th { background: transparent; border-top: 0; border-bottom-width: 2px; border-bottom-color: hsl(var(--primary) / 0.5); }

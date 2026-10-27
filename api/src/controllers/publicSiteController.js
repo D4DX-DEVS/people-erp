@@ -11,6 +11,7 @@ const Video = require('../models/Video');
 const Blog = require('../models/Blog');
 const MediaCoverage = require('../models/MediaCoverage');
 const SitePage = require('../models/SitePage');
+const Testimonial = require('../models/Testimonial');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
 const { attachProjectPages, attachSchemePages, PUBLIC_PROJECT_STATUSES, PUBLIC_PROJECT_SORT, PUBLIC_SCHEME_STATUSES } = require('../utils/siteContent');
 
@@ -36,7 +37,8 @@ exports.getHome = async (req, res) => {
       brochures,
       faqs,
       media,
-      pages
+      pages,
+      testimonials
     ] = await Promise.all([
       WebsiteSettings.findOne({ ...scope }).select('-updatedBy -__v').lean(),
       Banner.find({ status: 'active', ...scope }).sort({ order: 1, createdAt: -1 }).select('-createdBy -updatedBy').lean(),
@@ -59,7 +61,9 @@ exports.getHome = async (req, res) => {
       MediaCoverage.find({ status: 'active', ...scope }).sort({ createdAt: -1 }).limit(8)
         .select('title source link imageUrl publishDate').lean(),
       SitePage.find({ status: 'published', ...scope }).sort({ navOrder: 1, homeOrder: 1, createdAt: 1 })
-        .select('title slug navLabel navOrder showInNav showOnHome homeOrder summary hero.imageUrl hero.title').lean()
+        .select('title slug navLabel navOrder showInNav showOnHome homeOrder summary hero.imageUrl hero.title').lean(),
+      Testimonial.find({ status: 'active', showOnHome: true, ...scope }).sort({ order: 1, createdAt: -1 }).limit(24)
+        .select('name designation location comment photoUrl').lean()
     ]);
 
     // Link project and scheme cards to their detail pages (slug + cover image)
@@ -96,7 +100,8 @@ exports.getHome = async (req, res) => {
         brochures: brochures || [],
         faqs: faqs || [],
         media: media || [],
-        pages: pages || []
+        pages: pages || [],
+        testimonials: testimonials || []
       }
     });
   } catch (error) {

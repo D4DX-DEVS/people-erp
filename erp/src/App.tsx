@@ -109,6 +109,7 @@ import WebsiteGallery from "./pages/WebsiteGallery";
 import WebsiteVideos from "./pages/WebsiteVideos";
 import WebsiteBlogs from "./pages/WebsiteBlogs";
 import WebsiteMedia from "./pages/WebsiteMedia";
+import WebsiteTestimonials from "./pages/WebsiteTestimonials";
 import WebsitePopup from "./pages/WebsitePopup";
 import WebsiteContactMessages from "./pages/WebsiteContactMessages";
 import WebsiteVolunteers from "./pages/WebsiteVolunteers";
@@ -276,6 +277,7 @@ const App = () => (
             <Route path="/website-blogs" element={<AuthGuard><Layout><WebsiteBlogs /></Layout></AuthGuard>} />
             <Route path="/website-popup" element={<AuthGuard><Layout><WebsitePopup /></Layout></AuthGuard>} />
             <Route path="/website-media" element={<AuthGuard><Layout><WebsiteMedia /></Layout></AuthGuard>} />
+            <Route path="/website-testimonials" element={<AuthGuard><Layout><WebsiteTestimonials /></Layout></AuthGuard>} />
             <Route path="/website-messages" element={<AuthGuard><Layout><WebsiteContactMessages /></Layout></AuthGuard>} />
             <Route path="/website-volunteers" element={<AuthGuard><Layout><WebsiteVolunteers /></Layout></AuthGuard>} />
             

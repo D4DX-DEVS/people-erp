@@ -190,7 +190,7 @@ export default function WebsiteBlogs() {
               <div><Label>Category</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
             </div>
             <div><Label>Excerpt</Label><VoiceTextarea rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} /></div>
-            <div><Label>Content *</Label><RichTextEditor minHeight={240} value={form.content} onChange={(html) => setForm({ ...form, content: html })} /></div>
+            <div><Label>Content *</Label><RichTextEditor tables minHeight={240} value={form.content} onChange={(html) => setForm({ ...form, content: html })} /></div>
             <div><Label>Tags (comma-separated)</Label><Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
             <div><Label>Cover Image</Label><Input type="file" accept="image/*" onChange={onCover} />
               <p className="text-xs text-muted-foreground mt-1">1200 × 675 px (16:9). Center-cropped to a band on blog cards, shown in full on the post page. Max 5MB.</p>

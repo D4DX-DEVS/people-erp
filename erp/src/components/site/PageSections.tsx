@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Sparkles, ChevronRight, Play, FileText, Download } from "lucide-react";
+import { Users, Sparkles, ChevronLeft, ChevronRight, Play, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { RichContent } from "@/components/site/RichContent";
 import { ProjectCard } from "@/components/site/ProjectCard";
 import { ContactSection } from "@/components/site/ContactSection";
 import { HorizontalTimeline } from "@/components/site/HorizontalTimeline";
+import { TestimonialsList } from "@/components/site/Testimonials";
 import { getYouTubeId, videoThumb } from "@/hooks/useSiteData";
 import { cn } from "@/lib/utils";
 import { resolveIcon } from "@/lib/siteIcons";
@@ -119,7 +120,10 @@ export function SectionBlock({
   };
 
   const items = section.items || [];
-  const images = section.images || [];
+  // Gallery sections: the uploaded images, then every photo of the picked
+  // Gallery albums (resolved by the API), as one lightbox sequence.
+  const albums = section.type === "gallery" ? (section.albums || []).filter((a) => a.images.length) : [];
+  const images = [...(section.images || []), ...albums.flatMap((a) => a.images)];
   const contentItems = section.contentItems || [];
 
   // Colour handling: the section accent drives icons/highlights; dark backgrounds switch badges to white.
@@ -314,34 +318,80 @@ export function SectionBlock({
 
     case "gallery": {
       if (!images.length) return null;
+      const uploaded = (section.images || []).length;
+      // One block per source: the uploaded set (untitled) and each album under
+      // its own title with a link to the full album page. A single source
+      // needs no sub-headings.
+      const groups: Array<{ key: string; title?: string; albumId?: string; start: number; count: number }> = [];
+      if (uploaded) groups.push({ key: "uploaded", start: 0, count: uploaded });
+      let offset = uploaded;
+      albums.forEach((a) => {
+        groups.push({ key: a._id, title: a.title, albumId: a._id, start: offset, count: a.images.length });
+        offset += a.images.length;
+      });
+      const titled = groups.length > 1;
       body = (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {images.map((img, idx) => (
-              <button
-                key={idx}
-                onClick={() => setLightbox(idx)}
-                className="group relative aspect-square overflow-hidden rounded-2xl bg-muted"
-              >
-                {img.imageUrl && (
-                  <img src={img.imageUrl} alt={img.caption || ""} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+          <div className="space-y-10">
+            {groups.map((g) => (
+              <div key={g.key}>
+                {titled && g.title && (
+                  <h3 className="mb-4 text-lg font-semibold" style={textStyle}>{g.title}</h3>
                 )}
-                {img.caption && (
-                  <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
-                    <span className="text-sm font-medium text-white">{img.caption}</span>
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                  {images.slice(g.start, g.start + g.count).map((img, i) => {
+                    const idx = g.start + i;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setLightbox(idx)}
+                        className="group relative aspect-square overflow-hidden rounded-2xl bg-muted"
+                      >
+                        {img.imageUrl && (
+                          <img src={img.imageUrl} alt={img.caption || ""} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        )}
+                        {img.caption && (
+                          <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="text-sm font-medium text-white">{img.caption}</span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {g.albumId && (
+                  <div className="mt-4 text-center">
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => navigate(`/gallery/${g.albumId}`)}>
+                      {titled ? "Open album" : `View album: ${g.title}`} <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
                   </div>
                 )}
-              </button>
+              </div>
             ))}
           </div>
           <Dialog open={lightbox !== null} onOpenChange={(o) => !o && setLightbox(null)}>
             <DialogContent className="max-w-3xl overflow-hidden p-0">
               {lightbox !== null && images[lightbox] && (
-                <div>
+                <div className="relative">
                   <img src={images[lightbox].imageUrl} alt={images[lightbox].caption || ""} className="max-h-[80vh] w-full object-contain" />
-                  {images[lightbox].caption && (
-                    <p className="p-4 text-center text-sm text-muted-foreground">{images[lightbox].caption}</p>
+                  {images.length > 1 && (
+                    <>
+                      <button type="button" aria-label="Previous image"
+                        onClick={() => setLightbox((lightbox - 1 + images.length) % images.length)}
+                        className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70">
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <button type="button" aria-label="Next image"
+                        onClick={() => setLightbox((lightbox + 1) % images.length)}
+                        className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70">
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </>
                   )}
+                  <p className="p-4 text-center text-sm text-muted-foreground">
+                    {images[lightbox].caption || ""}
+                    {images.length > 1 && <span className="ml-2 text-xs opacity-70">{lightbox + 1} / {images.length}</span>}
+                  </p>
                 </div>
               )}
             </DialogContent>
@@ -722,6 +772,9 @@ function ContentGrid({
           })}
         </div>
       );
+
+    case "testimonials":
+      return <TestimonialsList items={items} />;
 
     case "faqs":
       return (

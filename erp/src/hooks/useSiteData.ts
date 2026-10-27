@@ -78,6 +78,7 @@ export interface SiteHomeData {
   brochures: Array<{ _id: string; title: string; description?: string; fileUrl: string; fileName?: string; category?: string }>;
   faqs: Array<{ _id: string; question: string; answer: string; category?: string }>;
   media: Array<{ _id: string; title: string; source?: string; link?: string; imageUrl?: string; publishDate?: string }>;
+  testimonials?: Array<{ _id: string; name: string; designation?: string; location?: string; comment: string; photoUrl?: string }>;
   pages: SitePageSummary[];
 }
 

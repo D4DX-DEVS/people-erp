@@ -31,6 +31,7 @@ import { AnimatedTitle } from "@/components/site/AnimatedTitle";
 import { SchemesStack } from "@/components/site/SchemesStack";
 import { AssociatesMarquee } from "@/components/site/AssociatesMarquee";
 import { VolunteerDonateBand } from "@/components/site/VolunteerDonateBand";
+import { TestimonialsList } from "@/components/site/Testimonials";
 import { resolveDonationDefaults } from "@/config/donationDefaults";
 import { iconBadgeStyle, colorValue, colorTint, isDarkColor } from "@/lib/siteColors";
 import { resolveHomeLayout, resolveHomeHeading, isHomeSectionVisible, type HomeSectionKey, type HomeHeadingStyle } from "@/types/siteHome";
@@ -61,6 +62,7 @@ export default function SiteHome() {
   const partners = data?.partners || [];
   const faqs = data?.faqs || [];
   const mediaItems = data?.media || [];
+  const testimonials = data?.testimonials || [];
   const donation = s.donation || {};
   const donateLink = donation.paymentLink || s.hero?.ctaLink;
 
@@ -539,6 +541,14 @@ export default function SiteHome() {
         <div className="container mx-auto px-4">
           <SectionHeading {...heading("associates")} colors={heading("associates")} />
           <AssociatesMarquee logos={associateLogos} />
+        </div>
+      </section>
+    ),
+    testimonials: () => testimonials.length > 0 && (
+      <section id="testimonials" className="scroll-mt-20 bg-[#faf7f2] py-6 sm:py-10">
+        <div className="container mx-auto px-4">
+          <SectionHeading {...heading("testimonials")} colors={heading("testimonials")} />
+          <TestimonialsList items={testimonials} />
         </div>
       </section>
     ),

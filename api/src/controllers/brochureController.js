@@ -2,6 +2,7 @@ const Brochure = require('../models/Brochure');
 const ResponseHelper = require('../utils/responseHelper');
 const { uploadToSpaces, deleteFromSpaces } = require('../utils/s3Upload');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
+const { parseProjectLinks } = require('../utils/siteContent');
 
 class BrochureController {
   /**
@@ -22,6 +23,7 @@ class BrochureController {
       const brochures = await Brochure.find(query)
         .populate('createdBy', 'name')
         .populate('updatedBy', 'name')
+        .populate('projects', 'name')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
@@ -52,11 +54,11 @@ class BrochureController {
       const { page = 1, limit = 10, category } = req.query;
       const skip = (page - 1) * limit;
 
-      const query = { status: 'active' };
-      if (category) query.category = category;
+      const query = { status: 'active', ...buildFranchiseReadFilter(req) };
+      if (typeof category === 'string') query.category = category;
 
       const brochures = await Brochure.find(query)
-        .select('-createdBy -updatedBy -__v')
+        .select('-createdBy -updatedBy -__v -projects -showOnProjectPages')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
@@ -123,11 +125,14 @@ class BrochureController {
       // Upload file to Spaces
       const uploadResult = await uploadToSpaces(req.file, 'brochures');
 
+      const links = await parseProjectLinks(req.body, buildFranchiseReadFilter(req));
+
       const brochure = await Brochure.create({
         title,
         description,
         category: category || 'general',
         status: status || 'active',
+        ...links,
         fileUrl: uploadResult.fileUrl,
         fileKey: uploadResult.key,
         fileName: req.file.originalname,
@@ -186,13 +191,15 @@ class BrochureController {
       if (description) brochure.description = description;
       if (category) brochure.category = category;
       if (status) brochure.status = status;
-      
+      Object.assign(brochure, await parseProjectLinks(req.body, buildFranchiseReadFilter(req)));
+
       brochure.updatedBy = userId;
       await brochure.save();
 
       await brochure.populate([
         { path: 'createdBy', select: 'name' },
-        { path: 'updatedBy', select: 'name' }
+        { path: 'updatedBy', select: 'name' },
+        { path: 'projects', select: 'name' }
       ]);
 
       return ResponseHelper.success(res, { brochure }, 'Brochure updated successfully');

@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { website } from "@/lib/api";
-import { Loader2, Plus, Edit, Trash2, FileText, Download, Calendar } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, FileText, Download, Calendar, FolderKanban } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
+import { ProjectLinksField } from "@/components/site/ProjectLinksField";
 
 interface Brochure {
   _id: string;
@@ -25,7 +26,19 @@ interface Brochure {
   status: string;
   createdAt: string;
   createdBy: { name: string };
+  showOnProjectPages?: boolean;
+  projects?: Array<{ _id: string; name: string }>;
 }
+
+// Must match the Brochure.category enum in the API.
+const CATEGORY_OPTIONS = [
+  { value: "general", label: "General" },
+  { value: "scheme", label: "Schemes" },
+  { value: "project", label: "Projects" },
+  { value: "report", label: "Reports" },
+  { value: "guideline", label: "Guidelines" },
+  { value: "other", label: "Other" },
+];
 
 export default function Brochures() {
   const { toast } = useToast();
@@ -56,6 +69,7 @@ export default function Brochures() {
   const [status, setStatus] = useState("active");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
+  const [projectLinks, setProjectLinks] = useState<{ enabled: boolean; projects: string[] }>({ enabled: false, projects: [] });
 
   useEffect(() => {
     loadBrochures();
@@ -121,6 +135,7 @@ export default function Brochures() {
     setStatus("active");
     setPdfFile(null);
     setFileName("");
+    setProjectLinks({ enabled: false, projects: [] });
     setShowModal(true);
   };
 
@@ -132,6 +147,7 @@ export default function Brochures() {
     setStatus(item.status);
     setPdfFile(null);
     setFileName(item.fileName);
+    setProjectLinks({ enabled: !!item.showOnProjectPages, projects: (item.projects || []).map((p) => p._id) });
     setShowModal(true);
   };
 
@@ -141,6 +157,15 @@ export default function Brochures() {
         toast({
           title: "Error",
           description: "Please fill all required fields",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (projectLinks.enabled && projectLinks.projects.length === 0) {
+        toast({
+          title: "Error",
+          description: "Select at least one project page, or turn off 'List on project pages'",
           variant: "destructive"
         });
         return;
@@ -162,6 +187,8 @@ export default function Brochures() {
       formData.append('description', description);
       formData.append('category', category);
       formData.append('status', status);
+      formData.append('showOnProjectPages', String(projectLinks.enabled));
+      formData.append('projects', JSON.stringify(projectLinks.enabled ? projectLinks.projects : []));
       
       if (pdfFile) {
         formData.append('file', pdfFile);
@@ -247,9 +274,10 @@ export default function Brochures() {
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       general: "bg-blue-100 text-blue-800",
-      schemes: "bg-green-100 text-green-800",
-      reports: "bg-yellow-100 text-yellow-800",
-      guidelines: "bg-purple-100 text-purple-800"
+      scheme: "bg-green-100 text-green-800",
+      project: "bg-teal-100 text-teal-800",
+      report: "bg-yellow-100 text-yellow-800",
+      guideline: "bg-purple-100 text-purple-800"
     };
     return colors[category] || "bg-gray-100 text-gray-800";
   };
@@ -301,10 +329,9 @@ export default function Brochures() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="general">General</SelectItem>
-                  <SelectItem value="schemes">Schemes</SelectItem>
-                  <SelectItem value="reports">Reports</SelectItem>
-                  <SelectItem value="guidelines">Guidelines</SelectItem>
+                  {CATEGORY_OPTIONS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -342,6 +369,14 @@ export default function Brochures() {
                     </div>
                     <CardTitle className="mb-2">{item.title}</CardTitle>
                     <CardDescription>{item.description}</CardDescription>
+                    {item.showOnProjectPages && (item.projects || []).length > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                        <FolderKanban className="h-3.5 w-3.5" /> Also on:
+                        {(item.projects || []).map((p) => (
+                          <Badge key={p._id} variant="outline" className="font-normal">{p.name}</Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <FileText className="h-12 w-12 text-red-500" />
                 </div>
@@ -425,7 +460,7 @@ export default function Brochures() {
 
       {/* Create/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingItem ? "Edit Brochure" : "Upload Brochure"}
@@ -460,10 +495,9 @@ export default function Brochures() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="general">General</SelectItem>
-                    <SelectItem value="schemes">Schemes</SelectItem>
-                    <SelectItem value="reports">Reports</SelectItem>
-                    <SelectItem value="guidelines">Guidelines</SelectItem>
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -499,6 +533,17 @@ export default function Brochures() {
                 PDF only, max 10MB
               </p>
             </div>
+
+            <ProjectLinksField
+              itemLabel="brochure"
+              enabled={projectLinks.enabled}
+              projects={projectLinks.projects}
+              onChange={setProjectLinks}
+            />
+            <p className="text-xs text-muted-foreground">
+              Active brochures always appear on the public <strong>Downloads</strong> page (/download), and the newest one
+              is the “Download Brochure” link in the website's top bar.
+            </p>
           </div>
 
           <DialogFooter>

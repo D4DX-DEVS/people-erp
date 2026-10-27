@@ -1,5 +1,9 @@
+const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const ProjectPage = require('../models/ProjectPage');
+const Brochure = require('../models/Brochure');
+const Testimonial = require('../models/Testimonial');
+const Partner = require('../models/Partner');
 const { deleteFromSpaces } = require('../utils/s3Upload');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
 const {
@@ -42,6 +46,50 @@ function sanitizeOverview(input, current) {
     accentColor: str('accentColor'),
     background: OVERVIEW_BACKGROUNDS.includes(src.background) ? src.background : (base.background || 'muted'),
     backgroundColor: str('backgroundColor')
+  };
+}
+
+/** Only partner ids from this franchise are kept; order is the admin's pick order. */
+async function sanitizeAssociates(input, current, scope) {
+  const src = input && typeof input === 'object' ? input : {};
+  const base = current || {};
+  let partners = base.partners || [];
+  if (Array.isArray(src.partners)) {
+    const ids = [...new Set(src.partners.map(p => String(p && p._id ? p._id : p)))]
+      .filter(id => mongoose.Types.ObjectId.isValid(id));
+    const found = ids.length ? await Partner.find({ _id: { $in: ids }, ...scope }).select('_id').lean() : [];
+    const known = new Set(found.map(p => String(p._id)));
+    partners = ids.filter(id => known.has(id));
+  }
+  return {
+    visible: src.visible !== undefined ? !!src.visible : !!base.visible,
+    title: typeof src.title === 'string' ? src.title.trim().slice(0, 120) : (base.title || ''),
+    partners
+  };
+}
+
+/**
+ * Content linked to a project from other modules: brochures and testimonials
+ * marked "show on project pages" for it, and the associates the page picked.
+ */
+async function projectExtras(projectId, associates, scope) {
+  const linked = { status: 'active', showOnProjectPages: true, projects: projectId, ...scope };
+  const partnerIds = associates && associates.visible ? (associates.partners || []) : [];
+  const [brochures, testimonials, partners] = await Promise.all([
+    Brochure.find(linked).sort({ createdAt: -1 }).select('title description fileUrl fileName category').lean(),
+    Testimonial.find(linked).sort({ order: 1, createdAt: -1 }).select('name designation location comment photoUrl').lean(),
+    partnerIds.length
+      ? Partner.find({ _id: { $in: partnerIds }, status: 'active', ...scope }).select('name logoUrl link').lean()
+      : []
+  ]);
+  const byId = new Map(partners.map(p => [String(p._id), p]));
+  return {
+    brochures,
+    testimonials,
+    associates: {
+      title: (associates && associates.title) || '',
+      items: partnerIds.map(id => byId.get(String(id))).filter(Boolean)
+    }
   };
 }
 
@@ -93,7 +141,8 @@ exports.getPublicBySlug = async (req, res) => {
       if (!project) return res.status(404).json({ success: false, message: 'Project page not found' });
 
       page.sections = await hydrateSections(page.sections, scope);
-      return res.json({ success: true, data: { page, project } });
+      const extras = await projectExtras(project._id, page.associates, scope);
+      return res.json({ success: true, data: { page, project, extras } });
     }
 
     // No built page — render the project record itself. Matching on a slugified
@@ -109,7 +158,8 @@ exports.getPublicBySlug = async (req, res) => {
       success: true,
       data: {
         page: { slug, status: 'published', overview: DEFAULT_OVERVIEW, sections: [], generated: true },
-        project
+        project,
+        extras: await projectExtras(project._id, null, scope)
       }
     });
   } catch (error) {
@@ -211,7 +261,7 @@ exports.upsert = async (req, res) => {
     const project = await Project.findOne({ _id: req.params.projectId, ...scope }).select('_id name').lean();
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-    const { slug, status, summary, coverImageUrl, coverImageKey, hero, overview, sections, seo } = req.body;
+    const { slug, status, summary, coverImageUrl, coverImageKey, hero, overview, associates, sections, seo } = req.body;
     let page = await ProjectPage.findOne({ project: project._id, ...scope });
     const created = !page;
 
@@ -232,6 +282,7 @@ exports.upsert = async (req, res) => {
     if (coverImageKey !== undefined) page.coverImageKey = String(coverImageKey || '');
     if (hero !== undefined) page.hero = hero || {};
     if (overview !== undefined) page.overview = sanitizeOverview(overview, page.overview);
+    if (associates !== undefined) page.associates = await sanitizeAssociates(associates, page.associates, scope);
     if (sections !== undefined) page.sections = Array.isArray(sections) ? sections : [];
     if (seo !== undefined) page.seo = seo || {};
     page.updatedBy = req.user.id;

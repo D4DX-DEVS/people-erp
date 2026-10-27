@@ -2427,6 +2427,18 @@ export const media = {
   delete: (id: string) => apiClient.request(`/media/${id}`, { method: 'DELETE' }),
 };
 
+// Testimonials API (home page band + project pages)
+export const testimonials = {
+  getPublic: () => apiClient.request('/testimonials/public'),
+  getAll: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/testimonials${query}`);
+  },
+  create: (formData: FormData) => apiClient.request('/testimonials', { method: 'POST', body: formData, headers: {} }),
+  update: (id: string, formData: FormData) => apiClient.request(`/testimonials/${id}`, { method: 'PUT', body: formData, headers: {} }),
+  delete: (id: string) => apiClient.request(`/testimonials/${id}`, { method: 'DELETE' }),
+};
+
 // Blogs API
 export const blogs = {
   getPublic: (params?: any) => {

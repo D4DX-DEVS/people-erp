@@ -51,6 +51,17 @@ const brochureSchema = new mongoose.Schema({
     default: 'active'
   },
 
+  // Also list this brochure on the public page of the chosen projects
+  // (/projects-hub/:slug). Off = it only appears in the general downloads list.
+  showOnProjectPages: {
+    type: Boolean,
+    default: false
+  },
+  projects: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project'
+  }],
+
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -68,5 +79,6 @@ const brochureSchema = new mongoose.Schema({
 brochureSchema.index({ status: 1, createdAt: -1 });
 brochureSchema.plugin(franchisePlugin);
 brochureSchema.index({ category: 1 });
+brochureSchema.index({ projects: 1 });
 
 module.exports = mongoose.model('Brochure', brochureSchema);

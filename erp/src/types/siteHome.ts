@@ -13,7 +13,8 @@ export type HomeSectionKey =
   | "media"
   | "donation"
   | "faq"
-  | "associates";
+  | "associates"
+  | "testimonials";
 
 /** The copy at the top of a section. Empty/missing = the built-in wording. */
 export interface HomeHeadingText {
@@ -115,6 +116,11 @@ export const HOME_SECTIONS: HomeSectionDef[] = [
     accent: true, divider: true,
   },
   { key: "counters", label: "Impact counters", description: "The statistics counters set up in Website Settings." },
+  {
+    key: "testimonials", label: "Testimonials", description: "Quotes entered under Testimonials that are marked “Show on home page”.",
+    heading: { eyebrow: "Testimonials", title: "Voices of Change", subtitle: "What the people we work with say about the journey." },
+    accent: true, divider: true,
+  },
 ];
 
 const KNOWN = new Set<string>(HOME_SECTIONS.map((s) => s.key));

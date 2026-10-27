@@ -16,14 +16,15 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { projectPages } from '@/lib/api';
+import { projectPages, website } from '@/lib/api';
+import { ChecklistPicker, type ChecklistOption } from '@/components/site/ChecklistPicker';
 import { useRBAC } from '@/hooks/useRBAC';
 import { ColorPicker } from '@/components/site/ColorPicker';
 import { SectionsEditor, HeroEditor, ImageUploadField, stripSections } from '@/components/site/PageSectionsEditor';
 import { categoryLabel } from '@/lib/siteProjects';
 import { type SectionBackground, BACKGROUND_LABELS, IMAGE_SPECS, IMAGE_FORMAT_NOTE } from '@/types/sitePage';
 import {
-  type ProjectPage, type ProjectPageProject, type ProjectPageOverview,
+  type ProjectPage, type ProjectPageProject, type ProjectPageOverview, type ProjectPageAssociates,
   emptyProjectPage, PROJECT_STATUS_LABELS, PUBLIC_PROJECT_STATUSES,
 } from '@/types/projectPage';
 
@@ -57,6 +58,24 @@ export default function WebsiteProjectPageBuilder() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [partnerOptions, setPartnerOptions] = useState<ChecklistOption[]>([]);
+  const [partnersLoading, setPartnersLoading] = useState(true);
+
+  // Associates are the records under Website Management → Partners.
+  useEffect(() => {
+    website.getAllPartners()
+      .then((res: any) => {
+        const list: Array<{ _id: string; name: string; logoUrl?: string; status?: string }> = res?.data?.partners || [];
+        setPartnerOptions(list.map((p) => ({
+          value: p._id,
+          label: p.name,
+          imageUrl: p.logoUrl,
+          hint: p.status === 'inactive' ? 'Inactive — hidden on the website' : undefined,
+        })));
+      })
+      .catch(() => {})
+      .finally(() => setPartnersLoading(false));
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -81,6 +100,8 @@ export default function WebsiteProjectPageBuilder() {
   const updatePage = (patch: Partial<ProjectPage>) => setPage((p) => (p ? { ...p, ...patch } : p));
   const updateOverview = (patch: Partial<ProjectPageOverview>) =>
     setPage((p) => (p ? { ...p, overview: { ...p.overview, ...patch } } : p));
+  const updateAssociates = (patch: Partial<ProjectPageAssociates>) =>
+    setPage((p) => (p ? { ...p, associates: { visible: false, title: '', partners: [], ...p.associates, ...patch } } : p));
 
   const handleSave = async () => {
     if (!page || !project) return;
@@ -130,6 +151,7 @@ export default function WebsiteProjectPageBuilder() {
   const isPublicProject = PUBLIC_PROJECT_STATUSES.includes(project.status || '');
   const canView = exists && page.status === 'published' && isPublicProject && page.slug;
   const ov = page.overview;
+  const assoc: ProjectPageAssociates = { visible: false, title: '', partners: [], ...page.associates };
 
   return (
     <div className="space-y-6 pb-12">
@@ -295,6 +317,51 @@ export default function WebsiteProjectPageBuilder() {
       </Card>
 
       <SectionsEditor sections={page.sections} disabled={!canWrite} onChange={(sections) => updatePage({ sections })} />
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">Associates</CardTitle>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">List associates</Label>
+              <Switch disabled={!canWrite} checked={assoc.visible} onCheckedChange={(v) => updateAssociates({ visible: v })} />
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Logos of the partner organisations working on this project, shown after the page sections.
+            Associates are managed under Website Management → Partners.
+          </p>
+        </CardHeader>
+        {assoc.visible && (
+          <CardContent className="space-y-4">
+            <div className="max-w-md">
+              <Label className="text-xs">Heading</Label>
+              <Input disabled={!canWrite} placeholder="Our Associates" value={assoc.title || ''} onChange={(e) => updateAssociates({ title: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Associates on this page ({assoc.partners.length} selected)</Label>
+              <ChecklistPicker
+                options={partnerOptions}
+                value={assoc.partners}
+                loading={partnersLoading}
+                disabled={!canWrite}
+                searchPlaceholder="Search associates…"
+                emptyText="No associates yet — add them under Partners."
+                onChange={(partners) => updateAssociates({ partners })}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Shown in the order you tick them.</p>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      <Card>
+        <CardContent className="py-4 text-sm text-muted-foreground">
+          <strong className="text-foreground">Testimonials &amp; brochures</strong> linked to this project are listed
+          automatically at the end of the page. Link them from Website Management → Testimonials or Brochures
+          (“List on project pages”).
+        </CardContent>
+      </Card>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>

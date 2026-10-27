@@ -1,19 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { Phone, ArrowLeft, ArrowRight, UserCircle, Shield, Loader2, Building2 } from "lucide-react";
+import {
+  Phone, ArrowLeft, ArrowRight, UserCircle, Shield, Loader2, Building2, Check, Globe, Lock, Mail, ShieldCheck,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { auth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuth, type FranchiseOption, type RoleOption } from "@/hooks/useAuth";
 import { useConfig } from "@/contexts/ConfigContext";
-import { useOrgLogoUrl } from "@/hooks/useOrgLogoUrl";
-import defaultLogo from "@/assets/ppls-logo.png";
+import { useSiteData } from "@/hooks/useSiteData";
+import { SiteTheme } from "@/components/site/SiteTheme";
+import { BrandMark } from "@/components/site/BrandMark";
+import { resolveIcon } from "@/lib/siteIcons";
+import { stripHtml } from "@/lib/richText";
+
+/** 1000 → "1K", 22000 → "22K", 1500000 → "1.5M". */
+const compactNumber = (n: number) =>
+  new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n || 0);
 
 /** Route to navigate to after a successful admin login, based on role. */
 function getAdminRoute(role: string, fallback: string): string {
@@ -27,7 +36,21 @@ export default function Login() {
   const location = useLocation();
   const { login, selectRole } = useAuth();
   const { org } = useConfig();
-  const orgLogoUrl = useOrgLogoUrl();
+  const { data: siteData, isLoading: siteLoading } = useSiteData();
+  // Hold the page back briefly while the site palette loads, so the default
+  // ERP colours don't flash first. Never longer than ~1s if the API is slow.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setWaited(true), 1000);
+    return () => window.clearTimeout(id);
+  }, []);
+  const ready = !siteLoading || waited;
+  // Brand panel slideshow position.
+  const [slide, setSlide] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setSlide((n) => n + 1), 6000);
+    return () => window.clearInterval(id);
+  }, []);
   const [step, setStep] = useState<"role" | "phone" | "otp" | "franchise-select" | "role-select">("role");
   const [role, setRole] = useState<"beneficiary" | "admin">("admin");
   const [phoneNumber, setPhoneNumber] = useState("9876543210");
@@ -334,80 +357,153 @@ export default function Login() {
     }
   };
 
+  // The website's own look: its palette (SiteTheme), fonts (.site-font),
+  // banner photography, impact counters and contact details — so signing in
+  // feels like part of the site rather than a separate product.
+  const site = siteData?.settings || {};
+  const slides = (siteData?.banners || []).map((b) => b.imageUrl).filter(Boolean) as string[];
+  if (!slides.length && site.aboutUs?.imageUrl) slides.push(site.aboutUs.imageUrl);
+  const headline = site.hero?.title?.trim() || org.displayName || org.erpTitle;
+  const intro = site.aboutUs?.description?.trim() ? stripHtml(site.aboutUs.description) : tagline;
+  const stats = (site.counts || []).slice(0, 3);
+  const contact = site.contactDetails || {};
+  const stepIndex = step === "role" ? 0 : step === "phone" ? 1 : 2;
+
   return (
-    <div className="flex min-h-screen flex-col gap-5 bg-muted/40 pb-6 lg:flex-row lg:gap-0 lg:pb-0">
-      {/* Brand rail. Short and full-width on phones so the form stays above the
-          fold; from `lg` it becomes the left half of a split. */}
-      <aside className="relative isolate overflow-hidden bg-gradient-primary px-5 py-6 text-primary-foreground sm:px-8 lg:flex lg:w-1/2 lg:shrink-0 lg:flex-col lg:justify-center lg:px-14 lg:py-16 xl:px-20">
-        {/* The dot field the hero already uses, at low opacity — texture in the
-            theme's own colour rather than a second one to keep in sync. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(#fff_1.5px,transparent_1.5px)] [background-size:20px_20px]"
-        />
-        <div className="relative flex min-w-0 items-center gap-3 lg:block">
-          {/* The wordmark is dark, so it rides on a plate instead of going
-              straight onto the gradient. */}
-          <span className="inline-flex shrink-0 items-center rounded-2xl bg-white px-3.5 py-2 shadow-sm lg:px-4 lg:py-3">
-            <img
-              src={orgLogoUrl}
-              alt={org.erpTitle}
-              className="h-7 w-auto max-w-[8.5rem] object-contain sm:h-8 lg:h-9 lg:max-w-[11rem]"
-              onError={(e) => { (e.target as HTMLImageElement).src = defaultLogo; }}
-            />
-          </span>
-          <div className="min-w-0 lg:mt-8">
-            <p className="truncate text-sm font-semibold sm:text-base lg:text-2xl">{org.erpTitle}</p>
-            {tagline && (
-              // Hidden on the narrowest phones: the band is a masthead there,
-              // and the column left beside the mark fits about six words before
-              // it has to cut the sentence off mid-thought.
-              <p className="mt-1 hidden truncate text-xs text-primary-foreground/80 sm:block lg:mt-3 lg:max-w-sm lg:overflow-visible lg:whitespace-normal lg:text-base lg:leading-relaxed">
-                {tagline}
-              </p>
+    <div className={cn("site-font flex min-h-screen flex-col bg-background transition-opacity duration-300 lg:flex-row", ready ? "opacity-100" : "opacity-0")}>
+      <SiteTheme primary={site.appearance?.primaryColor} gradient={site.appearance?.gradientColor} />
+
+      {/* ── Brand panel: banner photography under the brand gradient ── */}
+      <aside className="relative isolate flex min-h-[15rem] flex-col overflow-hidden bg-[image:var(--gradient-brand)] text-white sm:min-h-[18rem] lg:min-h-screen lg:w-[52%] lg:shrink-0 xl:w-[56%]">
+        {slides.map((src, i) => (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            aria-hidden
+            className={cn(
+              "absolute inset-0 -z-20 h-full w-full object-cover transition-opacity duration-[1500ms] ease-out",
+              i === slide % slides.length ? "opacity-100" : "opacity-0",
             )}
-          </div>
+          />
+        ))}
+        {/* Readability: dark at the foot where the copy sits, brand-tinted on top. */}
+        <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/45 to-black/20" />
+        <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-black/60 via-black/25 to-transparent" />
+        <span aria-hidden className="absolute inset-0 -z-10 bg-[image:var(--gradient-brand)] opacity-40 mix-blend-multiply" />
+
+        <div className="flex items-center justify-between gap-3 p-5 sm:p-8 lg:p-10">
+          <Link to="/" className="inline-flex items-center rounded-2xl bg-white/95 px-3.5 py-2 shadow-lg backdrop-blur transition hover:bg-white">
+            <BrandMark className="h-8 w-auto max-w-[9rem] object-contain sm:h-9 lg:h-11 lg:max-w-[12rem]" />
+          </Link>
+          <Link to="/" className="hidden items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur transition hover:bg-white/20 sm:inline-flex">
+            <Globe className="h-4 w-4" /> Visit website
+          </Link>
+        </div>
+
+        <div className="mt-auto space-y-4 p-5 pt-0 sm:p-8 sm:pt-0 lg:space-y-6 lg:p-12 lg:pt-0 xl:p-16 xl:pt-0">
+          <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] backdrop-blur">
+            Welcome back
+          </span>
+          <h1 className="max-w-xl text-3xl text-white sm:text-4xl lg:text-5xl xl:text-6xl">{headline}</h1>
+          {intro && (
+            <p className="hidden max-w-lg text-base leading-relaxed text-white/85 sm:line-clamp-3 lg:text-lg">{intro}</p>
+          )}
+
+          {stats.length > 0 && (
+            <div className="hidden gap-3 pt-2 md:grid md:grid-cols-3 lg:max-w-xl">
+              {stats.map((c) => {
+                const Icon = resolveIcon(c.icon);
+                return (
+                  <div key={c._id || c.title} className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+                    <Icon className="mb-2 h-5 w-5 text-[hsl(var(--brand-lime))]" />
+                    <p className="text-2xl font-semibold leading-none">{compactNumber(c.count)}+</p>
+                    <p className="mt-1 text-xs leading-snug text-white/75">{c.title}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {slides.length > 1 && (
+            <div className="flex gap-1.5 pt-1" aria-hidden>
+              {slides.map((src, i) => (
+                <span key={src} className={cn("h-1.5 rounded-full bg-white/40 transition-all duration-500", i === slide % slides.length ? "w-8 bg-white" : "w-1.5")} />
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
-      <Card className="mx-auto my-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border-border/60 shadow-elegant lg:w-[26rem] lg:max-w-none">
-        <CardHeader className="space-y-1 p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <CardTitle className="text-xl font-bold sm:text-2xl">
-                {step === "role" ? "Select Login Type"
-                  : step === "phone" ? "Login"
-                  : step === "otp" ? "Verify OTP"
-                  : step === "franchise-select" ? "Select Organisation"
-                  : "Select Role"}
-              </CardTitle>
-              <CardDescription>
+      {/* ── Sign-in column ── */}
+      <main className="relative flex flex-1 flex-col overflow-hidden">
+        {/* Soft brand texture behind the card. */}
+        <span aria-hidden className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
+        <span aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full bg-[hsl(var(--brand-orange)/0.08)] blur-3xl" />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.35] [background-image:radial-gradient(hsl(var(--primary)/0.18)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
+        />
+
+        <div className="relative flex flex-1 items-center justify-center px-4 py-8 sm:px-8 lg:py-12">
+          <div className="w-full max-w-[28rem]">
+            <div className="mb-6 space-y-3 text-center lg:text-left">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
+                <Lock className="h-3 w-3" /> Secure sign in
+              </span>
+              <h2 className="text-3xl text-foreground sm:text-4xl">
+                {step === "role" ? "Sign in to continue"
+                  : step === "phone" ? <>Enter your <span className="text-primary">mobile</span></>
+                  : step === "otp" ? <>Verify it's <span className="text-primary">you</span></>
+                  : step === "franchise-select" ? "Choose organisation"
+                  : "Choose your role"}
+              </h2>
+              <p className="text-sm text-muted-foreground sm:text-base">
                 {step === "role"
-                  ? "Choose how you want to access the system"
+                  ? `Access ${org.displayName || org.erpTitle} — apply for support or manage the programmes.`
                   : step === "phone"
-                    ? `Logging in as ${role === "admin" ? "Admin" : "Beneficiary"}`
+                    ? `Signing in as ${role === "admin" ? "an administrator" : "a beneficiary"}. We'll text you a one-time code.`
                     : step === "otp"
-                      ? `We've sent a verification code to +91 ${phoneNumber}`
+                      ? `Enter the 6-digit code sent to +91 ${phoneNumber}`
                       : step === "franchise-select"
                         ? "Select the organisation you want to log into"
-                        : "Select the role you want to use for this session"
-                }
-              </CardDescription>
+                        : "Select the role you want to use for this session"}
+              </p>
             </div>
-            {step !== "role" && (
+
+            {/* Progress: login type → mobile → verify */}
+            <div className="mb-5 flex items-center gap-2" aria-hidden>
+              {["Login type", "Mobile", "Verify"].map((label, i) => (
+                <div key={label} className="flex flex-1 items-center gap-2">
+                  <span className={cn(
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-colors",
+                    i < stepIndex ? "bg-primary text-primary-foreground" : i === stepIndex ? "bg-primary/15 text-primary ring-2 ring-primary/40" : "bg-muted text-muted-foreground",
+                  )}>
+                    {i < stepIndex ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                  </span>
+                  <span className={cn("hidden text-xs font-medium sm:inline", i <= stepIndex ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+                  {i < 2 && <span className={cn("h-px flex-1", i < stepIndex ? "bg-primary/50" : "bg-border")} />}
+                </div>
+              ))}
+            </div>
+
+      <Card className="rounded-3xl border-border/60 bg-card/95 shadow-[0_24px_60px_-24px_hsl(var(--primary)/0.35)] backdrop-blur">
+        <CardHeader className="p-0">
+          {step !== "role" && (
+            <div className="flex justify-end px-4 pt-3">
               <Button
                 variant="ghost"
                 size="sm"
-                className="-mr-2 -mt-1 shrink-0 rounded-full text-muted-foreground"
+                className="shrink-0 rounded-full text-muted-foreground"
                 onClick={goBack}
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span className="ml-1 hidden sm:inline">Back</span>
+                <span className="ml-1">Back</span>
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </CardHeader>
-        <CardContent className="space-y-5 p-5 pt-0 sm:p-6 sm:pt-0">
+        <CardContent className={cn("space-y-5 p-5 sm:p-6", step !== "role" && "pt-1 sm:pt-1")}>
           {step === "role" ? (
             <>
               {/* One label per option, so the whole card is the hit target
@@ -427,7 +523,7 @@ export default function Login() {
                       key={value}
                       htmlFor={value}
                       className={cn(
-                        "flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-all",
+                        "flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-all duration-200",
                         "hover:border-primary/40 hover:bg-muted/50",
                         active ? "border-primary bg-primary/5 shadow-sm" : "border-border",
                       )}
@@ -450,7 +546,7 @@ export default function Login() {
                 })}
               </RadioGroup>
 
-              <Button className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow" onClick={handleRoleSelect}>
+              <Button className="h-12 w-full rounded-full text-base shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.7)]" onClick={handleRoleSelect}>
                 Continue
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
@@ -479,7 +575,7 @@ export default function Login() {
                 </div>
               </div>
               <Button
-                className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow"
+                className="h-12 w-full rounded-full text-base shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.7)]"
                 onClick={handleSendOTP}
                 disabled={loading}
               >
@@ -535,7 +631,7 @@ export default function Login() {
               </p>
 
               <Button
-                className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow"
+                className="h-12 w-full rounded-full text-base shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.7)]"
                 onClick={handleVerifyOTP}
                 disabled={loading}
               >
@@ -575,7 +671,7 @@ export default function Login() {
                   );
                 })}
               </RadioGroup>
-              <Button className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow" onClick={handleFranchiseConfirm} disabled={loading || !selectedFranchiseId}>
+              <Button className="h-12 w-full rounded-full text-base shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.7)]" onClick={handleFranchiseConfirm} disabled={loading || !selectedFranchiseId}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {loading ? 'Please wait…' : 'Continue'}
               </Button>
@@ -610,20 +706,51 @@ export default function Login() {
                   );
                 })}
               </RadioGroup>
-              <Button className="h-12 w-full rounded-xl bg-gradient-primary text-base shadow-glow" onClick={handleRoleConfirm} disabled={loading || !selectedRole}>
+              <Button className="h-12 w-full rounded-full text-base shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.7)]" onClick={handleRoleConfirm} disabled={loading || !selectedRole}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {loading ? 'Logging in…' : 'Login'}
               </Button>
             </>
           ) : null}
 
-          <p className="pt-1 text-center text-xs text-muted-foreground">
-            <Link to="/" className="font-medium underline-offset-4 hover:text-foreground hover:underline">
-              Back to the website
-            </Link>
+          <p className="flex items-center justify-center gap-1.5 pt-1 text-center text-xs text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+            Protected with one-time passwords — we never ask for a password.
           </p>
         </CardContent>
       </Card>
+
+            <div className="mt-6 space-y-3 text-center text-xs text-muted-foreground">
+              {(contact.phone || contact.email) && (
+                <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+                  <span>Need help?</span>
+                  {contact.phone && (
+                    <a href={`tel:${contact.phone.replace(/[^+\d]/g, "")}`} className="inline-flex items-center gap-1 font-medium text-foreground/80 hover:text-primary">
+                      <Phone className="h-3 w-3" />{contact.phone}
+                    </a>
+                  )}
+                  {contact.email && (
+                    <a href={`mailto:${contact.email}`} className="inline-flex items-center gap-1 font-medium text-foreground/80 hover:text-primary">
+                      <Mail className="h-3 w-3" />{contact.email}
+                    </a>
+                  )}
+                </p>
+              )}
+              <p className="flex items-center justify-center gap-3">
+                <Link to="/" className="inline-flex items-center gap-1 font-medium hover:text-primary">
+                  <ArrowLeft className="h-3 w-3" /> Back to the website
+                </Link>
+                <span aria-hidden>·</span>
+                <Link to="/privacy-policy" className="font-medium hover:text-primary">Privacy policy</Link>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p className="relative pb-5 text-center text-[11px] text-muted-foreground/80">
+          © {new Date().getFullYear()} {org.displayName || org.erpTitle}
+        </p>
+      </main>
     </div>
   );
 }

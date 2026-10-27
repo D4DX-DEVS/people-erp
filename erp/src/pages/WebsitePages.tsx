@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { sitePages } from '@/lib/api';
 import { useRBAC } from '@/hooks/useRBAC';
 import type { SitePage } from '@/types/sitePage';
+import { GetInvolvedMenu } from '@/components/site/GetInvolvedMenu';
 
 export default function WebsitePages() {
   const navigate = useNavigate();
@@ -69,6 +70,8 @@ export default function WebsitePages() {
           </Button>
         )}
       </div>
+
+      <GetInvolvedMenu pages={items} canWrite={canWrite} onPagesCreated={fetchItems} />
 
       {items.length === 0 ? (
         <Card><CardContent className="flex flex-col items-center justify-center py-12">

@@ -23,7 +23,8 @@ export type ContentSource =
   | "projects"
   | "brochures"
   | "partners"
-  | "faqs";
+  | "faqs"
+  | "testimonials";
 
 export interface SectionItem {
   _id?: string;
@@ -48,6 +49,13 @@ export interface SectionImage {
   caption?: string;
 }
 
+/** A Gallery album resolved onto a 'gallery' section by the public endpoint. */
+export interface SectionAlbum {
+  _id: string;
+  title: string;
+  images: Array<{ imageUrl: string; caption?: string }>;
+}
+
 export type SectionBackground = "default" | "muted" | "primary" | "tint" | "custom";
 
 export interface PageSection {
@@ -70,6 +78,10 @@ export interface PageSection {
   imageKey?: string;
   imagePosition?: "left" | "right";
   images?: SectionImage[];
+  /** 'gallery' sections: ids of Gallery albums whose photos follow the uploaded images. */
+  galleryAlbums?: string[];
+  /** Albums resolved server-side from `galleryAlbums` (public endpoint only). */
+  albums?: SectionAlbum[];
   items?: SectionItem[];
   contentSource?: ContentSource;
   contentLimit?: number;
@@ -177,6 +189,7 @@ export const CONTENT_SOURCE_LABELS: Record<Exclude<ContentSource, "">, string> =
   brochures: "Brochures / Reports",
   partners: "Partners",
   faqs: "FAQs",
+  testimonials: "Testimonials",
 };
 
 /**
@@ -212,6 +225,7 @@ export function emptySection(type: SectionType, order: number): PageSection {
     imageKey: "",
     imagePosition: "right",
     images: [],
+    galleryAlbums: [],
     items: [],
     contentSource: type === "content" ? "news" : "",
     contentLimit: 6,

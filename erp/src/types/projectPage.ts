@@ -14,6 +14,15 @@ export interface ProjectPageOverview {
   backgroundColor?: string;
 }
 
+/** Partners ("associates") listed on the project page. */
+export interface ProjectPageAssociates {
+  visible: boolean;
+  /** Section heading; empty = "Our Associates". */
+  title?: string;
+  /** Partner ids, in display order. */
+  partners: string[];
+}
+
 export interface ProjectPage {
   _id?: string;
   project: string;
@@ -24,6 +33,7 @@ export interface ProjectPage {
   coverImageKey?: string;
   hero?: SitePageHero;
   overview: ProjectPageOverview;
+  associates?: ProjectPageAssociates;
   sections: PageSection[];
   seo?: { title?: string; description?: string };
   createdAt?: string;
@@ -50,8 +60,41 @@ export interface ProjectPageRow {
   page: Pick<ProjectPage, "_id" | "slug" | "status" | "coverImageUrl" | "updatedAt"> | null;
 }
 
+export interface PublicBrochure {
+  _id: string;
+  title: string;
+  description?: string;
+  fileUrl: string;
+  fileName?: string;
+  category?: string;
+}
+
+export interface PublicTestimonial {
+  _id: string;
+  name: string;
+  designation?: string;
+  location?: string;
+  comment: string;
+  photoUrl?: string;
+}
+
+export interface PublicPartner {
+  _id: string;
+  name: string;
+  logoUrl?: string;
+  link?: string;
+}
+
+/** Content other modules link to the project (Brochures, Testimonials, Partners). */
+export interface ProjectExtras {
+  brochures: PublicBrochure[];
+  testimonials: PublicTestimonial[];
+  associates: { title?: string; items: PublicPartner[] };
+}
+
 /** Public detail payload: the published page plus the public slice of its project. */
 export interface PublicProjectDetail {
+  extras?: ProjectExtras;
   page: ProjectPage;
   project: ProjectPageProject & {
     progress?: {
@@ -95,6 +138,7 @@ export function emptyProjectPage(project: ProjectPageProject): ProjectPage {
       background: "muted",
       backgroundColor: "",
     },
+    associates: { visible: false, title: "", partners: [] },
     sections: [],
     seo: { title: "", description: "" },
   };

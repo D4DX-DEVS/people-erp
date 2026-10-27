@@ -19,6 +19,7 @@ import RichTextEditor from '@/components/ui/RichTextEditor';
 import { IconPicker } from '@/components/site/IconPicker';
 import { ColorPicker } from '@/components/site/ColorPicker';
 import { HeroTextFormat } from '@/components/site/HeroTextFormat';
+import { GalleryImagesEditor } from '@/components/site/GalleryImagesEditor';
 import { mapEmbedSrc, isUnframeableMapLink } from '@/lib/mapEmbed';
 import {
   type PageSection, type SectionItem, type SectionType, type SectionBackground, type SitePageHero,
@@ -322,21 +323,6 @@ function SectionCard({
   const backgroundLabel = (val: SectionBackground) => (isCta && val === 'default' ? 'Brand gradient' : BACKGROUND_LABELS[val]);
   const backgroundValue: SectionBackground = isCta && section.background === 'primary' ? 'default' : (section.background || 'default');
 
-  const addGalleryImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) return;
-    if (file.size > 5 * 1024 * 1024) return;
-    const fd = new FormData();
-    fd.append('image', file);
-    const res: any = await sitePages.uploadImage(fd);
-    if (res.success) {
-      const images = section.images || [];
-      onUpdate({ images: [...images, { imageUrl: res.data.fileUrl, imageKey: res.data.key, caption: '' }] });
-    }
-  };
-
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -395,7 +381,7 @@ function SectionCard({
           {section.type === 'richtext' && (
             <div>
               <Label className="text-xs">Content</Label>
-              <RichTextEditor minHeight={200} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
+              <RichTextEditor tables minHeight={200} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
             </div>
           )}
 
@@ -403,7 +389,7 @@ function SectionCard({
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">Content</Label>
-                <RichTextEditor minHeight={160} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
+                <RichTextEditor tables minHeight={160} disabled={disabled} value={section.content || ''} onChange={(html) => onUpdate({ content: html })} />
               </div>
               <div>
                 <Label className="text-xs">Image</Label>
@@ -508,41 +494,12 @@ function SectionCard({
           )}
 
           {section.type === 'gallery' && (
-            <div className="space-y-3">
-              <Label className="text-xs">Add Image</Label>
-              <Input type="file" accept="image/*" disabled={disabled} onChange={addGalleryImage} />
-              <p className="text-xs text-muted-foreground">{IMAGE_SPECS.gallery}</p>
-              {(section.images || []).length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {(section.images || []).map((img, i) => (
-                    <div key={i} className="space-y-1">
-                      <div className="relative">
-                        <img src={img.imageUrl} alt="" className="h-24 w-full rounded-md object-cover border border-border/60" />
-                        {!disabled && (
-                          <button
-                            type="button"
-                            onClick={() => onUpdate({ images: (section.images || []).filter((_, idx) => idx !== i) })}
-                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                      <Input
-                        placeholder="Caption"
-                        disabled={disabled}
-                        value={img.caption || ''}
-                        onChange={(e) => {
-                          const next = (section.images || []).slice();
-                          next[i] = { ...next[i], caption: e.target.value };
-                          onUpdate({ images: next });
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <GalleryImagesEditor
+              images={section.images || []}
+              albums={section.galleryAlbums || []}
+              disabled={disabled}
+              onChange={(patch) => onUpdate(patch)}
+            />
           )}
 
           {section.type === 'content' && (
@@ -656,7 +613,7 @@ function SectionCard({
 
 /** Strip UI-only fields and make persisted `order` match array position — the public page sorts by `order`. */
 export function stripSections(sections: PageSection[]): PageSection[] {
-  return sections.map(({ _expanded, ...s }, i) => ({ ...s, order: i }));
+  return sections.map(({ _expanded, albums, contentItems, ...s }, i) => ({ ...s, order: i }));
 }
 
 export function SectionsEditor({

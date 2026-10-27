@@ -19,6 +19,7 @@ import {
   Scale,
   Globe,
   Newspaper,
+  Quote,
   BookOpen,
   ImageIcon,
   CalendarClock,
@@ -527,6 +528,13 @@ export const menuCategories: MenuCategory[] = [
         label: "Media Coverage",
         permissions: ["website.read"],
         keywords: ["media", "press", "coverage", "news"],
+      },
+      {
+        to: "/website-testimonials",
+        icon: Quote,
+        label: "Testimonials",
+        permissions: ["website.read"],
+        keywords: ["testimonial", "review", "quote", "feedback", "story"],
       },
       {
         to: "/website-faqs",

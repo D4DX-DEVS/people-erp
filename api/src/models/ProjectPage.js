@@ -42,6 +42,12 @@ const projectPageSchema = new mongoose.Schema({
     background: { type: String, enum: ['default', 'muted', 'primary', 'tint', 'custom'], default: 'muted' },
     backgroundColor: { type: String, default: '' }
   },
+  // Associates (Partners) listed on this project's page.
+  associates: {
+    visible: { type: Boolean, default: false },
+    title: { type: String, default: '', maxlength: 120 },   // '' = "Our Associates"
+    partners: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Partner' }]
+  },
   sections: [sectionSchema],
   seo: {
     title: { type: String, default: '' },

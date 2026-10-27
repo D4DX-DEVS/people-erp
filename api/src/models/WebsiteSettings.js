@@ -22,6 +22,9 @@ const navLinkSchema = new mongoose.Schema(navLinkFields, { _id: true });
 const navItemSchema = new mongoose.Schema({
   ...navLinkFields,
   type: { type: String, enum: ['link', 'dropdown'], default: 'link' },
+  // Stable id for menus other screens manage, e.g. 'get-involved' (edited
+  // from Website Pages). Survives renaming the label in the menu builder.
+  key: { type: String, default: '', trim: true, maxlength: 40 },
   children: [navLinkSchema]
 }, { _id: true });
 const navButtonSchema = new mongoose.Schema({
@@ -36,7 +39,7 @@ const navButtonSchema = new mongoose.Schema({
 // the list on every reload and the admin's order never sticks.
 const HOME_SECTION_KEYS = [
   'counters', 'about', 'projects', 'schemes', 'calculator', 'news', 'gallery',
-  'videos', 'blogs', 'media', 'donation', 'faq', 'associates'
+  'videos', 'blogs', 'media', 'donation', 'faq', 'associates', 'testimonials'
 ];
 // Heading overrides are all optional: '' means "use the built-in copy/colour".
 // Colours are swatch names or hex (see erp/src/lib/siteColors.ts).

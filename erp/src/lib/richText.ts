@@ -8,7 +8,7 @@ export function stripHtml(v?: string): string {
   if (!v) return "";
   if (!isHtml(v)) return v;
   return v
-    .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, " ")
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|td|th|tr|caption)>/gi, " ")
     .replace(/<br\s*\/?>/gi, " ")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
@@ -18,8 +18,13 @@ export function stripHtml(v?: string): string {
 /** Sanitised HTML safe to inject; links open in a new tab. */
 export function sanitizeHtml(html: string): string {
   const clean = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ["p", "br", "b", "strong", "i", "em", "u", "s", "strike", "h2", "h3", "h4", "ul", "ol", "li", "blockquote", "a", "span", "div", "hr"],
-    ALLOWED_ATTR: ["href", "target", "rel", "style"],
+    ALLOWED_TAGS: [
+      "p", "br", "b", "strong", "i", "em", "u", "s", "strike", "h2", "h3", "h4", "ul", "ol", "li", "blockquote", "a", "span", "div", "hr",
+      // Tables from the editor's table tool
+      "table", "caption", "thead", "tbody", "tfoot", "tr", "th", "td",
+    ],
+    // data-style carries the table look (grid/striped/minimal, compact, fit).
+    ALLOWED_ATTR: ["href", "target", "rel", "style", "colspan", "rowspan", "scope", "data-style"],
   });
   return clean.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
 }

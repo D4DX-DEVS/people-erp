@@ -18,6 +18,8 @@ export interface NavLink {
 
 export interface NavItem extends NavLink {
   type: "link" | "dropdown";
+  /** Stable id for menus managed from other screens, e.g. "get-involved" (Website Pages). */
+  key?: string;
   /** Only used when `type` is "dropdown". */
   children?: NavLink[];
   /** UI-only: row expanded in the builder. Stripped before save. */
@@ -63,6 +65,7 @@ export const DESTINATION_GROUPS: Array<{ label: string; options: NavDestination[
       { value: "/#pages", kind: "section", label: "Our pages overview section", short: "Explore" },
       { value: "/#projects", kind: "section", label: "Projects section", short: "Projects" },
       { value: "/#associates", kind: "section", label: "Associates section", short: "Our Associates" },
+      { value: "/#testimonials", kind: "section", label: "Testimonials section", short: "Testimonials" },
       { value: "/#donate", kind: "section", label: "Volunteer & donate section", short: "Get Involved" },
       { value: "/#gallery", kind: "section", label: "Gallery section", short: "Gallery" },
       { value: "/#videos", kind: "section", label: "Videos section", short: "Videos" },

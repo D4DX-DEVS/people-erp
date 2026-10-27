@@ -30,6 +30,7 @@ const sanitizeNavigation = (nav) => {
   const items = (Array.isArray(n.items) ? n.items : []).slice(0, MAX_NAV_ITEMS).map((item, i) => ({
     ...cleanNavLink(item, i),
     type: item && item.type === 'dropdown' ? 'dropdown' : 'link',
+    key: String((item && item.key) || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40),
     children: (item && Array.isArray(item.children) ? item.children : []).slice(0, MAX_NAV_ITEMS).map(cleanNavLink)
   }));
   const buttons = (Array.isArray(n.buttons) ? n.buttons : []).slice(0, MAX_NAV_BUTTONS).map((btn, i) => ({

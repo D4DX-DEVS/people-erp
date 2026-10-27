@@ -76,6 +76,36 @@ function overviewSections({ page, project }: PublicProjectDetail): PageSection[]
   return sections;
 }
 
+/**
+ * Content other modules link to this project — testimonials and brochures
+ * marked "list on project pages", and the associates (Partners) the page
+ * picked — rendered as live-content sections so they share the page styling.
+ */
+function extraSections({ extras }: PublicProjectDetail): PageSection[] {
+  if (!extras) return [];
+  const sections: PageSection[] = [];
+  if (extras.testimonials?.length) {
+    sections.push({
+      type: "content", contentSource: "testimonials", contentItems: extras.testimonials,
+      title: "What People Say", icon: "message-circle", background: "muted", order: 100,
+    });
+  }
+  if (extras.associates?.items?.length) {
+    sections.push({
+      type: "content", contentSource: "partners", contentItems: extras.associates.items,
+      title: extras.associates.title || "Our Associates", icon: "handshake", background: "default", order: 101,
+    });
+  }
+  if (extras.brochures?.length) {
+    sections.push({
+      type: "content", contentSource: "brochures", contentItems: extras.brochures,
+      title: "Brochures & Reports", subtitle: "Download documents about this project.", icon: "book-open",
+      columns: extras.brochures.length <= 2 ? 2 : 3, background: "default", order: 102,
+    });
+  }
+  return sections;
+}
+
 export default function ProjectDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -124,6 +154,9 @@ export default function ProjectDetailPage() {
           <SectionBlock key={`overview-${s.order}`} section={s} />
         ))}
         <PageSections sections={page.sections} />
+        {extraSections(data).map((s) => (
+          <SectionBlock key={`extra-${s.order}`} section={s} />
+        ))}
         <div className="container mx-auto px-4 pb-10 text-center">
           <Button variant="outline" className="rounded-full" onClick={() => navigate("/projects-hub")}>
             <ArrowLeft className="mr-1 h-4 w-4" /> All projects

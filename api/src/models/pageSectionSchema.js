@@ -41,11 +41,15 @@ const sectionSchema = new mongoose.Schema({
     imageKey: { type: String, default: '' },
     caption: { type: String, default: '' }
   }],
+  // 'gallery' sections: Gallery albums whose photos are listed after the
+  // uploaded images. Ids are stored as strings and resolved (active albums of
+  // the page's franchise only) when the public page is served.
+  galleryAlbums: { type: [String], default: [] },
   items: [sectionItemSchema],
   // 'content' sections embed live site content instead of manual items
   contentSource: {
     type: String,
-    enum: ['', 'news', 'blogs', 'gallery', 'videos', 'projects', 'brochures', 'partners', 'faqs'],
+    enum: ['', 'news', 'blogs', 'gallery', 'videos', 'projects', 'brochures', 'partners', 'faqs', 'testimonials'],
     default: ''
   },
   contentLimit: { type: Number, default: 6 },
