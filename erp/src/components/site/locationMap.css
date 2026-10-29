@@ -1,0 +1,160 @@
+/* Project location map (LocationMap.tsx). Colours come from the site theme
+   variables; --lm-accent is set on the container from the page's accent. */
+
+.lm-map {
+  --lm-accent: hsl(var(--primary));
+  height: 100%;
+  width: 100%;
+  font: inherit;
+  background: hsl(var(--primary) / 0.05);
+}
+.lm-map.leaflet-container { background: hsl(var(--primary) / 0.05); font-family: inherit; }
+.lm-map .leaflet-control-attribution {
+  background: hsl(var(--card) / 0.85);
+  color: hsl(var(--muted-foreground));
+  font-size: 10px;
+}
+.lm-map .leaflet-control-attribution a { color: inherit; text-decoration: underline; }
+.lm-map .leaflet-control-zoom a {
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  border-color: hsl(var(--border));
+}
+
+/* Areas: districts (Kerala) / states (India). The CSS beats Leaflet's
+   presentation attributes, so the theme colours win over the path options. */
+.lm-area {
+  fill: hsl(var(--card));
+  fill-opacity: 1;
+  stroke: hsl(var(--primary) / 0.45);
+  stroke-width: 1.1px;
+  stroke-linejoin: round;
+  transition: fill 0.15s ease, fill-opacity 0.15s ease;
+}
+.lm-area--context {
+  fill: hsl(var(--muted));
+  stroke: hsl(var(--muted-foreground) / 0.35);
+  stroke-dasharray: 3 3;
+}
+.lm-area--active { fill: var(--lm-accent); fill-opacity: 0.2; }
+.lm-area:hover { fill: var(--lm-accent); fill-opacity: 0.12; }
+.lm-area--active:hover { fill-opacity: 0.3; }
+.lm-area--context:hover { fill: hsl(var(--muted)); fill-opacity: 1; }
+
+/* Street detail (admin): let the tiles show through the areas. */
+.lm-map--street .lm-area { fill-opacity: 0.08; stroke: var(--lm-accent); stroke-width: 1.6px; }
+.lm-map--street .lm-area--context { fill-opacity: 0; }
+.lm-map--street .lm-area--active { fill-opacity: 0.16; }
+.lm-map--street .lm-label { opacity: 0.85; }
+
+/* Area and sea names */
+.lm-label { pointer-events: none; }
+.lm-label__text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: hsl(var(--foreground) / 0.72);
+  text-shadow: 0 0 3px hsl(var(--card)), 0 0 3px hsl(var(--card)), 0 0 2px hsl(var(--card));
+}
+.lm-label--active .lm-label__text { color: hsl(var(--foreground)); font-weight: 700; }
+.lm-label--context .lm-label__text {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground) / 0.8);
+}
+.lm-label--sea .lm-label__text {
+  font-size: 11px;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  color: hsl(var(--primary) / 0.55);
+  text-shadow: none;
+}
+
+/* Location pins: a numbered teardrop matching the list beside the map. */
+.lm-pin-icon { background: none; border: 0; }
+.lm-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--lm-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.3);
+  transition: transform 0.15s ease;
+}
+.lm-pin > span {
+  transform: rotate(45deg);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.lm-pin-icon:hover .lm-pin,
+.lm-pin--active { transform: rotate(-45deg) scale(1.18); }
+.lm-pin--active { box-shadow: 0 0 0 4px hsl(var(--card)), 0 0 0 7px var(--lm-accent), 0 3px 8px rgb(0 0 0 / 0.3); }
+.lm-pin--outside { background: hsl(var(--muted-foreground)); }
+
+/* Pending pin (admin, before "Add to map") */
+.lm-preview {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid var(--lm-accent);
+  box-shadow: 0 0 0 0 var(--lm-accent);
+  animation: lm-pulse 1.6s ease-out infinite;
+}
+@keyframes lm-pulse {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.55); }
+  100% { box-shadow: 0 0 0 16px hsl(var(--primary) / 0); }
+}
+
+.lm-map .leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+.lm-map .leaflet-popup-tip { background: hsl(var(--card)); }
+.lm-map .leaflet-popup-content { margin: 12px 14px; font-size: 13px; line-height: 1.45; }
+.lm-popup__title { font-weight: 700; font-size: 14px; }
+.lm-popup__area { color: hsl(var(--muted-foreground)); font-size: 12px; margin-top: 2px; }
+.lm-popup__text { margin-top: 6px; white-space: pre-line; }
+.lm-map .leaflet-tooltip.lm-tip {
+  background: hsl(var(--foreground));
+  color: hsl(var(--card));
+  border: 0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
+}
+.lm-map .leaflet-tooltip.lm-tip::before { display: none; }
+
+/* Hint shown until the visitor clicks into the map (scroll/drag are off until then). */
+.lm-hint {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  z-index: 500;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: hsl(var(--foreground) / 0.75);
+  color: hsl(var(--card));
+  padding: 4px 12px;
+  font-size: 11px;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { SiteShell, PageHero, PageBody } from "@/components/site/SiteShell";
 import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { PageSections, SectionBlock } from "@/components/site/PageSections";
+import { ProjectLocations } from "@/components/site/ProjectLocations";
 import { usePublicProjectPage } from "@/hooks/useSitePages";
 import { categoryLabel, projectImage } from "@/lib/siteProjects";
 import type { PageSection, SectionItem } from "@/types/sitePage";
@@ -153,6 +154,7 @@ export default function ProjectDetailPage() {
         {overviewSections(data).map((s) => (
           <SectionBlock key={`overview-${s.order}`} section={s} />
         ))}
+        <ProjectLocations map={page.locationMap} accentColor={page.overview?.accentColor} />
         <PageSections sections={page.sections} />
         {extraSections(data).map((s) => (
           <SectionBlock key={`extra-${s.order}`} section={s} />

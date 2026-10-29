@@ -2326,6 +2326,12 @@ export const projectPages = {
     body: JSON.stringify({ order })
   }),
   getByProject: (projectId: string) => apiClient.request(`/project-pages/${projectId}`),
+  /** Place search for the location map (OpenStreetMap, India only; 'kerala' keeps results inside Kerala). */
+  searchPlaces: (q: string, region: 'kerala' | 'india') =>
+    apiClient.request(`/project-pages/geocode/search?${new URLSearchParams({ q, region })}`),
+  /** Name of the place at a point dropped on the location map. */
+  reversePlace: (lat: number, lng: number) =>
+    apiClient.request(`/project-pages/geocode/reverse?${new URLSearchParams({ lat: String(lat), lng: String(lng) })}`),
   save: (projectId: string, data: any) => apiClient.request(`/project-pages/${projectId}`, {
     method: 'PUT',
     body: JSON.stringify(data)

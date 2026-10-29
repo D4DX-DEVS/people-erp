@@ -23,6 +23,32 @@ export interface ProjectPageAssociates {
   partners: string[];
 }
 
+/** Map a project page plots its locations on. */
+export type ProjectMapRegion = "kerala" | "india";
+
+/** One place the project works in. district/state come from the map boundaries. */
+export interface ProjectLocationPoint {
+  _id?: string;
+  name: string;
+  description?: string;
+  /** Full address from the place search, for reference. */
+  address?: string;
+  lat: number;
+  lng: number;
+  /** Kerala district the point falls in ("" outside Kerala). */
+  district?: string;
+  state?: string;
+}
+
+export interface ProjectLocationMap {
+  visible: boolean;
+  region: ProjectMapRegion;
+  /** Section heading; empty = "Where We Work". */
+  title?: string;
+  subtitle?: string;
+  points: ProjectLocationPoint[];
+}
+
 export interface ProjectPage {
   _id?: string;
   project: string;
@@ -34,6 +60,7 @@ export interface ProjectPage {
   hero?: SitePageHero;
   overview: ProjectPageOverview;
   associates?: ProjectPageAssociates;
+  locationMap?: ProjectLocationMap;
   sections: PageSection[];
   seo?: { title?: string; description?: string };
   createdAt?: string;
@@ -118,6 +145,10 @@ export const PROJECT_STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+export function emptyLocationMap(): ProjectLocationMap {
+  return { visible: false, region: "kerala", title: "", subtitle: "", points: [] };
+}
+
 export function emptyProjectPage(project: ProjectPageProject): ProjectPage {
   return {
     project: project._id,
@@ -139,6 +170,7 @@ export function emptyProjectPage(project: ProjectPageProject): ProjectPage {
       backgroundColor: "",
     },
     associates: { visible: false, title: "", partners: [] },
+    locationMap: emptyLocationMap(),
     sections: [],
     seo: { title: "", description: "" },
   };

@@ -20,12 +20,14 @@ import { projectPages, website } from '@/lib/api';
 import { ChecklistPicker, type ChecklistOption } from '@/components/site/ChecklistPicker';
 import { useRBAC } from '@/hooks/useRBAC';
 import { ColorPicker } from '@/components/site/ColorPicker';
+import { ProjectLocationsEditor } from '@/components/site/ProjectLocationsEditor';
+import { colorValue } from '@/lib/siteColors';
 import { SectionsEditor, HeroEditor, ImageUploadField, stripSections } from '@/components/site/PageSectionsEditor';
 import { categoryLabel } from '@/lib/siteProjects';
 import { type SectionBackground, BACKGROUND_LABELS, IMAGE_SPECS, IMAGE_FORMAT_NOTE } from '@/types/sitePage';
 import {
   type ProjectPage, type ProjectPageProject, type ProjectPageOverview, type ProjectPageAssociates,
-  emptyProjectPage, PROJECT_STATUS_LABELS, PUBLIC_PROJECT_STATUSES,
+  emptyProjectPage, emptyLocationMap, PROJECT_STATUS_LABELS, PUBLIC_PROJECT_STATUSES,
 } from '@/types/projectPage';
 
 function slugify(input: string): string {
@@ -152,6 +154,7 @@ export default function WebsiteProjectPageBuilder() {
   const canView = exists && page.status === 'published' && isPublicProject && page.slug;
   const ov = page.overview;
   const assoc: ProjectPageAssociates = { visible: false, title: '', partners: [], ...page.associates };
+  const locationMap = { ...emptyLocationMap(), ...page.locationMap };
 
   return (
     <div className="space-y-6 pb-12">
@@ -315,6 +318,13 @@ export default function WebsiteProjectPageBuilder() {
           </CardContent>
         )}
       </Card>
+
+      <ProjectLocationsEditor
+        value={locationMap}
+        disabled={!canWrite}
+        accent={ov.accentColor ? colorValue(ov.accentColor) : undefined}
+        onChange={(next) => updatePage({ locationMap: next })}
+      />
 
       <SectionsEditor sections={page.sections} disabled={!canWrite} onChange={(sections) => updatePage({ sections })} />
 

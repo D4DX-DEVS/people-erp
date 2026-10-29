@@ -6,6 +6,7 @@ const Testimonial = require('../models/Testimonial');
 const Partner = require('../models/Partner');
 const { deleteFromSpaces } = require('../utils/s3Upload');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
+const { searchPlaces, reversePlace } = require('../utils/geocoder');
 const {
   slugify, hydrateSections, collectImageKeys, PUBLIC_PROJECT_STATUSES, PUBLIC_PROJECT_SORT
 } = require('../utils/siteContent');
@@ -65,6 +66,46 @@ async function sanitizeAssociates(input, current, scope) {
     visible: src.visible !== undefined ? !!src.visible : !!base.visible,
     title: typeof src.title === 'string' ? src.title.trim().slice(0, 120) : (base.title || ''),
     partners
+  };
+}
+
+// Generous box around India (incl. Andaman & Nicobar and Lakshadweep); the map
+// editor works out district/state itself, this only rejects nonsense.
+const INDIA_BOUNDS = { minLat: 6, maxLat: 38, minLng: 68, maxLng: 98 };
+const MAX_MAP_POINTS = 200;
+
+const cleanText = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
+
+/** Map settings + points; a point without a name or valid coordinates inside India is dropped. */
+function sanitizeLocationMap(input, current) {
+  const src = input && typeof input === 'object' ? input : {};
+  const base = current || {};
+  let points = base.points || [];
+  if (Array.isArray(src.points)) {
+    points = src.points.slice(0, MAX_MAP_POINTS).map((p) => {
+      const lat = Number(p && p.lat);
+      const lng = Number(p && p.lng);
+      const name = cleanText(p && p.name, 120);
+      if (!name || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (lat < INDIA_BOUNDS.minLat || lat > INDIA_BOUNDS.maxLat || lng < INDIA_BOUNDS.minLng || lng > INDIA_BOUNDS.maxLng) return null;
+      return {
+        ...(p._id && mongoose.Types.ObjectId.isValid(p._id) ? { _id: p._id } : {}),
+        name,
+        description: cleanText(p.description, 500),
+        address: cleanText(p.address, 300),
+        lat: Math.round(lat * 1e6) / 1e6,
+        lng: Math.round(lng * 1e6) / 1e6,
+        district: cleanText(p.district, 80),
+        state: cleanText(p.state, 80)
+      };
+    }).filter(Boolean);
+  }
+  return {
+    visible: src.visible !== undefined ? !!src.visible : !!base.visible,
+    region: ['kerala', 'india'].includes(src.region) ? src.region : (base.region || 'kerala'),
+    title: src.title !== undefined ? cleanText(src.title, 120) : (base.title || ''),
+    subtitle: src.subtitle !== undefined ? cleanText(src.subtitle, 300) : (base.subtitle || ''),
+    points
   };
 }
 
@@ -261,7 +302,7 @@ exports.upsert = async (req, res) => {
     const project = await Project.findOne({ _id: req.params.projectId, ...scope }).select('_id name').lean();
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-    const { slug, status, summary, coverImageUrl, coverImageKey, hero, overview, associates, sections, seo } = req.body;
+    const { slug, status, summary, coverImageUrl, coverImageKey, hero, overview, associates, locationMap, sections, seo } = req.body;
     let page = await ProjectPage.findOne({ project: project._id, ...scope });
     const created = !page;
 
@@ -283,6 +324,7 @@ exports.upsert = async (req, res) => {
     if (hero !== undefined) page.hero = hero || {};
     if (overview !== undefined) page.overview = sanitizeOverview(overview, page.overview);
     if (associates !== undefined) page.associates = await sanitizeAssociates(associates, page.associates, scope);
+    if (locationMap !== undefined) page.locationMap = sanitizeLocationMap(locationMap, page.locationMap);
     if (sections !== undefined) page.sections = Array.isArray(sections) ? sections : [];
     if (seo !== undefined) page.seo = seo || {};
     page.updatedBy = req.user.id;
@@ -296,6 +338,40 @@ exports.upsert = async (req, res) => {
   } catch (error) {
     console.error('Save project page error:', error);
     res.status(500).json({ success: false, message: 'Failed to save project page', error: error.message });
+  }
+};
+
+/**
+ * Admin: search places for the location map (OpenStreetMap Nominatim, India only).
+ * GET /api/project-pages/geocode/search?q=...&region=kerala|india
+ */
+exports.geocodeSearch = async (req, res) => {
+  try {
+    const q = cleanText(req.query.q, 200);
+    if (q.length < 2) return res.json({ success: true, data: [] });
+    const region = req.query.region === 'kerala' ? 'kerala' : 'india';
+    res.json({ success: true, data: await searchPlaces(q, region) });
+  } catch (error) {
+    console.error('Geocode search error:', error.message);
+    res.status(502).json({ success: false, message: 'Place search is unavailable right now. Try again, or click the map to drop a pin.' });
+  }
+};
+
+/**
+ * Admin: name the place at a point the admin clicked on the map.
+ * GET /api/project-pages/geocode/reverse?lat=..&lng=..
+ */
+exports.geocodeReverse = async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      return res.status(400).json({ success: false, message: 'Invalid coordinates' });
+    }
+    res.json({ success: true, data: await reversePlace(lat, lng) });
+  } catch (error) {
+    console.error('Geocode reverse error:', error.message);
+    res.status(502).json({ success: false, message: 'Could not look up this place' });
   }
 };
 

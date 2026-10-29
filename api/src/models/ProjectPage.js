@@ -48,6 +48,24 @@ const projectPageSchema = new mongoose.Schema({
     title: { type: String, default: '', maxlength: 120 },   // '' = "Our Associates"
     partners: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Partner' }]
   },
+  // Places the project works in, plotted on a Kerala (districts) or India
+  // (states) map on the public page. district/state are worked out from the
+  // boundaries when the point is placed, so the page can group and highlight.
+  locationMap: {
+    visible: { type: Boolean, default: false },
+    region: { type: String, enum: ['kerala', 'india'], default: 'kerala' },
+    title: { type: String, default: '', maxlength: 120 },     // '' = "Where We Work"
+    subtitle: { type: String, default: '', maxlength: 300 },
+    points: [{
+      name: { type: String, required: true, maxlength: 120 },
+      description: { type: String, default: '', maxlength: 500 },
+      address: { type: String, default: '', maxlength: 300 },
+      lat: { type: Number, required: true },
+      lng: { type: Number, required: true },
+      district: { type: String, default: '', maxlength: 80 },
+      state: { type: String, default: '', maxlength: 80 }
+    }]
+  },
   sections: [sectionSchema],
   seo: {
     title: { type: String, default: '' },

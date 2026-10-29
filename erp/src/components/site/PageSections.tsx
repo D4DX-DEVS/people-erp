@@ -46,7 +46,7 @@ const colsClass = (n?: number, fallback = 3) => {
   return "sm:grid-cols-2 lg:grid-cols-3";
 };
 
-function SectionHeading({
+export function SectionHeading({
   title, subtitle, icon, badge, onDark, titleColor, textColor,
 }: {
   title?: string; subtitle?: string; icon?: string; badge: BadgeStyle; onDark?: boolean;
