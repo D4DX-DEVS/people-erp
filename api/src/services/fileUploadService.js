@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const { getOptionalEnvVar } = require('../config/validateEnv');
+const { isImageMime, compressImageBuffer, renameForFormat } = require('./imageCompressionService');
 
 class FileUploadService {
   constructor() {
@@ -70,14 +71,26 @@ class FileUploadService {
         throw new Error('No file provided');
       }
 
+      // Read file buffer; images are compressed before upload (visually lossless).
+      let fileContent = fs.readFileSync(file.path);
+      let mimetype = file.mimetype;
+      let storedName = file.originalname;
+      let optimized = false;
+      if (isImageMime(mimetype)) {
+        const compressed = await compressImageBuffer(fileContent, mimetype);
+        if (compressed.changed) {
+          optimized = true;
+          fileContent = compressed.buffer;
+          if (compressed.mimetype !== mimetype.toLowerCase()) storedName = renameForFormat(storedName, compressed.ext);
+          mimetype = compressed.mimetype;
+        }
+      }
+
       // Generate unique filename
       const timestamp = Date.now();
-      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const sanitizedName = storedName.replace(/[^a-zA-Z0-9.-]/g, '_');
       const fileName = `${timestamp}-${sanitizedName}`;
       const fileKey = this.resolveKey(folder, fileName);
-
-      // Read file buffer
-      const fileContent = fs.readFileSync(file.path);
 
       // Upload parameters
       const params = {
@@ -85,10 +98,11 @@ class FileUploadService {
         Key: fileKey,
         Body: fileContent,
         ACL: 'public-read', // Make file publicly accessible
-        ContentType: file.mimetype,
+        ContentType: mimetype,
         Metadata: {
           originalName: file.originalname,
-          uploadedAt: new Date().toISOString()
+          uploadedAt: new Date().toISOString(),
+          ...(optimized ? { optimized: '1' } : {})
         }
       };
 
@@ -107,8 +121,8 @@ class FileUploadService {
         bucket: result.Bucket,
         fileName: fileName,
         originalName: file.originalname,
-        size: file.size,
-        mimetype: file.mimetype
+        size: fileContent.length,
+        mimetype
       };
     } catch (error) {
       console.error('❌ File Upload Error:', error);

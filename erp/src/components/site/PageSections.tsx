@@ -120,10 +120,10 @@ export function SectionBlock({
   };
 
   const items = section.items || [];
-  // Gallery sections: the uploaded images, then every photo of the picked
-  // Gallery albums (resolved by the API), as one lightbox sequence.
-  const albums = section.type === "gallery" ? (section.albums || []).filter((a) => a.images.length) : [];
-  const images = [...(section.images || []), ...albums.flatMap((a) => a.images)];
+  const images = section.images || [];
+  // Gallery sections can also list Gallery albums (resolved by the API) as
+  // cover tiles; the photos themselves live on the album page.
+  const albums = section.type === "gallery" ? section.albums || [] : [];
   const contentItems = section.contentItems || [];
 
   // Colour handling: the section accent drives icons/highlights; dark backgrounds switch badges to white.
@@ -317,57 +317,46 @@ export function SectionBlock({
     }
 
     case "gallery": {
-      if (!images.length) return null;
-      const uploaded = (section.images || []).length;
-      // One block per source: the uploaded set (untitled) and each album under
-      // its own title with a link to the full album page. A single source
-      // needs no sub-headings.
-      const groups: Array<{ key: string; title?: string; albumId?: string; start: number; count: number }> = [];
-      if (uploaded) groups.push({ key: "uploaded", start: 0, count: uploaded });
-      let offset = uploaded;
-      albums.forEach((a) => {
-        groups.push({ key: a._id, title: a.title, albumId: a._id, start: offset, count: a.images.length });
-        offset += a.images.length;
-      });
-      const titled = groups.length > 1;
+      if (!images.length && !albums.length) return null;
       body = (
         <>
-          <div className="space-y-10">
-            {groups.map((g) => (
-              <div key={g.key}>
-                {titled && g.title && (
-                  <h3 className="mb-4 text-lg font-semibold" style={textStyle}>{g.title}</h3>
-                )}
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                  {images.slice(g.start, g.start + g.count).map((img, i) => {
-                    const idx = g.start + i;
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => setLightbox(idx)}
-                        className="group relative aspect-square overflow-hidden rounded-2xl bg-muted"
-                      >
-                        {img.imageUrl && (
-                          <img src={img.imageUrl} alt={img.caption || ""} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                        )}
-                        {img.caption && (
-                          <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
-                            <span className="text-sm font-medium text-white">{img.caption}</span>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {g.albumId && (
-                  <div className="mt-4 text-center">
-                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => navigate(`/gallery/${g.albumId}`)}>
-                      {titled ? "Open album" : `View album: ${g.title}`} <ChevronRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
+          <div className="space-y-6">
+            {images.length > 0 && (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setLightbox(idx)}
+                    className="group relative aspect-square overflow-hidden rounded-2xl bg-muted"
+                  >
+                    {img.imageUrl && (
+                      <img src={img.imageUrl} alt={img.caption || ""} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    )}
+                    {img.caption && (
+                      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                        <span className="text-sm font-medium text-white">{img.caption}</span>
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
-            ))}
+            )}
+            {albums.length > 0 && (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {albums.map((a) => (
+                  <AlbumTile
+                    key={a._id}
+                    // Cover: the album's chosen cover, else its first photo — as on the Gallery page.
+                    album={{
+                      title: a.title,
+                      coverImageUrl: a.coverImageUrl || a.images?.find((i) => i.imageUrl)?.imageUrl,
+                      imageCount: a.imageCount ?? a.images?.length,
+                    }}
+                    onOpen={() => navigate(`/gallery/${a._id}`)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <Dialog open={lightbox !== null} onOpenChange={(o) => !o && setLightbox(null)}>
             <DialogContent className="max-w-3xl overflow-hidden p-0">
@@ -626,6 +615,22 @@ function ItemDetailDialog({
   );
 }
 
+/** Album cover tile, as on the Gallery page: cover photo, title and count on hover, opens the album. */
+function AlbumTile({ album, onOpen }: { album: { title: string; coverImageUrl?: string; imageCount?: number }; onOpen: () => void }) {
+  return (
+    <button onClick={onOpen} className="group relative aspect-square overflow-hidden rounded-2xl bg-muted">
+      {album.coverImageUrl ? (
+        <img src={album.coverImageUrl} alt={album.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-hero"><Sparkles className="h-10 w-10 text-primary-foreground/70" /></div>
+      )}
+      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="text-left text-sm font-medium text-white">{album.title}{album.imageCount ? ` · ${album.imageCount}` : ""}</span>
+      </div>
+    </button>
+  );
+}
+
 function ContentGrid({
   source, items, columns, navigate, onPlayVideo,
 }: {
@@ -683,18 +688,7 @@ function ContentGrid({
     case "gallery":
       return (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          {items.map((a) => (
-            <button key={a._id} onClick={() => navigate(`/gallery/${a._id}`)} className="group relative aspect-square overflow-hidden rounded-2xl bg-muted">
-              {a.coverImageUrl ? (
-                <img src={a.coverImageUrl} alt={a.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gradient-hero"><Sparkles className="h-10 w-10 text-primary-foreground/70" /></div>
-              )}
-              <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
-                <span className="text-sm font-medium text-white">{a.title}{a.imageCount ? ` · ${a.imageCount}` : ""}</span>
-              </div>
-            </button>
-          ))}
+          {items.map((a) => <AlbumTile key={a._id} album={a} onOpen={() => navigate(`/gallery/${a._id}`)} />)}
         </div>
       );
 

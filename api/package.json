@@ -27,6 +27,7 @@
     "demo:clear": "node src/scripts/seedDemoData.js --clear",
     "locations:migrate": "node src/scripts/migrateLocations.js",
     "sitepages:seed": "node src/scripts/seedSitePages.js",
+    "images:compress": "node src/scripts/compressStoredImages.js",
     "migrate:users": "node src/scripts/migrateUsers.js",
     "update:footer-copyright": "node src/scripts/updateFooterCopyright.js",
     "rbac:init": "node src/scripts/initRBACProduction.js",

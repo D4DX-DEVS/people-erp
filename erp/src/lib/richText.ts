@@ -8,7 +8,7 @@ export function stripHtml(v?: string): string {
   if (!v) return "";
   if (!isHtml(v)) return v;
   return v
-    .replace(/<\/(p|div|h[1-6]|li|blockquote|td|th|tr|caption)>/gi, " ")
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|td|th|tr|caption|figcaption)>/gi, " ")
     .replace(/<br\s*\/?>/gi, " ")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
@@ -22,9 +22,15 @@ export function sanitizeHtml(html: string): string {
       "p", "br", "b", "strong", "i", "em", "u", "s", "strike", "h2", "h3", "h4", "ul", "ol", "li", "blockquote", "a", "span", "div", "hr",
       // Tables from the editor's table tool
       "table", "caption", "thead", "tbody", "tfoot", "tr", "th", "td",
+      // Inline images from the editor's image tool
+      "figure", "figcaption", "img",
     ],
-    // data-style carries the table look (grid/striped/minimal, compact, fit).
-    ALLOWED_ATTR: ["href", "target", "rel", "style", "colspan", "rowspan", "scope", "data-style"],
+    // data-style carries the table look (grid/striped/minimal, compact, fit);
+    // data-align / data-size / data-layout place inline images.
+    ALLOWED_ATTR: [
+      "href", "target", "rel", "style", "colspan", "rowspan", "scope", "data-style",
+      "src", "alt", "data-align", "data-size", "data-layout",
+    ],
   });
   return clean.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
 }

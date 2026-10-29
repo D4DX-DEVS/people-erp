@@ -18,7 +18,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { blogs as blogsApi } from '@/lib/api';
+import { blogs as blogsApi, sitePages } from '@/lib/api';
 import { useRBAC } from '@/hooks/useRBAC';
 
 interface BlogItem {
@@ -52,6 +52,15 @@ export default function WebsiteBlogs() {
   const [form, setForm] = useState({ title: '', author: '', excerpt: '', content: '', category: 'general', tags: '', featured: false, status: 'draft' as BlogItem['status'] });
 
   const canWrite = hasAnyPermission(['website.write']);
+
+  /** Pictures placed inside the post body (editor image tool). */
+  const uploadContentImage = async (file: File) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res: any = await sitePages.uploadImage(fd);
+    if (!res?.success) throw new Error(res?.message || 'Upload failed');
+    return res.data.fileUrl as string;
+  };
   const canDelete = hasAnyPermission(['website.delete']);
 
   useEffect(() => { fetchItems(); }, []);
@@ -190,7 +199,11 @@ export default function WebsiteBlogs() {
               <div><Label>Category</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
             </div>
             <div><Label>Excerpt</Label><VoiceTextarea rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} /></div>
-            <div><Label>Content *</Label><RichTextEditor tables minHeight={240} value={form.content} onChange={(html) => setForm({ ...form, content: html })} /></div>
+            <div><Label>Content *</Label><RichTextEditor tables uploadImage={uploadContentImage} minHeight={240} value={form.content} onChange={(html) => setForm({ ...form, content: html })} />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Use the image button to place pictures between paragraphs — click a picture to float it left/right of the text,
+                centre it, make it full width, resize it or add a caption. Pick several files at once for a side-by-side row.
+              </p></div>
             <div><Label>Tags (comma-separated)</Label><Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
             <div><Label>Cover Image</Label><Input type="file" accept="image/*" onChange={onCover} />
               <p className="text-xs text-muted-foreground mt-1">1200 × 675 px (16:9). Center-cropped to a band on blog cards, shown in full on the post page. Max 5MB.</p>

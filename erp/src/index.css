@@ -674,3 +674,29 @@ All colors MUST be HSL.
 .rich-content table[data-style~="striped"] th, .rich-content table[data-style~="striped"] td { border-color: hsl(var(--border) / 0.6); }
 .rich-content table[data-style~="minimal"] th, .rich-content table[data-style~="minimal"] td { border-left: 0; border-right: 0; }
 .rich-content table[data-style~="minimal"] thead th { background: transparent; border-top: 0; border-bottom-width: 2px; border-bottom-color: hsl(var(--primary) / 0.5); }
+
+/* Inline images from the editor's image tool: <figure data-align data-size>,
+   or data-layout="row" for pictures side by side. Floats (left/right) let the
+   following paragraphs wrap; they stack full width on phones. */
+.rich-content::after { content: ""; display: table; clear: both; }
+.rich-content figure { margin: 1.25em auto; width: 70%; }
+.rich-content figure img { display: block; width: 100%; height: auto; border-radius: 0.75rem; }
+.rich-content figcaption { margin-top: 0.5em; font-size: 0.85em; line-height: 1.4; text-align: center; color: hsl(var(--muted-foreground)); }
+.rich-content figure[data-size="sm"] { width: 35%; }
+.rich-content figure[data-size="md"] { width: 50%; }
+.rich-content figure[data-size="lg"] { width: 70%; }
+.rich-content figure[data-align="full"] { width: 100%; }
+.rich-content figure[data-align="left"] { float: left; margin: 0.3em 1.5em 1em 0; }
+.rich-content figure[data-align="right"] { float: right; margin: 0.3em 0 1em 1.5em; }
+.rich-content figure[data-align="left"][data-size="lg"], .rich-content figure[data-align="right"][data-size="lg"] { width: 60%; }
+.rich-content figure[data-layout="row"] { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75em; }
+.rich-content figure[data-layout="row"] img { aspect-ratio: 4 / 3; object-fit: cover; }
+.rich-content figure[data-layout="row"] figcaption { grid-column: 1 / -1; margin-top: 0; }
+/* Blocks that should start below a floated image instead of beside it. */
+.rich-content .rt-scroll, .rich-content > table, .rich-content figure[data-align="center"], .rich-content figure[data-align="full"], .rich-content figure[data-layout="row"] { clear: both; }
+@media (max-width: 639px) {
+  .rich-content figure[data-align="left"], .rich-content figure[data-align="right"] { float: none; width: 100%; margin: 1em 0; }
+  .rich-content figure[data-size="sm"], .rich-content figure[data-size="md"] { width: 100%; }
+}
+.rich-editor figure { cursor: pointer; }
+.rich-editor figure[data-selected] { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; border-radius: 0.75rem; }

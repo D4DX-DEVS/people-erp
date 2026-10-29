@@ -133,13 +133,14 @@ async function resolveContentSource(source, limit, scope) {
 
 /**
  * Gallery albums picked on a 'gallery' section, in the order they were picked,
- * with their photos. Inactive, deleted or other-franchise albums are skipped.
+ * as cover tiles (cover + photo count) — visitors open the album page for the
+ * photos. Inactive, deleted or other-franchise albums are skipped.
  */
 async function resolveGalleryAlbums(ids, scope) {
   const valid = (ids || []).map(String).filter(id => mongoose.Types.ObjectId.isValid(id));
   if (!valid.length) return [];
   const albums = await GalleryAlbum.find({ _id: { $in: valid }, status: 'active', ...scope })
-    .select('title images')
+    .select('title coverImageUrl images.imageUrl')
     .lean();
   const byId = new Map(albums.map(a => [String(a._id), a]));
   return valid
@@ -148,11 +149,8 @@ async function resolveGalleryAlbums(ids, scope) {
     .map(a => ({
       _id: a._id,
       title: a.title,
-      images: (a.images || [])
-        .slice()
-        .sort((x, y) => (x.order || 0) - (y.order || 0))
-        .filter(img => img.imageUrl)
-        .map(img => ({ imageUrl: img.imageUrl, caption: img.caption || '' }))
+      coverImageUrl: a.coverImageUrl || (a.images && a.images[0] && a.images[0].imageUrl) || '',
+      imageCount: (a.images || []).length
     }));
 }
 

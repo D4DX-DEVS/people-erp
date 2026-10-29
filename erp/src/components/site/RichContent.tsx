@@ -15,6 +15,8 @@ export function RichContent({ content, className, style }: { content?: string; c
     );
   }
   // Wide tables scroll sideways inside their own box instead of stretching the page.
-  const html = sanitizeHtml(content).replace(/<table\b/g, '<div class="rt-scroll"><table').replace(/<\/table>/g, "</table></div>");
+  const html = sanitizeHtml(content)
+    .replace(/<table\b/g, '<div class="rt-scroll"><table').replace(/<\/table>/g, "</table></div>")
+    .replace(/<img /g, '<img loading="lazy" ');
   return <div className={cn("rich-content", className)} style={style} dangerouslySetInnerHTML={{ __html: html }} />;
 }

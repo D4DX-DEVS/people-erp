@@ -296,8 +296,8 @@ export function GalleryImagesEditor({
       <div className="space-y-1.5 border-t border-border/60 pt-4">
         <Label className="text-xs">Photos from Gallery albums</Label>
         <p className="text-xs text-muted-foreground">
-          Every photo in the selected albums is listed after the images above, with a link to the full album.
-          Photos stay in sync — add or remove them under Website Management → Gallery.
+          Selected albums appear as cover tiles after the images above, just like on the Gallery page —
+          visitors click a cover to open the album. Manage the photos under Website Management → Gallery.
         </p>
         <ChecklistPicker
           options={albumOptions}

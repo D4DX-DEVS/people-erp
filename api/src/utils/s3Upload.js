@@ -1,6 +1,7 @@
 const AWS = require('aws-sdk');
 const fs = require('fs');
 const { getOptionalEnvVar } = require('../config/validateEnv');
+const { isImageMime, compressImageBuffer, renameForFormat } = require('../services/imageCompressionService');
 
 // Configure AWS SDK for DigitalOcean Spaces
 // All values must come from environment variables - no fallbacks
@@ -34,15 +35,33 @@ const uploadToSpaces = async (file, folder = 'uploads', options = {}) => {
     if (!file) throw new Error('No file provided');
 
     let fileContent = file.buffer || fs.readFileSync(file.path);
-    const fileName = `${folder}/${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    let contentType = file.mimetype;
+    let originalName = file.originalname;
+    let optimized = false;
+
+    // Every image is compressed before it is stored (visually lossless — see
+    // imageCompressionService). `compressImages: false` opts a caller out.
+    if (options.compressImages !== false && isImageMime(contentType)) {
+      const compressed = await compressImageBuffer(fileContent, contentType);
+      if (compressed.changed) {
+        fileContent = compressed.buffer;
+        if (compressed.mimetype !== contentType.toLowerCase()) originalName = renameForFormat(originalName, compressed.ext);
+        contentType = compressed.mimetype;
+        optimized = true;
+      }
+    }
+
+    const fileName = `${folder}/${Date.now()}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
     const params = {
       Bucket: bucketName,
       Key: fileName,
       Body: fileContent,
       ACL: 'public-read',
-      ContentType: file.mimetype,
-      CacheControl: 'max-age=31536000'
+      ContentType: contentType,
+      CacheControl: 'max-age=31536000',
+      // Tells scripts/compressStoredImages.js not to re-encode it.
+      ...(optimized ? { Metadata: { optimized: '1' } } : {})
     };
 
     const result = await s3.upload(params).promise();

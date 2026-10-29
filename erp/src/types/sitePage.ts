@@ -49,11 +49,14 @@ export interface SectionImage {
   caption?: string;
 }
 
-/** A Gallery album resolved onto a 'gallery' section by the public endpoint. */
+/** A Gallery album resolved onto a 'gallery' section by the public endpoint (cover tile only). */
 export interface SectionAlbum {
   _id: string;
   title: string;
-  images: Array<{ imageUrl: string; caption?: string }>;
+  coverImageUrl?: string;
+  imageCount?: number;
+  /** Older API builds sent the album's photos instead of a cover; used only as a cover fallback. */
+  images?: Array<{ imageUrl?: string }>;
 }
 
 export type SectionBackground = "default" | "muted" | "primary" | "tint" | "custom";
@@ -78,7 +81,7 @@ export interface PageSection {
   imageKey?: string;
   imagePosition?: "left" | "right";
   images?: SectionImage[];
-  /** 'gallery' sections: ids of Gallery albums whose photos follow the uploaded images. */
+  /** 'gallery' sections: ids of Gallery albums shown as cover tiles after the uploaded images. */
   galleryAlbums?: string[];
   /** Albums resolved server-side from `galleryAlbums` (public endpoint only). */
   albums?: SectionAlbum[];
