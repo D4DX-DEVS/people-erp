@@ -87,6 +87,12 @@ const optionalEnvVars = {
   ORG_ADDRESS: 'Override org address',
   ORG_LOGO_FILENAME: 'Override org logo filename',
   ORG_DEFAULT_THEME: 'Override default theme (blue, green, purple)',
+
+  // Easebuzz Payment Gateway (website "Donate Now")
+  EASEBUZZ_KEY: 'Easebuzz merchant key',
+  EASEBUZZ_SALT: 'Easebuzz merchant salt',
+  EASEBUZZ_ENV: 'Easebuzz environment: test (sandbox) or prod',
+  EASEBUZZ_FRANCHISES: 'Comma-separated franchise slugs that take payments into this account (e.g. people)',
 };
 
 /**

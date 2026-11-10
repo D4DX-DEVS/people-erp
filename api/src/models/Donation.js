@@ -85,7 +85,7 @@ const donationSchema = new mongoose.Schema({
     online: {
       gateway: {
         type: String,
-        enum: ['razorpay', 'payu', 'ccavenue', 'instamojo', 'stripe', 'other']
+        enum: ['razorpay', 'payu', 'ccavenue', 'instamojo', 'stripe', 'easebuzz', 'other']
       },
       transactionId: String,
       paymentId: String,
@@ -335,7 +335,8 @@ const donationSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    // Gateway donations come from the public site — there is no staff user
+    required: function() { return !this.paymentDetails?.online?.gateway; }
   },
   processedBy: {
     type: mongoose.Schema.Types.ObjectId,

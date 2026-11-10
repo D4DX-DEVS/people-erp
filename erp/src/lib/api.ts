@@ -2513,6 +2513,27 @@ export const volunteers = {
   delete: (id: string) => apiClient.request(`/volunteers/${id}`, { method: 'DELETE' }),
 };
 
+// Online donations (Easebuzz hosted checkout)
+export interface OnlinePaymentStatus {
+  txnid: string;
+  /** Easebuzz status: success, failure, usercancelled, dropped, bounced, pending, initiated… */
+  status: string;
+  /** True once the status will not change on its own. */
+  final: boolean;
+  amount: number;
+  mode: string | null;
+  easepayid: string | null;
+  donationNumber: string | null;
+  createdAt: string;
+}
+
+export const onlinePayments = {
+  config: () => apiClient.request<{ enabled: boolean }>('/easebuzz/config'),
+  initiate: (data: { amount: number; name: string; email: string; phone: string }) =>
+    apiClient.request<{ txnid: string; checkoutUrl: string }>('/easebuzz/initiate', { method: 'POST', body: JSON.stringify(data) }),
+  status: (txnid: string) => apiClient.request<OnlinePaymentStatus>(`/easebuzz/status/${encodeURIComponent(txnid)}`),
+};
+
 // Application Configuration API
 /** The branding slots a franchise can fill: header mark, footer lockup, tab icon. */
 export type LogoVariant = 'primary' | 'footer' | 'favicon';

@@ -32,6 +32,8 @@ interface VolunteerDonateBandProps {
   heading?: string;
   description?: string;
   paymentLink?: string;
+  /** Online checkout (Easebuzz). When set, "Donate Now" opens it with the picked amount. */
+  onDonate?: (amount: number | null) => void;
   onVolunteer: () => void;
   volunteer?: BandColumn;
   donate?: BandColumn;
@@ -47,7 +49,7 @@ function columnStyle(col?: BandColumn): CSSProperties | undefined {
   return Object.keys(style).length ? style : undefined;
 }
 
-export function VolunteerDonateBand({ heading, description, paymentLink, onVolunteer, volunteer, donate }: VolunteerDonateBandProps) {
+export function VolunteerDonateBand({ heading, description, paymentLink, onDonate, onVolunteer, volunteer, donate }: VolunteerDonateBandProps) {
   const bandRef = useRef<HTMLDivElement>(null);
 
   // Scroll-linked widen: the band arrives slightly narrowed and expands to
@@ -89,7 +91,8 @@ export function VolunteerDonateBand({ heading, description, paymentLink, onVolun
   };
 
   const donateNow = () => {
-    if (paymentLink) window.open(paymentLink, "_blank", "noopener,noreferrer");
+    if (onDonate) onDonate(effective);
+    else if (paymentLink) window.open(paymentLink, "_blank", "noopener,noreferrer");
     else document.getElementById("donate")?.scrollIntoView({ behavior: "smooth" });
   };
 

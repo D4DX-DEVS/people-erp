@@ -30,23 +30,14 @@ connectDB();
 app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for serving static files
 }));
-// CORS configuration — multi-franchise: accept any subdomain of BASE_DOMAIN
-const BASE_DOMAIN = (process.env.BASE_DOMAIN || '').toLowerCase();
+// Easebuzz posts payment results here — a browser form-post from its checkout
+// page (Origin: easebuzz.in) and server-to-server webhooks. Mounted ahead of
+// CORS and the tenant resolver: the franchise comes from the stored
+// transaction, not from the request.
+const { callbackRouter: easebuzzCallbackRoutes } = require('./routes/easebuzzRoutes');
+app.use('/api/easebuzz/callback', easebuzzCallbackRoutes);
 
-function isAllowedOrigin(origin) {
-  if (!origin) return true; // server-to-server
-  const h = origin.replace(/^https?:\/\//, '').split(':')[0].toLowerCase();
-  // Exact matches from CORS_ORIGINS env list
-  const explicitList = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim().replace(/^https?:\/\//, '').split(':')[0])
-    : [];
-  if (explicitList.includes(h)) return true;
-  // Wildcard subdomain match for BASE_DOMAIN
-  if (BASE_DOMAIN && (h === BASE_DOMAIN || h.endsWith(`.${BASE_DOMAIN}`))) return true;
-  // Development: allow localhost variants
-  if (config.NODE_ENV === 'development' && (h === 'localhost' || h.endsWith('.localhost'))) return true;
-  return false;
-}
+const { isAllowedOrigin } = require('./utils/allowedOrigin');
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -193,6 +184,7 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/budget', budgetRoutes);
 app.use('/api/donors', donorRoutes);
 app.use('/api/donations', donationRoutes);
+app.use('/api/easebuzz', require('./routes/easebuzzRoutes').router);
 app.use('/api/donor-followups', donorFollowUpRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/payments', paymentRoutes);

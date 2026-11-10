@@ -167,10 +167,11 @@ class DonationController {
           type: donation.donor.type,
           category: donation.donor.category
         } : {
+          // Online (Easebuzz) donations carry the payer's own details
           id: null,
-          name: 'Anonymous',
-          email: null,
-          phone: null,
+          name: donation.anonymousDonor?.name || 'Anonymous',
+          email: donation.anonymousDonor?.email || null,
+          phone: donation.anonymousDonor?.phone || null,
           type: 'anonymous',
           category: null
         },

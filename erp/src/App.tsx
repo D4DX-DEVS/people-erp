@@ -16,6 +16,7 @@ import SiteHome from "./pages/site/SiteHome";
 import GalleryAlbumPage from "./pages/site/GalleryAlbumPage";
 import BlogDetailPage from "./pages/site/BlogDetailPage";
 import PrivacyPolicy from "./pages/site/PrivacyPolicy";
+import DonationStatus from "./pages/site/DonationStatus";
 import SitePageView from "./pages/site/SitePageView";
 import NewsListPage from "./pages/site/NewsListPage";
 import NewsDetailPage from "./pages/site/NewsDetailPage";
@@ -160,6 +161,7 @@ const App = () => (
             <Route path="/schemes/:slug" element={<SchemeDetailPage />} />
             <Route path="/p/:slug" element={<SitePageView />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/donate/status" element={<DonationStatus />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/login" element={<Login />} />
             <Route path="/beneficiary-login" element={<BeneficiaryLogin />} />

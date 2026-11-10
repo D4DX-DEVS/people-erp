@@ -9,6 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { VolunteerDialog } from "@/components/site/VolunteerDialog";
+import { OnlineDonateDialog } from "@/components/site/OnlineDonateDialog";
+import { useQuery } from "@tanstack/react-query";
+import { onlinePayments } from "@/lib/api";
 import { useConfig } from "@/contexts/ConfigContext";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
@@ -117,6 +120,17 @@ export default function SiteHome() {
     window.addEventListener("hashchange", openFromHash);
     return () => window.removeEventListener("hashchange", openFromHash);
   }, []);
+
+  // Online checkout (Easebuzz) — on only when the API has this franchise's
+  // merchant keys; otherwise "Donate Now" keeps using the payment link.
+  const { data: onlineDonations } = useQuery({
+    queryKey: ["online-payments-config"],
+    queryFn: async () => (await onlinePayments.config()).data?.enabled ?? false,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const [donateOpen, setDonateOpen] = useState(false);
+  const [donateAmount, setDonateAmount] = useState<number | null>(null);
 
   if (isLoading) {
     return (
@@ -491,6 +505,7 @@ export default function SiteHome() {
             heading={donation.heading}
             description={donation.description}
             paymentLink={donation.paymentLink}
+            onDonate={onlineDonations ? (amount) => { setDonateAmount(amount); setDonateOpen(true); } : undefined}
             onVolunteer={() => setVolunteerOpen(true)}
             volunteer={{
               eyebrow: donation.volunteerEyebrow,
@@ -604,6 +619,7 @@ export default function SiteHome() {
 
       {/* Video lightbox */}
       <VolunteerDialog open={volunteerOpen} onOpenChange={setVolunteerOpen} />
+      <OnlineDonateDialog open={donateOpen} onOpenChange={setDonateOpen} amount={donateAmount} />
 
       <Dialog open={!!activeVideo} onOpenChange={(o) => !o && setActiveVideo(null)}>
         <DialogContent className="max-w-3xl overflow-hidden p-0">
