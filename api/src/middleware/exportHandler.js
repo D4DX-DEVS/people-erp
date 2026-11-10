@@ -12,7 +12,7 @@
 const mongoose = require('mongoose');
 const { convertToCSV } = require('../utils/csvHelper');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
-const { buildCoordinatorFilter, COORDINATOR_SCOPES } = require('../utils/coordinatorScope');
+const { buildCoordinatorFilter, COORDINATOR_SCOPES, applyScopeFilter } = require('../utils/coordinatorScope');
 const ResponseHelper = require('../utils/responseHelper');
 
 /**
@@ -66,7 +66,7 @@ function buildRegionalFilter(req, Model) {
  * 
  * @param {import('mongoose').Model} Model - Mongoose model to query
  * @param {Object} options - Configuration options
- * @param {Array<Object>} options.columns - Column definitions for CSV
+ * @param {Array<Object>|Function} options.columns - Column definitions for CSV, or (query, req) => columns
  * @param {string} options.columns[].header - CSV column header
  * @param {string} options.columns[].accessor - Dot-notation field path
  * @param {string} [options.columns[].type] - Value type: 'date','datetime','currency','number','boolean','array'
@@ -78,7 +78,7 @@ function buildRegionalFilter(req, Model) {
  * @param {number} [options.maxLimit=10000] - Maximum records to export
  * @param {string} options.filenamePrefix - Filename prefix for CSV download
  * @param {Function} [options.filterBuilder] - Build query from req.query: (query) => mongooseFilter
- * @param {string} [options.selectFields] - Mongoose select string to limit fields fetched
+ * @param {string|Function} [options.selectFields] - Mongoose select string to limit fields fetched, or (query, req) => string
  * @returns {Function} Express route handler (req, res)
  */
 function createExportHandler(Model, options) {
@@ -108,7 +108,11 @@ function createExportHandler(Model, options) {
       }
 
       // Regional scope: a district/area/unit admin only exports their own region.
-      Object.assign(query, buildRegionalFilter(req, Model));
+      // Merged, not assigned, so a requested ?scheme=/?area= still narrows it.
+      applyScopeFilter(query, buildRegionalFilter(req, Model));
+
+      const resolvedColumns = typeof columns === 'function' ? await columns(filters, req) : columns;
+      const resolvedSelect = typeof selectFields === 'function' ? await selectFields(filters, req) : selectFields;
 
       // Build the Mongoose query
       let dbQuery = Model.find(query);
@@ -121,8 +125,8 @@ function createExportHandler(Model, options) {
       }
 
       // Apply field selection
-      if (selectFields) {
-        dbQuery = dbQuery.select(selectFields);
+      if (resolvedSelect) {
+        dbQuery = dbQuery.select(resolvedSelect);
       }
 
       // Apply sort and limit
@@ -131,12 +135,12 @@ function createExportHandler(Model, options) {
       const data = await dbQuery;
 
       if (format === 'csv') {
-        const csvString = convertToCSV(data, columns);
+        const csvString = convertToCSV(data, resolvedColumns);
 
         if (!csvString) {
           res.setHeader('Content-Type', 'text/csv');
           res.setHeader('Content-Disposition', `attachment; filename=${filenamePrefix}_empty.csv`);
-          return res.send(columns.map(c => `"${c.header}"`).join(','));
+          return res.send(resolvedColumns.map(c => `"${c.header}"`).join(','));
         }
 
         const dateStr = new Date().toISOString().split('T')[0];

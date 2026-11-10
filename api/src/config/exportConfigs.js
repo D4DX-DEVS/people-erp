@@ -5,7 +5,8 @@
  * Used by the generic export handler middleware.
  */
 
-const { buildFormDataFilter } = require('../utils/formDataFilter');
+const { getAnswerColumns } = require('../utils/formDataFilter');
+const { buildApplicationQueryFilter } = require('../utils/applicationQueryFilter');
 const { buildFranchiseReadFilter } = require('../utils/franchiseFilterHelper');
 
 // ==================== PAYMENTS ====================
@@ -92,33 +93,24 @@ const applicationPopulate = [
   { path: 'unit', select: 'name' }
 ];
 
-async function applicationFilterBuilder(filters, req) {
-  const query = {};
-  // Beneficiary drafts (unsubmitted) must never be exported by authorities
-  if (filters.status && filters.status !== 'all' && filters.status !== 'draft') {
-    query.status = filters.status;
-  } else {
-    query.status = { $ne: 'draft' };
-  }
-  if (filters.scheme) query.scheme = filters.scheme;
-  if (filters.project) query.project = filters.project;
-  if (filters.district) query.district = filters.district;
-  if (filters.area) query.area = filters.area;
-  if (filters.unit) query.unit = filters.unit;
-  if (filters.scheme && filters.formFilters) {
-    Object.assign(query, await buildFormDataFilter(filters.scheme, filters.formFilters, buildFranchiseReadFilter(req)));
-  }
-  if (filters.startDate || filters.endDate) {
-    query.createdAt = {};
-    if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
-    if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
-  }
-  if (filters.search) {
-    query.$or = [
-      { applicationNumber: { $regex: filters.search, $options: 'i' } }
-    ];
-  }
-  return query;
+// Same filter as the list page (GET /applications), so exports match it
+const applicationFilterBuilder = (filters, req) => buildApplicationQueryFilter(filters, req);
+
+// `includeAnswers=true` with a scheme selected adds one column per form question
+const wantsAnswers = (filters) => filters.includeAnswers === 'true' && !!filters.scheme;
+
+async function applicationColumnsBuilder(filters, req) {
+  if (!wantsAnswers(filters)) return applicationColumns;
+  return [...applicationColumns, ...await getAnswerColumns(filters.scheme, buildFranchiseReadFilter(req))];
+}
+
+// formData holds base64 uploads (MBs per application): never load it whole,
+// only the answer fields the export needs.
+async function applicationSelectBuilder(filters, req) {
+  if (!wantsAnswers(filters)) return '-formData';
+  const columns = await applicationColumnsBuilder(filters, req);
+  const paths = columns.map(c => (c.accessor.startsWith('formData.') ? c.accessor : c.accessor.split('.')[0]));
+  return [...new Set(paths)].join(' ');
 }
 
 // ==================== DONORS ====================
@@ -446,7 +438,7 @@ function partnerFilterBuilder(filters) {
 
 module.exports = {
   payment: { columns: paymentColumns, populate: paymentPopulate, filterBuilder: paymentFilterBuilder, filenamePrefix: 'payments', defaultSort: { createdAt: -1 } },
-  application: { columns: applicationColumns, populate: applicationPopulate, filterBuilder: applicationFilterBuilder, filenamePrefix: 'applications', defaultSort: { createdAt: -1 } },
+  application: { columns: applicationColumnsBuilder, selectFields: applicationSelectBuilder, populate: applicationPopulate, filterBuilder: applicationFilterBuilder, filenamePrefix: 'applications', defaultSort: { submittedAt: -1, createdAt: -1 } },
   donor: { columns: donorColumns, populate: donorPopulate, filterBuilder: donorFilterBuilder, filenamePrefix: 'donors', defaultSort: { createdAt: -1 } },
   donation: { columns: donationColumns, populate: donationPopulate, filterBuilder: donationFilterBuilder, filenamePrefix: 'donations', defaultSort: { createdAt: -1 } },
   user: { columns: userColumns, populate: userPopulate, filterBuilder: userFilterBuilder, filenamePrefix: 'users', defaultSort: { createdAt: -1 } },

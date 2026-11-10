@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { QuickDateRange, getDateRangeFromQuickFilter } from "@/components/filters/QuickDateFilter";
-import { projects, schemes, locations, applications, type ApplicationFilterField } from "@/lib/api";
+import { projects, schemes, locations, applications, type ApplicationFilterField, type ApplicationQuestionField, type FormRules } from "@/lib/api";
 
 export interface ApplicationFilterState {
   searchTerm: string;
@@ -13,6 +13,8 @@ export interface ApplicationFilterState {
   genderFilter: string;
   /** Scheme-specific form-builder dropdown filters: field key -> selected option */
   formFilters: Record<string, string>;
+  /** Advanced conditions on the selected scheme's form answers */
+  formRules: FormRules;
   fromDate?: Date;
   toDate?: Date;
   quickDateFilter: QuickDateRange;
@@ -27,6 +29,15 @@ export interface DropdownData {
   units: any[];
 }
 
+const EMPTY_FORM_RULES: FormRules = { match: "all", rules: [] };
+
+// Send the end of the picked "to" day, so applications submitted on it are included
+const endOfDay = (date: Date) => {
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return end;
+};
+
 export function useApplicationFilters(defaultStatus?: string) {
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -39,6 +50,8 @@ export function useApplicationFilters(defaultStatus?: string) {
   const [genderFilter, setGenderFilter] = useState("all");
   const [formFilters, setFormFilters] = useState<Record<string, string>>({});
   const [formFilterFields, setFormFilterFields] = useState<ApplicationFilterField[]>([]);
+  const [formRules, setFormRulesState] = useState<FormRules>(EMPTY_FORM_RULES);
+  const [questionFields, setQuestionFields] = useState<ApplicationQuestionField[]>([]);
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
   const [quickDateFilter, setQuickDateFilter] = useState<QuickDateRange>(null);
@@ -120,18 +133,24 @@ export function useApplicationFilters(defaultStatus?: string) {
     let cancelled = false;
     // Keep the same object when already empty so dependent effects don't refetch
     setFormFilters((prev) => (Object.keys(prev).length > 0 ? {} : prev));
+    setFormRulesState(EMPTY_FORM_RULES);
     if (schemeFilter === "all") {
       setFormFilterFields([]);
+      setQuestionFields([]);
       return;
     }
     applications.getFilterFields(schemeFilter)
       .then((response) => {
         if (cancelled) return;
         setFormFilterFields(response.success && Array.isArray(response.data?.fields) ? response.data.fields : []);
+        setQuestionFields(response.success && Array.isArray(response.data?.questions) ? response.data.questions : []);
       })
       .catch((error) => {
         console.error('❌ [FILTERS] Error loading form filter fields:', error);
-        if (!cancelled) setFormFilterFields([]);
+        if (!cancelled) {
+          setFormFilterFields([]);
+          setQuestionFields([]);
+        }
       });
     return () => { cancelled = true; };
   }, [schemeFilter]);
@@ -145,6 +164,18 @@ export function useApplicationFilters(defaultStatus?: string) {
     });
     setCurrentPage(1);
   }, []);
+
+  const setFormRules = useCallback((next: FormRules) => {
+    setFormRulesState(next.rules.length > 0 ? next : EMPTY_FORM_RULES);
+    setCurrentPage(1);
+  }, []);
+
+  // Only send conditions on questions of the current scheme's form
+  const buildFormRulesParam = useCallback(() => {
+    const keys = new Set(questionFields.map((question) => question.key));
+    const rules = formRules.rules.filter((rule) => keys.has(rule.key));
+    return rules.length > 0 ? JSON.stringify({ match: formRules.match, rules }) : undefined;
+  }, [formRules, questionFields]);
 
   // Only send selections for fields the current scheme actually exposes
   const buildFormFiltersParam = useCallback(() => {
@@ -199,6 +230,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     setSchemeFilter("all");
     setGenderFilter("all");
     setFormFilters({});
+    setFormRulesState(EMPTY_FORM_RULES);
     setFromDate(undefined);
     setToDate(undefined);
     setQuickDateFilter(null);
@@ -223,9 +255,11 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (schemeFilter !== "all") {
       const formFiltersParam = buildFormFiltersParam();
       if (formFiltersParam) params.formFilters = formFiltersParam;
+      const formRulesParam = buildFormRulesParam();
+      if (formRulesParam) params.formRules = formRulesParam;
     }
-    if (fromDate) params.fromDate = fromDate.toISOString();
-    if (toDate) params.toDate = toDate.toISOString();
+    if (fromDate) params.startDate = fromDate.toISOString();
+    if (toDate) params.endDate = endOfDay(toDate).toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;
 
     // Debug log to verify filters are being sent
@@ -240,10 +274,11 @@ export function useApplicationFilters(defaultStatus?: string) {
       hasUnit: !!params.unit,
       hasScheme: !!params.scheme,
       hasGender: !!params.gender,
-      hasDateRange: !!(params.fromDate && params.toDate),
+      hasFormRules: !!params.formRules,
+      hasDateRange: !!(params.startDate && params.endDate),
       quickDateFilter: params.quickDateFilter,
-      fromDate: params.fromDate ? new Date(params.fromDate).toLocaleDateString() : null,
-      toDate: params.toDate ? new Date(params.toDate).toLocaleDateString() : null,
+      startDate: params.startDate ? new Date(params.startDate).toLocaleDateString() : null,
+      endDate: params.endDate ? new Date(params.endDate).toLocaleDateString() : null,
     });
 
     return params;
@@ -258,6 +293,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     schemeFilter,
     genderFilter,
     buildFormFiltersParam,
+    buildFormRulesParam,
     fromDate,
     toDate,
     quickDateFilter
@@ -278,9 +314,11 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (schemeFilter !== "all") {
       const formFiltersParam = buildFormFiltersParam();
       if (formFiltersParam) params.formFilters = formFiltersParam;
+      const formRulesParam = buildFormRulesParam();
+      if (formRulesParam) params.formRules = formRulesParam;
     }
-    if (fromDate) params.fromDate = fromDate.toISOString();
-    if (toDate) params.toDate = toDate.toISOString();
+    if (fromDate) params.startDate = fromDate.toISOString();
+    if (toDate) params.endDate = endOfDay(toDate).toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;
 
     return params;
@@ -294,6 +332,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     schemeFilter,
     genderFilter,
     buildFormFiltersParam,
+    buildFormRulesParam,
     fromDate,
     toDate,
     quickDateFilter
@@ -337,6 +376,7 @@ export function useApplicationFilters(defaultStatus?: string) {
       schemeFilter,
       genderFilter,
       formFilters,
+      formRules,
       fromDate,
       toDate,
       quickDateFilter,
@@ -353,6 +393,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     setSchemeFilter: (value: string) => { setSchemeFilter(value); setCurrentPage(1); },
     setGenderFilter: (value: string) => { setGenderFilter(value); setCurrentPage(1); },
     setFormFilter,
+    setFormRules,
     setFromDate: handleFromDateChange,
     setToDate: handleToDateChange,
     setQuickDateFilter: handleQuickDateFilterChange,
@@ -378,6 +419,9 @@ export function useApplicationFilters(defaultStatus?: string) {
 
     // Scheme-specific form-builder dropdown filters (empty unless a scheme is selected)
     formFilterFields,
+
+    // Every answerable question of the selected scheme's form (advanced filters)
+    questionFields,
     
     // Helper functions
     clearAllFilters,

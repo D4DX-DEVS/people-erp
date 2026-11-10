@@ -11,7 +11,8 @@ const recurringPaymentService = require('../services/recurringPaymentService');
 const applicationPdfService = require('../services/applicationPdfService');
 const { calculateApplicationScore } = require('../utils/scoringEngine');
 const { applyAutoSums } = require('../utils/autoSum');
-const { getFilterableFields, buildFormDataFilter } = require('../utils/formDataFilter');
+const { getFilterableFields, getQuestionFields } = require('../utils/formDataFilter');
+const { buildApplicationQueryFilter } = require('../utils/applicationQueryFilter');
 const { validationResult } = require('express-validator');
 const RBACMiddleware = require('../middleware/rbacMiddleware');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
@@ -44,8 +45,11 @@ const getApplicationFilterFields = async (req, res) => {
       return res.json({ success: true, data: { fields: [] } });
     }
 
-    const fields = await getFilterableFields(scheme, buildFranchiseReadFilter(req));
-    res.json({ success: true, data: { fields } });
+    const [fields, questions] = await Promise.all([
+      getFilterableFields(scheme, buildFranchiseReadFilter(req)),
+      getQuestionFields(scheme, buildFranchiseReadFilter(req))
+    ]);
+    res.json({ success: true, data: { fields, questions } });
   } catch (error) {
     console.error('❌ Get application filter fields error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch filter fields', error: error.message });
@@ -61,85 +65,15 @@ const getApplications = async (req, res) => {
       adminScope: req.userFranchise?.adminScope || req.user.adminScope
     });
 
-    const {
-      page = 1,
-      limit = 10,
-      search = '',
-      status = '',
-      scheme = '',
-      project = '',
-      state = '',
-      district = '',
-      area = '',
-      unit = '',
-      startDate = '',
-      endDate = '',
-      formFilters = ''
-    } = req.query;
+    const { page = 1, limit = 10 } = req.query;
 
     console.log('🔍 getApplications - Query parameters:', {
-      page,
-      limit,
-      status,
-      search: search ? '***' : '',
-      scheme,
-      project,
-      district,
-      area,
-      unit
+      ...req.query,
+      search: req.query.search ? '***' : ''
     });
 
-    // Build filter object
-    const filter = {};
-    
-    if (search) {
-      // Search in application number or beneficiary details
-      const beneficiaries = await Beneficiary.find({
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } }
-        ]
-      }).select('_id');
-      
-      filter.$or = [
-        { applicationNumber: { $regex: search, $options: 'i' } },
-        { beneficiary: { $in: beneficiaries.map(b => b._id) } }
-      ];
-    }
-    
-    // Beneficiary drafts (unsubmitted applications) must never be visible to
-    // authorities. Only the beneficiary can see/manage their own drafts.
-    if (status && status !== 'draft') {
-      filter.status = status;
-      console.log('✅ Status filter applied:', status);
-    } else {
-      filter.status = { $ne: 'draft' };
-    }
-    if (scheme) filter.scheme = scheme;
-    if (project) filter.project = project;
-    if (state) filter.state = state;
-    if (district) filter.district = district;
-    if (area) filter.area = area;
-    if (unit) filter.unit = unit;
-
-    // Scheme-specific dropdown filters (form-builder fields marked filterable).
-    // Only meaningful when a scheme is selected, since field keys are per form.
-    if (scheme && formFilters) {
-      Object.assign(filter, await buildFormDataFilter(scheme, formFilters, buildFranchiseReadFilter(req)));
-    }
-
-    // Date range filter (must match the same submittedAt window used by the
-    // consolidation stats endpoint, otherwise drill-down counts diverge from
-    // the stat cards)
-    if (startDate || endDate) {
-      filter.submittedAt = {};
-      if (startDate) filter.submittedAt.$gte = new Date(startDate);
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        filter.submittedAt.$lte = end;
-      }
-    }
+    // Build filter object (shared with the export so both return the same rows)
+    const filter = await buildApplicationQueryFilter(req.query, req);
 
     // Apply user's regional access restrictions (prefer franchise-specific scope)
     const userRegionalFilter = getUserRegionalFilter(getEffectiveUserForFilter(req));

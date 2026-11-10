@@ -1262,6 +1262,35 @@ export interface ApplicationFilterField {
   options: string[];
 }
 
+// Answerable question of a scheme's form, usable in advanced question filters.
+// `kind` decides the operators: choice/multi (option lists), boolean
+// (checkbox), number, date, text. Keep in sync with api/src/utils/formDataFilter.js
+export type QuestionKind = 'choice' | 'multi' | 'boolean' | 'number' | 'date' | 'text';
+
+export interface ApplicationQuestionField {
+  id: number;
+  key: string;
+  label: string;
+  type: string;
+  kind: QuestionKind;
+  options: string[];
+  page: string;
+}
+
+// One advanced question filter condition, sent as JSON in `formRules`
+export interface FormRule {
+  key: string;
+  op: string;
+  values?: string[];
+  value?: string;
+  value2?: string;
+}
+
+export interface FormRules {
+  match: 'all' | 'any';
+  rules: FormRule[];
+}
+
 export const applications = {
   getAll: (params?: any) => extendedApiClient.getApplications(params),
   getById: (id: string) => extendedApiClient.getApplication(id),
@@ -1430,7 +1459,7 @@ export const applications = {
     }),
   export: (params?: any) => extendedApiClient.request(buildExportUrl('/applications/export', params)),
   getFilterFields: (scheme: string) =>
-    extendedApiClient.request<{ fields: ApplicationFilterField[] }>(`/applications/filter-fields?scheme=${encodeURIComponent(scheme)}`),
+    extendedApiClient.request<{ fields: ApplicationFilterField[]; questions?: ApplicationQuestionField[] }>(`/applications/filter-fields?scheme=${encodeURIComponent(scheme)}`),
   downloadPdf: async (id: string): Promise<Blob> => {
     const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
     const token = localStorage.getItem('token');

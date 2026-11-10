@@ -39,6 +39,8 @@ export interface ExportButtonProps {
   disableCSV?: boolean;
   disablePDF?: boolean;
   disablePrint?: boolean;
+  /** Extra page-specific export options, listed after the CSV/PDF items */
+  extraItems?: Array<{ label: string; icon?: React.ReactNode; onClick: () => void; disabled?: boolean }>;
 }
 
 const ExportButton: React.FC<ExportButtonProps> = ({
@@ -52,6 +54,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
   disableCSV = false,
   disablePDF = false,
   disablePrint = false,
+  extraItems = [],
 }) => {
   return (
     <DropdownMenu>
@@ -65,7 +68,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
           {exporting ? 'Exporting...' : label}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="min-w-[12rem]">
         {!disableCSV && (
           <DropdownMenuItem onClick={onExportCSV} disabled={exporting}>
             <FileSpreadsheet className="mr-2 h-4 w-4" />
@@ -78,7 +81,13 @@ const ExportButton: React.FC<ExportButtonProps> = ({
             Export as PDF
           </DropdownMenuItem>
         )}
-        {(!disableCSV || !disablePDF) && !disablePrint && <DropdownMenuSeparator />}
+        {extraItems.map((item) => (
+          <DropdownMenuItem key={item.label} onClick={item.onClick} disabled={exporting || item.disabled}>
+            {item.icon ?? <FileSpreadsheet className="mr-2 h-4 w-4" />}
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+        {(!disableCSV || !disablePDF || extraItems.length > 0) && !disablePrint && <DropdownMenuSeparator />}
         {!disablePrint && (
           <DropdownMenuItem onClick={onPrint} disabled={exporting}>
             <Printer className="mr-2 h-4 w-4" />

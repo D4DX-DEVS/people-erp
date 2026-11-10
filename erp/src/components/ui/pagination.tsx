@@ -111,6 +111,99 @@ const PaginationEllipsis = ({
 );
 PaginationEllipsis.displayName = "PaginationEllipsis";
 
+// Page numbers to show: the first and last page plus `siblings` pages either
+// side of the current one, with an ellipsis for each gap (a gap of exactly one
+// page shows that page instead).
+export function getPageWindow(currentPage: number, totalPages: number, siblings = 3): (number | "ellipsis")[] {
+  const start = Math.max(2, currentPage - siblings);
+  const end = Math.min(totalPages - 1, currentPage + siblings);
+  const pages: (number | "ellipsis")[] = [1];
+
+  if (start === 3) pages.push(2);
+  else if (start > 3) pages.push("ellipsis");
+
+  for (let i = start; i <= end; i++) pages.push(i);
+
+  if (end === totalPages - 2) pages.push(totalPages - 1);
+  else if (end < totalPages - 2) pages.push("ellipsis");
+
+  if (totalPages > 1) pages.push(totalPages);
+  return pages;
+}
+
+// Table footer pagination: "Showing x–y of z" plus windowed page buttons
+interface TablePaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  totalItems?: number;
+  itemsPerPage?: number;
+  className?: string;
+}
+
+export function TablePagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+  totalItems,
+  itemsPerPage,
+  className
+}: TablePaginationProps) {
+  if (totalPages <= 1) return null;
+
+  const goTo = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) onPageChange(page);
+  };
+  const hasSummary = totalItems !== undefined && !!itemsPerPage;
+
+  return (
+    <div className={cn("flex flex-col items-center justify-between gap-3 sm:flex-row", className)}>
+      {hasSummary ? (
+        <p className="text-sm text-muted-foreground">
+          Showing {((currentPage - 1) * itemsPerPage! + 1).toLocaleString()}–{Math.min(currentPage * itemsPerPage!, totalItems!).toLocaleString()} of {totalItems!.toLocaleString()}
+        </p>
+      ) : (
+        <span />
+      )}
+      <nav role="navigation" aria-label="pagination">
+        <ul className="flex flex-wrap items-center justify-center gap-1">
+          <li>
+            <Button variant="outline" size="sm" onClick={() => goTo(currentPage - 1)} disabled={currentPage <= 1} aria-label="Go to previous page">
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Previous</span>
+            </Button>
+          </li>
+          {getPageWindow(currentPage, totalPages).map((page, index) =>
+            page === "ellipsis" ? (
+              <li key={`ellipsis-${index}`}>
+                <PaginationEllipsis className="h-8 w-8" />
+              </li>
+            ) : (
+              <li key={page}>
+                <Button
+                  variant={page === currentPage ? "default" : "outline"}
+                  size="sm"
+                  className="min-w-[2rem]"
+                  aria-current={page === currentPage ? "page" : undefined}
+                  onClick={() => goTo(page)}
+                >
+                  {page}
+                </Button>
+              </li>
+            )
+          )}
+          <li>
+            <Button variant="outline" size="sm" onClick={() => goTo(currentPage + 1)} disabled={currentPage >= totalPages} aria-label="Go to next page">
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  );
+}
+
 // Advanced Pagination Component (our custom implementation)
 interface AdvancedPaginationProps {
   currentPage: number;

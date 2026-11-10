@@ -8,12 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
 import { GenericFilters } from "@/components/filters/GenericFilters";
+import { FormQuestionFilters } from "@/components/filters/FormQuestionFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useExport } from '@/hooks/useExport';
 import ExportButton from '@/components/common/ExportButton';
 import { applicationExportColumns } from '@/utils/exportColumns';
 import { toast } from "@/hooks/use-toast";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { TablePagination } from "@/components/ui/pagination";
 import { applications } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { getApplicationDisplay } from "@/utils/applicationDisplay";
@@ -107,6 +108,8 @@ export default function ApprovedApplications() {
     filterHook.filters.areaFilter,
     filterHook.filters.schemeFilter,
     filterHook.filters.formFilters,
+    filterHook.filters.formRules,
+    filterHook.filters.unitFilter,
     filterHook.filters.fromDate,
     filterHook.filters.toDate,
     filterHook.filters.quickDateFilter,
@@ -152,6 +155,10 @@ export default function ApprovedApplications() {
             onExportPDF={() => exportPDF()}
             onPrint={() => printData()}
             exporting={exporting}
+            extraItems={filterHook.filters.schemeFilter !== "all" ? [
+              // One column per question of the selected scheme's form
+              { label: "CSV with form answers", onClick: () => exportCSV({ includeAnswers: "true" }) },
+            ] : []}
           />
           <div className="flex items-center border rounded-lg p-1">
             <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')}>
@@ -173,6 +180,7 @@ export default function ApprovedApplications() {
       </div>
 
       {showFilters && (
+      <>
       <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
@@ -213,6 +221,15 @@ export default function ApprovedApplications() {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      {filterHook.questionFields.length > 0 && (
+        <FormQuestionFilters
+          key={filterHook.filters.schemeFilter}
+          questions={filterHook.questionFields}
+          value={filterHook.filters.formRules}
+          onApply={filterHook.setFormRules}
+        />
+      )}
+      </>
       )}
 
       <Card>
@@ -326,13 +343,13 @@ export default function ApprovedApplications() {
 
           {pagination.pages > 1 && (
             <div className="mt-6">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem><PaginationPrevious onClick={() => filterHook.setCurrentPage(Math.max(1, filterHook.filters.currentPage - 1))} className={filterHook.filters.currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} /></PaginationItem>
-                  {[...Array(pagination.pages)].map((_, i) => (<PaginationItem key={i}><PaginationLink onClick={() => filterHook.setCurrentPage(i + 1)} isActive={filterHook.filters.currentPage === i + 1} className="cursor-pointer">{i + 1}</PaginationLink></PaginationItem>))}
-                  <PaginationItem><PaginationNext onClick={() => filterHook.setCurrentPage(Math.min(pagination.pages, filterHook.filters.currentPage + 1))} className={filterHook.filters.currentPage === pagination.pages ? "pointer-events-none opacity-50" : "cursor-pointer"} /></PaginationItem>
-                </PaginationContent>
-              </Pagination>
+              <TablePagination
+                currentPage={filterHook.filters.currentPage}
+                totalPages={pagination.pages}
+                totalItems={pagination.total}
+                itemsPerPage={pagination.limit}
+                onPageChange={filterHook.setCurrentPage}
+              />
             </div>
           )}
         </CardContent>

@@ -8,14 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
+import { ConfirmDecisionDialog } from "@/components/applications/ConfirmDecisionDialog";
 import { TransferApplicationButton } from "@/components/applications/TransferApplicationButton";
 import { GenericFilters } from "@/components/filters/GenericFilters";
+import { FormQuestionFilters } from "@/components/filters/FormQuestionFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useExport } from '@/hooks/useExport';
 import ExportButton from '@/components/common/ExportButton';
 import { applicationExportColumns } from '@/utils/exportColumns';
 import { toast } from "@/hooks/use-toast";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { TablePagination } from "@/components/ui/pagination";
 import { applications } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { getApplicationDisplay } from "@/utils/applicationDisplay";
@@ -69,6 +71,8 @@ export default function UnderReviewApplications() {
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [showFilters, setShowFilters] = useState(false);
+  // Quick approve/reject waiting for confirmation
+  const [pendingDecision, setPendingDecision] = useState<{ app: Application; action: 'approve' | 'reject' } | null>(null);
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
@@ -110,6 +114,8 @@ export default function UnderReviewApplications() {
     filterHook.filters.areaFilter,
     filterHook.filters.schemeFilter,
     filterHook.filters.formFilters,
+    filterHook.filters.formRules,
+    filterHook.filters.unitFilter,
     filterHook.filters.fromDate,
     filterHook.filters.toDate,
     filterHook.filters.quickDateFilter,
@@ -123,7 +129,7 @@ export default function UnderReviewApplications() {
       setApplicationList(response.data.applications);
       setPagination(response.data.pagination);
     }
-  }, [filterHook.filters.currentPage, pagination.limit]);
+  }, [filterHook.getApiParams, filterHook.filters.currentPage, pagination.limit]);
 
   if (!canViewApplications) {
     return (
@@ -141,27 +147,22 @@ export default function UnderReviewApplications() {
     setShowDetailModal(true);
   };
 
-  const handleApprove = async (id: string, remarks: string, _distributionTimeline?: any[], _forwardToCommittee?: boolean, _interviewReport?: string, _isRecurring?: boolean, _recurringConfig?: any, approvedAmountFromModal?: number) => {
+  // Approves the full requested amount; on failure the dialog stays open
+  const handleDecision = async (remarks: string) => {
+    if (!pendingDecision) return;
+    const { app, action } = pendingDecision;
     try {
-      const response = await applications.approve(id, { approvedAmount: approvedAmountFromModal || selectedApp?.requestedAmount, comments: remarks });
-      if (response.success) {
-        await loadApplications();
-        toast({ title: "Application Approved", description: `Application ${id} has been approved successfully.` });
-      }
+      const response = action === 'approve'
+        ? await applications.approve(app._id, { approvedAmount: app.requestedAmount, comments: remarks })
+        : await applications.review(app._id, { status: 'rejected', comments: remarks });
+      if (!response.success) throw new Error(response.message || `Failed to ${action} application`);
+      setPendingDecision(null);
+      await loadApplications();
+      toast(action === 'approve'
+        ? { title: "Application Approved", description: `Application ${app.applicationNumber} has been approved successfully.` }
+        : { title: "Application Rejected", description: `Application ${app.applicationNumber} has been rejected.`, variant: "destructive" });
     } catch (error) {
-      toast({ title: "Error", description: "Failed to approve application", variant: "destructive" });
-    }
-  };
-
-  const handleReject = async (id: string, remarks: string) => {
-    try {
-      const response = await applications.review(id, { status: 'rejected', comments: remarks });
-      if (response.success) {
-        await loadApplications();
-        toast({ title: "Application Rejected", description: `Application ${id} has been rejected.`, variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to reject application", variant: "destructive" });
+      toast({ title: "Error", description: error instanceof Error ? error.message : `Failed to ${action} application`, variant: "destructive" });
     }
   };
 
@@ -187,6 +188,10 @@ export default function UnderReviewApplications() {
             onExportPDF={() => exportPDF()}
             onPrint={() => printData()}
             exporting={exporting}
+            extraItems={filterHook.filters.schemeFilter !== "all" ? [
+              // One column per question of the selected scheme's form
+              { label: "CSV with form answers", onClick: () => exportCSV({ includeAnswers: "true" }) },
+            ] : []}
           />
           <div className="flex items-center border rounded-lg p-1">
             <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')}>
@@ -208,6 +213,7 @@ export default function UnderReviewApplications() {
       </div>
 
       {showFilters && (
+      <>
       <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
@@ -248,6 +254,15 @@ export default function UnderReviewApplications() {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      {filterHook.questionFields.length > 0 && (
+        <FormQuestionFilters
+          key={filterHook.filters.schemeFilter}
+          questions={filterHook.questionFields}
+          value={filterHook.filters.formRules}
+          onApply={filterHook.setFormRules}
+        />
+      )}
+      </>
       )}
 
       <Card>
@@ -297,8 +312,8 @@ export default function UnderReviewApplications() {
                         <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)} className="w-full"><Eye className="mr-2 h-4 w-4" />Details</Button>
                         {canReviewApplications && (
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleApprove(app._id, '')} disabled={!canApproveApplications} className="flex-1"><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
-                            <Button variant="outline" size="sm" onClick={() => handleReject(app._id, '')} disabled={!canApproveApplications} className="flex-1"><XCircle className="mr-2 h-4 w-4" />Reject</Button>
+                            <Button variant="outline" size="sm" onClick={() => setPendingDecision({ app, action: 'approve' })} disabled={!canApproveApplications} className="flex-1"><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
+                            <Button variant="outline" size="sm" onClick={() => setPendingDecision({ app, action: 'reject' })} disabled={!canApproveApplications} className="flex-1"><XCircle className="mr-2 h-4 w-4" />Reject</Button>
                           </div>
                         )}
                         <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }} className="w-full"><FileText className="mr-2 h-4 w-4" />Reports</Button>
@@ -365,10 +380,10 @@ export default function UnderReviewApplications() {
                         </Button>
                         {canReviewApplications && (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => handleApprove(app._id, '')} disabled={!canApproveApplications}>
+                            <Button variant="outline" size="sm" onClick={() => setPendingDecision({ app, action: 'approve' })} disabled={!canApproveApplications}>
                               <CheckCircle className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleReject(app._id, '')} disabled={!canApproveApplications}>
+                            <Button variant="outline" size="sm" onClick={() => setPendingDecision({ app, action: 'reject' })} disabled={!canApproveApplications}>
                               <XCircle className="h-4 w-4" />
                             </Button>
                           </>
@@ -385,17 +400,28 @@ export default function UnderReviewApplications() {
 
           {pagination.pages > 1 && (
             <div className="mt-6">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem><PaginationPrevious onClick={() => filterHook.setCurrentPage(Math.max(1, filterHook.filters.currentPage - 1))} className={filterHook.filters.currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} /></PaginationItem>
-                  {[...Array(pagination.pages)].map((_, i) => (<PaginationItem key={i}><PaginationLink onClick={() => filterHook.setCurrentPage(i + 1)} isActive={filterHook.filters.currentPage === i + 1} className="cursor-pointer">{i + 1}</PaginationLink></PaginationItem>))}
-                  <PaginationItem><PaginationNext onClick={() => filterHook.setCurrentPage(Math.min(pagination.pages, filterHook.filters.currentPage + 1))} className={filterHook.filters.currentPage === pagination.pages ? "pointer-events-none opacity-50" : "cursor-pointer"} /></PaginationItem>
-                </PaginationContent>
-              </Pagination>
+              <TablePagination
+                currentPage={filterHook.filters.currentPage}
+                totalPages={pagination.pages}
+                totalItems={pagination.total}
+                itemsPerPage={pagination.limit}
+                onPageChange={filterHook.setCurrentPage}
+              />
             </div>
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDecisionDialog
+        decision={pendingDecision && {
+          action: pendingDecision.action,
+          applicantName: getApplicationDisplay(pendingDecision.app).beneficiaryName,
+          applicationNumber: pendingDecision.app.applicationNumber,
+          amount: pendingDecision.app.requestedAmount,
+        }}
+        onConfirm={handleDecision}
+        onCancel={() => setPendingDecision(null)}
+      />
 
       {selectedApp && (
         <ReportsModal isOpen={showReportsModal} onClose={() => { setShowReportsModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={getApplicationDisplay(selectedApp).beneficiaryName} />
