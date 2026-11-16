@@ -1,9 +1,81 @@
-const { Scheme, Project, Location } = require('../models');
+const { Scheme, Project, Location, Application, Payment, RecurringPayment } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const formConfigurationController = require('./formConfigurationController');
 const { updateApplicationsDistributionTimeline } = require('./applicationController');
 const { buildFranchiseReadFilter, buildFranchiseMatchStage, getWriteFranchiseId } = require('../utils/franchiseFilterHelper');
 const { applyScopeFilter } = require('../utils/coordinatorScope');
+
+const APPROVED_STATUSES = ['approved', 'disbursed', 'completed'];
+const CLOSED_STATUSES = [...APPROVED_STATUSES, 'rejected', 'cancelled'];
+
+// Drop payments whose application has since been deleted (orphaned records).
+// Projects only _id so the lookup never pulls the heavy formData payload.
+const LINKED_APPLICATION_ONLY = [
+  { $lookup: { from: Application.collection.name, localField: 'application', foreignField: '_id', pipeline: [{ $project: { _id: 1 } }], as: 'linkedApplication' } },
+  { $match: { 'linkedApplication.0': { $exists: true } } }
+];
+
+/**
+ * Overwrite the cached Scheme.statistics / budget.allocated / budget.spent
+ * counters (never kept in sync) with live figures from Application, Payment
+ * and RecurringPayment. In-memory only — the documents are not saved, so the
+ * model virtuals (successRate, budgetUtilization, remainingBudget) pick the
+ * live numbers up at serialization.
+ */
+async function attachLiveStats(schemes) {
+  if (!schemes.length) return;
+  const ids = schemes.map(s => s._id);
+  const franchise = { $in: [...new Map(schemes.map(s => [String(s.franchise), s.franchise])).values()] };
+
+  const [appStats, paymentStats, recurringStats] = await Promise.all([
+    Application.aggregate([
+      { $match: { franchise, scheme: { $in: ids }, status: { $ne: 'draft' } } },
+      {
+        $group: {
+          _id: '$scheme',
+          total: { $sum: 1 },
+          approved: { $sum: { $cond: [{ $in: ['$status', APPROVED_STATUSES] }, 1, 0] } },
+          rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $in: ['$status', CLOSED_STATUSES] }, 0, 1] } },
+          allocated: { $sum: { $cond: [{ $in: ['$status', APPROVED_STATUSES] }, { $ifNull: ['$approvedAmount', 0] }, 0] } },
+          beneficiaries: { $addToSet: { $cond: [{ $in: ['$status', APPROVED_STATUSES] }, '$beneficiary', null] } }
+        }
+      }
+    ]),
+    Payment.aggregate([
+      { $match: { franchise, scheme: { $in: ids }, status: 'completed', type: { $in: ['full_payment', 'installment'] } } },
+      ...LINKED_APPLICATION_ONLY,
+      { $group: { _id: '$scheme', amount: { $sum: '$amount' } } }
+    ]),
+    // RecurringPayment docs carry no franchise field; scoping comes from the
+    // (already franchise-filtered) scheme ids.
+    RecurringPayment.aggregate([
+      { $match: { scheme: { $in: ids }, status: 'completed' } },
+      ...LINKED_APPLICATION_ONLY,
+      { $group: { _id: '$scheme', amount: { $sum: '$amount' } } }
+    ], { bypassFranchise: true })
+  ]);
+
+  const byId = rows => new Map(rows.map(r => [String(r._id), r]));
+  const apps = byId(appStats);
+  const paid = byId(paymentStats);
+  const recurring = byId(recurringStats);
+
+  for (const scheme of schemes) {
+    const key = String(scheme._id);
+    const a = apps.get(key);
+    const disbursed = (paid.get(key)?.amount || 0) + (recurring.get(key)?.amount || 0);
+
+    scheme.statistics.totalApplications = a?.total || 0;
+    scheme.statistics.approvedApplications = a?.approved || 0;
+    scheme.statistics.rejectedApplications = a?.rejected || 0;
+    scheme.statistics.pendingApplications = a?.pending || 0;
+    scheme.statistics.totalBeneficiaries = a ? a.beneficiaries.filter(Boolean).length : 0;
+    scheme.statistics.totalAmountDisbursed = disbursed;
+    scheme.budget.allocated = a?.allocated || 0;
+    scheme.budget.spent = disbursed;
+  }
+}
 
 class SchemeController {
   /**
@@ -88,6 +160,8 @@ class SchemeController {
 
       const total = await Scheme.countDocuments(filter);
 
+      await attachLiveStats(schemes);
+
       return ResponseHelper.success(res, {
         schemes,
         pagination: {
@@ -125,6 +199,8 @@ class SchemeController {
       if (!scheme.canUserAccess(req.user)) {
         return ResponseHelper.error(res, 'Access denied to this scheme', 403);
       }
+
+      await attachLiveStats([scheme]);
 
       return ResponseHelper.success(res, { scheme });
     } catch (error) {
@@ -397,7 +473,7 @@ class SchemeController {
       }
 
       // Check if scheme has applications (prevent deletion if has applications)
-      if (scheme.statistics.totalApplications > 0) {
+      if (await Application.exists({ franchise: scheme.franchise, scheme: scheme._id })) {
         return ResponseHelper.error(res, 'Cannot delete scheme with existing applications', 400);
       }
 
