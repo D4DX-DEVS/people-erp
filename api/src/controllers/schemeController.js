@@ -47,8 +47,9 @@ async function attachLiveStats(schemes) {
       ...LINKED_APPLICATION_ONLY,
       { $group: { _id: '$scheme', amount: { $sum: '$amount' } } }
     ]),
-    // RecurringPayment docs carry no franchise field; scoping comes from the
-    // (already franchise-filtered) scheme ids.
+    // Older RecurringPayment docs were generated without a franchise field
+    // (see scripts/backfillRecurringPaymentFranchise.js); scoping comes from
+    // the already franchise-filtered scheme ids.
     RecurringPayment.aggregate([
       { $match: { scheme: { $in: ids }, status: 'completed' } },
       ...LINKED_APPLICATION_ONLY,

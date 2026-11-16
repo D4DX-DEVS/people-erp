@@ -109,6 +109,7 @@ class RecurringPaymentService {
             
             recurringPayments.push({
               application: application._id,
+              franchise: application.franchise,
               beneficiary: application.beneficiary._id,
               scheme: application.scheme?._id,
               project: application.project?._id,
@@ -148,6 +149,7 @@ class RecurringPaymentService {
           
           recurringPayments.push({
             application: application._id,
+            franchise: application.franchise,
             beneficiary: application.beneficiary._id,
             scheme: application.scheme?._id,
             project: application.project?._id,
