@@ -4,16 +4,26 @@ import { RichContent } from "@/components/site/RichContent";
 import { stripHtml } from "@/lib/richText";
 import { Button } from "@/components/ui/button";
 import { colorValue } from "@/lib/siteColors";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { goToSiteTarget } from "@/lib/siteNav";
+import { DONATE_SECTION } from "@/types/siteNavigation";
 
 export interface PopupSettings {
   enabled?: boolean; title?: string; subtitle?: string; description?: string; content?: string; imageUrl?: string;
   backgroundColor?: string; textColor?: string; buttonText?: string; buttonLink?: string; buttonColor?: string; buttonTextColor?: string;
 }
 
+/**
+ * A `upi:` payment link only opens on a phone with a UPI app and does nothing in
+ * a desktop browser, so a popup button saved with one sends the donor to the
+ * home donation section instead — online checkout, QR and bank details.
+ */
+const PAYMENT_APP_LINK = /^upi:/i;
+
 /** Welcome popup opened once per browser session when the home page loads. */
 export function SitePopup({ popup }: { popup?: PopupSettings }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const hasBody = !!(popup?.title || popup?.subtitle || popup?.description || stripHtml(popup?.content) || popup?.imageUrl);
   // Re-shows when the admin edits the popup, because the fingerprint changes.
@@ -37,11 +47,13 @@ export function SitePopup({ popup }: { popup?: PopupSettings }) {
   const bg = popup.backgroundColor ? colorValue(popup.backgroundColor) : "#ffffff";
   const fg = popup.textColor ? colorValue(popup.textColor) : undefined;
   const goButton = () => {
-    const link = popup.buttonLink?.trim();
-    setOpen(false);
-    if (!link) return;
-    if (/^https?:\/\//i.test(link)) window.open(link, "_blank", "noopener");
-    else navigate(link);
+    const saved = popup.buttonLink?.trim();
+    onOpenChange(false);
+    if (!saved) return;
+    const link = PAYMENT_APP_LINK.test(saved) ? DONATE_SECTION : saved;
+    // Wait for the dialog to close: it locks page scroll while open, which
+    // would swallow the scroll to a home section.
+    setTimeout(() => goToSiteTarget(navigate, location.pathname, link, /^https?:\/\//i.test(link)), 250);
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

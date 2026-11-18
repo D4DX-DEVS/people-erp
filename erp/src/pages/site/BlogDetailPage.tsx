@@ -48,7 +48,7 @@ export default function BlogDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SiteHeader donateLink={settings?.donation?.paymentLink} />
+      <SiteHeader />
       <SiteBreadcrumbs items={[{ label: "Blog", href: "/blogs" }, { label: blog?.title || "Article" }]} />
       <PageBody>
         <Button variant="ghost" className="mb-4" onClick={() => navigate("/")}>

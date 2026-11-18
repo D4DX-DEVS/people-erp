@@ -2529,9 +2529,20 @@ export interface OnlinePaymentStatus {
 
 export const onlinePayments = {
   config: () => apiClient.request<{ enabled: boolean }>('/easebuzz/config'),
-  initiate: (data: { amount: number; name: string; email: string; phone: string }) =>
+  /** `pan` is required by the API for amounts above ₹50,000. */
+  initiate: (data: { amount: number; name: string; email: string; phone: string; pan?: string }) =>
     apiClient.request<{ txnid: string; checkoutUrl: string }>('/easebuzz/initiate', { method: 'POST', body: JSON.stringify(data) }),
   status: (txnid: string) => apiClient.request<OnlinePaymentStatus>(`/easebuzz/status/${encodeURIComponent(txnid)}`),
+  /** PDF receipt for a successful donation. */
+  receipt: async (txnid: string): Promise<Blob> => {
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const headers: Record<string, string> = {};
+    const slug = getFranchiseSlug();
+    if (slug) headers['X-Franchise-Slug'] = slug;
+    const response = await fetch(`${baseUrl}/easebuzz/receipt/${encodeURIComponent(txnid)}`, { headers });
+    if (!response.ok) throw new Error('Could not download the receipt');
+    return response.blob();
+  },
 };
 
 // Application Configuration API

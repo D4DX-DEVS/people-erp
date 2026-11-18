@@ -28,7 +28,6 @@ export function SiteShell({ children, loading = false }: SiteShellProps) {
   const { org } = useConfig();
   const { data, isLoading } = useSiteData();
   const s = data?.settings || {};
-  const donateLink = s.donation?.paymentLink || s.hero?.ctaLink;
   // Same gate the header uses for its icon button, so the shortcut never
   // disappears when a franchise switches the calculator section off.
   const floatingZakat =
@@ -45,7 +44,7 @@ export function SiteShell({ children, loading = false }: SiteShellProps) {
   return (
     <div className="site-font min-h-screen bg-background">
       <ScrollProgress />
-      <SiteHeader donateLink={donateLink} />
+      <SiteHeader />
       {children}
       <SiteFooter settings={s} />
       <MobileBottomNav />

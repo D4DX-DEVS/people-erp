@@ -233,6 +233,7 @@ export default function Donations() {
                           <span>Method: {donation.method}</span>
                           <span>Purpose: {donation.purpose}</span>
                           {donation.donationNumber && <span>#{donation.donationNumber}</span>}
+                          {donation.panNumber && <span>PAN: {donation.panNumber}</span>}
                         </div>
                       </div>
                     </div>

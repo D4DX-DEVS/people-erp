@@ -9,7 +9,7 @@ export interface NavLink {
   _id?: string;
   label: string;
   kind: NavLinkKind;
-  /** Path, "/#anchor" or full URL. Empty for `donate` (resolved from Donation settings at render time). */
+  /** Path, "/#anchor" or full URL. Empty for `donate` (always the home donation section, see DONATE_SECTION). */
   target: string;
   openInNewTab?: boolean;
   visible?: boolean;
@@ -204,20 +204,28 @@ export function normalizeNavigation(raw?: Partial<NavigationSettings> | null): N
   };
 }
 
-/** A link can be shown when it is visible, labelled, and has somewhere to go (donate needs a donate link). */
-export function isRenderable(link: NavLink, donateLink?: string): boolean {
+/**
+ * Where a `donate` link goes: the home page's donation band, which carries the
+ * online checkout, the QR and the bank details. It used to be the payment link
+ * from Donation settings, but that is usually a `upi:` link, which only opens
+ * on a phone with a UPI app and does nothing in a desktop browser.
+ */
+export const DONATE_SECTION = "/#donate";
+
+/** A link can be shown when it is visible, labelled, and has somewhere to go. */
+export function isRenderable(link: NavLink): boolean {
   if (link.visible === false || !link.label?.trim()) return false;
-  return link.kind === "donate" ? !!donateLink : !!link.target?.trim();
+  return link.kind === "donate" || !!link.target?.trim();
 }
 
 /**
  * Does this link open another page of the website, so that "open in a new tab"
  * has no business applying to it? True for routes and anchors, and for a pasted
- * web address of one of the site's own pages; false for external sites, mailto:
- * and tel: links, and the donate link.
+ * web address of one of the site's own pages, and for the donate link (the home
+ * donation section); false for external sites, mailto: and tel: links.
  */
 export function staysOnSite(link: NavLink, pages: Array<Pick<SitePageSummary, "slug">> = []): boolean {
-  if (link.kind === "donate") return false;
+  if (link.kind === "donate") return true;
   return isInAppTarget(localiseTarget(link.target || "", pages.map((p) => p.slug.toLowerCase())));
 }
 
@@ -229,15 +237,16 @@ export function staysOnSite(link: NavLink, pages: Array<Pick<SitePageSummary, "s
  * link that stays on the site always opens in the same window — a new tab is for
  * leaving the site, not for moving around it.
  */
-export function resolveNavigation(stored: NavigationSettings | undefined, pages: NavPage[], donateLink?: string) {
+export function resolveNavigation(stored: NavigationSettings | undefined, pages: NavPage[]) {
   const nav = stored?.customized
     ? stored
     : { ...buildDefaultNavigation(pages), menuAlignment: stored?.menuAlignment || "center" };
 
   const slugs = pages.map((p) => p.slug.toLowerCase());
   const onSite = <T extends NavLink>(link: T): T => {
+    if (link.kind === "donate") return { ...link, target: DONATE_SECTION, openInNewTab: false };
     const target = link.target ? localiseTarget(link.target, slugs) : link.target;
-    const inPlace = link.kind !== "donate" && isInAppTarget(target);
+    const inPlace = isInAppTarget(target);
     return { ...link, target, openInNewTab: inPlace ? false : link.openInNewTab };
   };
 
@@ -245,8 +254,8 @@ export function resolveNavigation(stored: NavigationSettings | undefined, pages:
   const items = nav.items
     .map((i) => ({ ...onSite(i), children: i.children?.map(onSite) }))
     .filter((i) => i.visible !== false && i.label?.trim())
-    .map((i) => (i.type === "dropdown" ? { ...i, children: (i.children || []).filter((c) => isRenderable(c, donateLink)) } : i))
-    .filter((i) => (i.type === "dropdown" ? (i.children || []).length > 0 : isRenderable(i, donateLink)))
+    .map((i) => (i.type === "dropdown" ? { ...i, children: (i.children || []).filter((c) => isRenderable(c)) } : i))
+    .filter((i) => (i.type === "dropdown" ? (i.children || []).length > 0 : isRenderable(i)))
     // A menu saved with the same destination twice (an older stored header kept
     // both the built-in Contact Us and the page of the same name) shows it once.
     .filter((i) => {
@@ -256,7 +265,7 @@ export function resolveNavigation(stored: NavigationSettings | undefined, pages:
       seen.add(key);
       return true;
     });
-  const buttons = nav.buttons.map(onSite).filter((b) => isRenderable(b, donateLink));
+  const buttons = nav.buttons.map(onSite).filter((b) => isRenderable(b));
 
   return { menuAlignment: (nav.menuAlignment || "center") as MenuAlignment, items, buttons };
 }

@@ -1,7 +1,9 @@
 const crypto = require('crypto');
-const { Donation } = require('../models');
+const { Donation, Franchise, WebsiteSettings } = require('../models');
+const orgConfig = require('../config/orgConfig');
 const EasebuzzTransaction = require('../models/EasebuzzTransaction');
 const easebuzz = require('../services/easebuzzService');
+const PDFReceiptService = require('../services/pdfReceiptService');
 const ResponseHelper = require('../utils/responseHelper');
 const { isAllowedOrigin } = require('../utils/allowedOrigin');
 const config = require('../config/environment');
@@ -13,7 +15,45 @@ const FINAL_STATUSES = ['success', 'failure', 'usercancelled', 'dropped', 'bounc
 // Easebuzz's default per-transaction ceiling (₹99,99,999)
 const MAX_AMOUNT = 9999999;
 
+// Donations above this (₹) need the donor's PAN for the receipt and the
+// trust's donor reporting. The site's donate dialog asks for it at the same line.
+const PAN_THRESHOLD = 50000;
+const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
 const bypass = { bypassFranchise: true };
+
+const receipts = new PDFReceiptService();
+
+// Easebuzz's payment mode codes, spelled out for the receipt
+const PAYMENT_MODES = { CC: 'Credit Card', DC: 'Debit Card', NB: 'Net Banking', UPI: 'UPI', MW: 'Wallet', EMI: 'EMI', OM: 'Ola Money' };
+
+/** The receipt link is public, so show only the last four characters of the PAN. */
+function maskPan(pan) {
+  return pan ? `XXXXXX${pan.slice(-4)}` : undefined;
+}
+
+/**
+ * Organisation details for the receipt header, picked in the same order as the
+ * public site's footer: Website Settings → Contact Details, then the franchise's
+ * own settings, then the deployment's org config. The preset registration
+ * number is a placeholder, so only a real one (franchise or ORG_REG_NUMBER) prints.
+ */
+async function receiptOrg(franchiseId) {
+  const [franchise, site] = await Promise.all([
+    Franchise.findById(franchiseId).select('displayName regNumber settings').lean(),
+    WebsiteSettings.findOne({ franchise: franchiseId }).select('contactDetails').lean(),
+  ]);
+  const s = franchise?.settings || {};
+  const contact = site?.contactDetails || {};
+  return {
+    name: franchise?.displayName || orgConfig.displayName,
+    regNumber: s.regNumber || franchise?.regNumber || process.env.ORG_REG_NUMBER || '',
+    address: contact.address || s.address || orgConfig.address,
+    phone: contact.phone || s.contactPhone || orgConfig.phone,
+    email: contact.email || s.contactEmail || orgConfig.email,
+    website: s.websiteUrl || orgConfig.website,
+  };
+}
 
 /** Easebuzz accepts letters, digits and & - . _ ( ) / , @ in the name. */
 function cleanName(name) {
@@ -45,6 +85,7 @@ async function recordDonation(txn) {
       method: 'online',
       status: 'completed',
       anonymousDonor: { name: txn.donor.name, email: txn.donor.email, phone: txn.donor.phone },
+      ...(txn.donor.pan && { tax: { panRequired: true, panNumber: txn.donor.pan } }),
       paymentDetails: {
         online: {
           gateway: 'easebuzz',
@@ -108,6 +149,8 @@ exports.initiate = async (req, res) => {
     const name = cleanName(req.body.name);
     const email = String(req.body.email || '').trim().toLowerCase();
     const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
+    const panRequired = amount > PAN_THRESHOLD;
+    const pan = panRequired ? String(req.body.pan || '').replace(/\s/g, '').toUpperCase() : undefined;
 
     if (!Number.isFinite(amount) || amount < 1 || amount > MAX_AMOUNT) {
       return ResponseHelper.error(res, `Enter an amount between ₹1 and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`, 400);
@@ -121,12 +164,15 @@ exports.initiate = async (req, res) => {
     if (!/^\+?\d{10,15}$/.test(phone)) {
       return ResponseHelper.error(res, 'Enter a valid phone number', 400);
     }
+    if (panRequired && !PAN_PATTERN.test(pan)) {
+      return ResponseHelper.error(res, `PAN is required for donations above ₹${PAN_THRESHOLD.toLocaleString('en-IN')}. Enter a valid PAN (e.g. ABCDE1234F)`, 400);
+    }
 
     const txnid = `DN${Date.now().toString(36)}${crypto.randomBytes(5).toString('hex')}`.toUpperCase();
     const txn = await EasebuzzTransaction.create({
       txnid,
       amount,
-      donor: { name, email, phone },
+      donor: { name, email, phone, pan },
       returnUrl: returnUrlFor(req),
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
@@ -232,5 +278,39 @@ exports.getStatus = async (req, res) => {
   } catch (error) {
     console.error('[easebuzz] status error:', error);
     return ResponseHelper.error(res, 'Failed to load payment status', 500);
+  }
+};
+
+/** GET /api/easebuzz/receipt/:txnid — public: PDF receipt for a successful donation. */
+exports.getReceipt = async (req, res) => {
+  try {
+    const txn = await EasebuzzTransaction.findOne({ txnid: String(req.params.txnid), franchise: req.franchiseId });
+    if (!txn || txn.status !== 'success') return ResponseHelper.error(res, 'Receipt not available', 404);
+
+    const donation = txn.donation
+      ? await Donation.findOne({ _id: txn.donation, franchise: txn.franchise }).select('donationNumber createdAt')
+      : null;
+    const receiptNumber = donation?.donationNumber || txn.txnid;
+
+    const pdf = await receipts.generateDonationReceipt({
+      org: await receiptOrg(txn.franchise),
+      receiptNumber,
+      date: donation?.createdAt || txn.updatedAt,
+      amount: txn.amount,
+      donor: { ...txn.donor.toObject(), pan: maskPan(txn.donor.pan) },
+      payment: {
+        mode: PAYMENT_MODES[txn.mode] || txn.mode,
+        paymentId: txn.easepayid,
+        reference: txn.txnid,
+        bankRef: txn.bankRefNum,
+      },
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="donation-receipt-${receiptNumber}.pdf"`);
+    return res.send(pdf);
+  } catch (error) {
+    console.error('[easebuzz] receipt error:', error);
+    return ResponseHelper.error(res, 'Failed to generate the receipt', 500);
   }
 };

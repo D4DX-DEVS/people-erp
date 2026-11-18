@@ -96,6 +96,46 @@ class PDFReceiptService {
     }
   }
 
+  /**
+   * Receipt for an online donation, built in memory and returned as a Buffer.
+   * data: { receiptNumber, date, amount, donor: { name, email, phone, pan },
+   *         payment: { mode, paymentId, reference, bankRef },
+   *         org: { name, regNumber, address, phone, email, website } }
+   */
+  generateDonationReceipt(data) {
+    const org = { ...data.org, name: data.org.name.toUpperCase() };
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({
+        size: 'A4',
+        margin: MARGIN,
+        info: {
+          Title: `Donation Receipt - ${data.receiptNumber}`,
+          Author: orgConfig.erpTitle,
+          Subject: 'Donation Receipt',
+          Creator: `${orgConfig.erpTitle} System`
+        }
+      });
+      const chunks = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      this._addHeader(doc, org);
+      this._addReceiptTitle(doc, 'DONATION RECEIPT');
+
+      doc.fontSize(9.5).font('Helvetica').fillColor(INK)
+         .text(`Received with thanks from ${data.donor.name} the sum stated below as a donation to ${data.org.name}.`,
+           MARGIN, doc.y, { width: CONTENT_W, align: 'center' });
+      doc.y += SEC_GAP;
+
+      this._addDonationDetails(doc, data);
+      this._addDonorDetails(doc, data.donor);
+      this._addDonationAmount(doc, data.amount);
+      this._addFooter(doc, org);
+      doc.end();
+    });
+  }
+
   // ─── private helpers ────────────────────────────────────────────────────────
 
   /** Height of a section box holding `rows` rows */
@@ -151,7 +191,7 @@ class PDFReceiptService {
 
   // ─── sections ───────────────────────────────────────────────────────────────
 
-  _addHeader(doc) {
+  _addHeader(doc, org = this.org) {
     let hasLogo = false;
     try {
       if (this.logoPath && fs.existsSync(this.logoPath)) {
@@ -167,22 +207,22 @@ class PDFReceiptService {
     const textW  = hasLogo ? CONTENT_W - LOGO_W - 10 : CONTENT_W;
 
     doc.fontSize(15).font('Helvetica-Bold').fillColor(INK)
-       .text(this.org.name, textX, 44, { width: textW, lineBreak: false, characterSpacing: 0.3 });
+       .text(org.name, textX, 44, { width: textW, lineBreak: false, characterSpacing: 0.3 });
 
     doc.fontSize(8).font('Helvetica').fillColor(MUTED)
-       .text(`Registered NGO  |  Reg. No: ${this.org.regNumber}`, textX, 64, { width: textW, lineBreak: false })
-       .text(this.org.address,                                    textX, 77, { width: textW, lineBreak: false })
-       .text(`${this.org.phone}  |  ${this.org.email}  |  ${this.org.website}`, textX, 90, { width: textW, lineBreak: false });
+       .text(org.regNumber ? `Registered NGO  |  Reg. No: ${org.regNumber}` : 'Registered NGO', textX, 64, { width: textW, lineBreak: false })
+       .text(org.address,                                    textX, 77, { width: textW, lineBreak: false })
+       .text([org.phone, org.email, org.website].filter(Boolean).join('  |  '), textX, 90, { width: textW, lineBreak: false });
 
     doc.lineWidth(1.2).strokeColor(INK)
        .moveTo(MARGIN, 112).lineTo(PAGE_W - MARGIN, 112).stroke();
     doc.y = 124;
   }
 
-  _addReceiptTitle(doc) {
+  _addReceiptTitle(doc, title = 'PAYMENT RECEIPT') {
     const y = doc.y;
     doc.fontSize(13).font('Helvetica-Bold').fillColor(INK)
-       .text('PAYMENT RECEIPT', MARGIN, y, {
+       .text(title, MARGIN, y, {
          align: 'center', width: CONTENT_W, lineBreak: false, characterSpacing: 2
        });
 
@@ -318,7 +358,70 @@ class PDFReceiptService {
     doc.y = startY + BOX_H + SEC_GAP;
   }
 
-  _addFooter(doc) {
+  _addDonationDetails(doc, data) {
+    const { payment } = data;
+    const BOX_H = this._sectionHeight(3);
+    const startY = doc.y;
+    this._section(doc, startY, BOX_H, 'PAYMENT INFORMATION');
+
+    let y = this._rowY(startY);
+    this._field(doc, INNER_X, LABEL_W, L_VAL_X, L_VAL_W, y, 'Receipt Number', data.receiptNumber);
+    this._field(doc, R_COL_X, R_LABEL_W, R_VAL_X, R_VAL_W, y, 'Payment Date', this.formatDate(data.date));
+
+    y += ROW_H;
+    this._field(doc, INNER_X, LABEL_W, L_VAL_X, L_VAL_W, y, 'Payment Mode', payment.mode);
+    this._field(doc, R_COL_X, R_LABEL_W, R_VAL_X, R_VAL_W, y, 'Payment ID', payment.paymentId);
+
+    y += ROW_H;
+    this._field(doc, INNER_X, LABEL_W, L_VAL_X, L_VAL_W, y, 'Reference', payment.reference);
+    this._field(doc, R_COL_X, R_LABEL_W, R_VAL_X, R_VAL_W, y, 'Bank Ref. No', payment.bankRef);
+
+    doc.y = startY + BOX_H + SEC_GAP;
+  }
+
+  _addDonorDetails(doc, donor) {
+    const BOX_H = this._sectionHeight(2);
+    const startY = doc.y;
+    this._section(doc, startY, BOX_H, 'DONOR DETAILS');
+
+    let y = this._rowY(startY);
+    this._field(doc, INNER_X, LABEL_W, L_VAL_X, L_VAL_W, y, 'Name', donor.name);
+    this._field(doc, R_COL_X, R_LABEL_W, R_VAL_X, R_VAL_W, y, 'Phone', donor.phone);
+
+    y += ROW_H;
+    this._field(doc, INNER_X, LABEL_W, L_VAL_X, L_VAL_W, y, 'Email', donor.email);
+    if (donor.pan) this._field(doc, R_COL_X, R_LABEL_W, R_VAL_X, R_VAL_W, y, 'PAN', donor.pan);
+
+    doc.y = startY + BOX_H + SEC_GAP;
+  }
+
+  _addDonationAmount(doc, amount) {
+    const NET_H = 26;
+    const WORDS_H = 32;
+    const BOX_H = HEAD_H + TOP_PAD + NET_H + WORDS_H;
+    const startY = doc.y;
+    this._section(doc, startY, BOX_H, 'DONATION AMOUNT');
+
+    const AMT_VAL_X = MARGIN + 320;
+    const AMT_VAL_W = INNER_R - AMT_VAL_X;
+
+    let y = this._rowY(startY) + 2;
+    doc.save().rect(BOX_X + 1, y - 6, BOX_W - 2, NET_H).fill(BAND).restore();
+    doc.fontSize(10).font('Helvetica-Bold').fillColor(INK)
+       .text('TOTAL RECEIVED', INNER_X, y + 1, { width: 220, lineBreak: false, characterSpacing: 0.4 });
+    doc.fontSize(11).font('Helvetica-Bold').fillColor(INK)
+       .text(`Rs. ${this.formatAmount(amount)}`, AMT_VAL_X, y, { width: AMT_VAL_W, align: 'right', lineBreak: false });
+
+    y += NET_H + 4;
+    doc.fontSize(8).font('Helvetica').fillColor(MUTED)
+       .text('Amount in Words', INNER_X, y, { lineBreak: false });
+    doc.fontSize(9).font('Helvetica-Bold').fillColor(INK)
+       .text(this.numberToWords(amount), INNER_X, y + 12, { width: CONTENT_W - PAD * 2, lineBreak: true });
+
+    doc.y = startY + BOX_H + SEC_GAP;
+  }
+
+  _addFooter(doc, org = this.org) {
     const startY = doc.y + 8;
 
     // Left: terms & conditions
@@ -331,7 +434,7 @@ class PDFReceiptService {
 
     // Right: signature block — org above the rule, signatory below it
     doc.fontSize(7.5).font('Helvetica').fillColor(MUTED)
-       .text(`For ${this.org.name}`, R_COL_X, startY, { width: PAGE_W - MARGIN - R_COL_X, lineBreak: false });
+       .text(`For ${org.name}`, R_COL_X, startY, { width: PAGE_W - MARGIN - R_COL_X, lineBreak: false });
     doc.lineWidth(0.8).strokeColor(RULE)
        .moveTo(R_COL_X, startY + 40).lineTo(PAGE_W - MARGIN, startY + 40).stroke();
     doc.fontSize(8).font('Helvetica-Bold').fillColor(INK)

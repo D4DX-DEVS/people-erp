@@ -6,6 +6,7 @@ const router = express.Router();
 router.get('/config', easebuzzController.getConfig);
 router.post('/initiate', easebuzzController.initiate);
 router.get('/status/:txnid', easebuzzController.getStatus);
+router.get('/receipt/:txnid', easebuzzController.getReceipt);
 
 // Easebuzz → API (surl/furl and webhook). Mounted in app.js before CORS and the
 // tenant resolver, so it parses its own bodies: form-urlencoded per the docs,

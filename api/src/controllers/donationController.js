@@ -186,6 +186,7 @@ class DonationController {
           code: donation.scheme.code
         } : null,
         notes: donation.notes,
+        panNumber: donation.tax?.panNumber || null,
         createdAt: donation.createdAt,
         completedAt: donation.timeline?.completedAt,
         createdBy: donation.createdBy?.name
@@ -655,13 +656,15 @@ class DonationController {
           type: donation.donor.type,
           category: donation.donor.category
         } : {
+          // Online (Easebuzz) donations carry the payer's own details
           id: null,
-          name: 'Anonymous',
-          email: null,
-          phone: null,
+          name: donation.anonymousDonor?.name || 'Anonymous',
+          email: donation.anonymousDonor?.email || null,
+          phone: donation.anonymousDonor?.phone || null,
           type: 'anonymous',
           category: null
         },
+        panNumber: donation.tax?.panNumber || null,
         project: donation.project?.name,
         scheme: donation.scheme?.name,
         method: donation.method || 'online',

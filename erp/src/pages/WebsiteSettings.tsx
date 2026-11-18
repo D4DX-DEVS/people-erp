@@ -457,7 +457,6 @@ export default function WebsiteSettings() {
           <NavigationBuilder
             value={navigation}
             onChange={setNavigation}
-            donateLink={donation.paymentLink || hero.ctaLink}
             disabled={!canEdit}
             themeStyle={palette}
           />

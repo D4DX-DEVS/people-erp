@@ -14,8 +14,6 @@ export default function PrivacyPolicy() {
   const { org } = useConfig();
   const { data } = useSiteData();
   const s = data?.settings || {};
-  const donation = s.donation || {};
-  const donateLink = donation.paymentLink || s.hero?.ctaLink;
 
   const orgName = org.displayName || org.erpTitle || "People's Foundation";
   const email = org.email || "info@peoplefoundation.org";
@@ -41,7 +39,7 @@ export default function PrivacyPolicy() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SiteHeader donateLink={donateLink} />
+      <SiteHeader />
 
       {/* Hero */}
       <section className="border-b border-border/40 bg-gradient-hero py-16 text-center text-primary-foreground">

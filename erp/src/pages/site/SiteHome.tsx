@@ -589,7 +589,7 @@ export default function SiteHome() {
   return (
     <div className="site-font min-h-screen bg-background">
       <ScrollProgress />
-      <SiteHeader donateLink={donateLink} />
+      <SiteHeader />
 
       {/* STICKY HERO — pinned via .site-hero (position: sticky); the
           .site-page-body sibling below slides up and covers it. Pure CSS. */}

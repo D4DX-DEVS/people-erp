@@ -14,6 +14,8 @@ const easebuzzTransactionSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true },
     phone: { type: String, required: true },
+    // Collected only for gifts above PAN_THRESHOLD (see easebuzzController)
+    pan: { type: String, uppercase: true, trim: true },
   },
 
   // Easebuzz status as reported: initiated, pending, success, failure,

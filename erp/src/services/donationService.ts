@@ -21,6 +21,8 @@ export interface Donation {
   mode: 'one-time' | 'monthly' | 'quarterly' | 'yearly';
   receiptNumber?: string;
   notes?: string;
+  /** Donor PAN, collected for online gifts above ₹50,000. */
+  panNumber?: string | null;
   isAnonymous: boolean;
   status: 'pending' | 'completed' | 'failed' | 'refunded' | 'cancelled';
   createdAt: string;

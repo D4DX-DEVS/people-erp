@@ -32,8 +32,6 @@ interface AdminPage {
 interface NavigationBuilderProps {
   value: NavigationSettings;
   onChange: (next: NavigationSettings) => void;
-  /** Resolved donate link (Donation payment link, else hero CTA) — drives the "Donate" destination. */
-  donateLink?: string;
   disabled?: boolean;
   /** Brand palette CSS variables so the preview shows the site's colours. */
   themeStyle?: CSSProperties;
@@ -55,7 +53,7 @@ const emptyLink = (): NavLink => ({ label: "", kind: "custom", target: "", visib
 
 /** Friendly one-liner for a collapsed row: where the link goes. */
 function describeTarget(link: NavLink, pages: AdminPage[]): string {
-  if (link.kind === "donate") return "Donate link";
+  if (link.kind === "donate") return "Donation section";
   const page = pages.find((p) => pageTarget(p.slug) === link.target);
   if (page) return page.title;
   const dest = findDestination(link.target);
@@ -67,7 +65,7 @@ function describeTarget(link: NavLink, pages: AdminPage[]): string {
  * Admin-side editor for the public header: menu mode, link position, ordered
  * links with dropdown groups, and the action buttons — with a live preview.
  */
-export function NavigationBuilder({ value, onChange, donateLink, disabled = false, themeStyle }: NavigationBuilderProps) {
+export function NavigationBuilder({ value, onChange, disabled = false, themeStyle }: NavigationBuilderProps) {
   const { data: pages = [] } = useQuery({
     queryKey: ["site-pages-admin-nav"],
     queryFn: async () => {
@@ -142,7 +140,7 @@ export function NavigationBuilder({ value, onChange, donateLink, disabled = fals
           <span className="text-xs text-muted-foreground">Desktop layout · hover a dropdown to open it · changes go live when you save</span>
         </div>
         <div className="rounded-xl bg-muted/40 p-3" style={themeStyle}>
-          <SiteHeader preview navigation={previewNav} donateLink={donateLink} />
+          <SiteHeader preview navigation={previewNav} />
         </div>
       </div>
 
@@ -602,7 +600,7 @@ interface LinkPickerProps {
   link: NavLink;
   pages: AdminPage[];
   disabled: boolean;
-  /** Offer the "Donate link" destination (action buttons). */
+  /** Offer the "Donate" destination (action buttons). */
   allowDonate?: boolean;
   onChange: (patch: Partial<NavLink>) => void;
 }
@@ -624,7 +622,7 @@ function LinkPicker({ link, pages, disabled, allowDonate = false, onChange }: Li
       return;
     }
     if (v === DONATE) {
-      onChange({ kind: "donate", target: "", label: link.label || "Donate", openInNewTab: true });
+      onChange({ kind: "donate", target: "", label: link.label || "Donate", openInNewTab: false });
       return;
     }
     const page = pages.find((p) => pageTarget(p.slug) === v);
@@ -661,7 +659,7 @@ function LinkPicker({ link, pages, disabled, allowDonate = false, onChange }: Li
           )}
           <SelectGroup>
             <SelectLabel>Other</SelectLabel>
-            {allowDonate && <SelectItem value={DONATE}>Donate link (from Donation settings)</SelectItem>}
+            {allowDonate && <SelectItem value={DONATE}>Donate (home donation section)</SelectItem>}
             <SelectItem value={CUSTOM}>Custom URL…</SelectItem>
           </SelectGroup>
         </SelectContent>
@@ -681,7 +679,7 @@ function LinkPicker({ link, pages, disabled, allowDonate = false, onChange }: Li
         </p>
       )}
       {selected === DONATE && (
-        <p className="text-xs text-muted-foreground">Uses the payment link from the Donation section below. Hidden while that link is empty.</p>
+        <p className="text-xs text-muted-foreground">Scrolls to the donation section on the home page, with online payment, QR and bank details.</p>
       )}
     </div>
   );

@@ -12,7 +12,7 @@ import { useConfig } from "@/contexts/ConfigContext";
 import { usePublicPages } from "@/hooks/useSitePages";
 import { useSiteData } from "@/hooks/useSiteData";
 import {
-  resolveNavigation, isActiveTarget,
+  resolveNavigation, isActiveTarget, DONATE_SECTION,
   type NavigationSettings, type NavItem, type NavLink, type NavButton,
 } from "@/types/siteNavigation";
 import { SiteTheme } from "@/components/site/SiteTheme";
@@ -69,11 +69,10 @@ function fallbackButtonIcon(b: NavButton): LucideIcon | undefined {
 }
 const HOME_LINK: NavLink = { label: "Home", kind: "home", target: "/" };
 const LOGIN_LINK: NavLink = { label: "Login", kind: "builtin", target: "/login" };
-// The mobile bar always offers a way to give, so it needs a target even when
-// the admin has configured no payment link at all: the home page's donation
-// band carries the QR and bank details, which is where a donor goes anyway.
-const DONATE_LINK: NavLink = { label: "Donate", kind: "donate", target: "" };
-const DONATE_SECTION_LINK: NavLink = { label: "Donate", kind: "section", target: "/#donate" };
+// The mobile bar always offers a way to give, even when the admin configured no
+// Donate button: the home page's donation band carries the online checkout, QR
+// and bank details.
+const DONATE_SECTION_LINK: NavLink = { label: "Donate", kind: "section", target: DONATE_SECTION };
 
 /**
  * The synthetic dropdown that carries the menu's tail below `xl`.
@@ -87,14 +86,13 @@ function moreItem(children: NavLink[]): NavItem {
 }
 
 interface SiteHeaderProps {
-  donateLink?: string;
   /** Override the stored config (used by the admin live preview). */
   navigation?: NavigationSettings;
   /** Inline, desktop-only, non-navigating rendering for the settings page. */
   preview?: boolean;
 }
 
-export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationProp, preview = false }: SiteHeaderProps) {
+export function SiteHeader({ navigation: navigationProp, preview = false }: SiteHeaderProps) {
   const { org } = useConfig();
   const navigate = useNavigate();
   const location = useLocation();
@@ -133,7 +131,6 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
   }, [preview]);
 
   const settings = siteData?.settings;
-  const donateLink = donateLinkProp ?? (settings?.donation?.paymentLink || settings?.hero?.ctaLink);
   const phone = settings?.contactDetails?.phone || org.phone;
   const email = settings?.contactDetails?.email || org.email;
   const firstBrochureUrl = siteData?.brochures?.[0]?.fileUrl;
@@ -144,7 +141,6 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
   const { menuAlignment, items, buttons } = resolveNavigation(
     navigationProp ?? settings?.navigation,
     publicPages ?? siteData?.pages ?? [],
-    donateLink,
   );
 
   // From `xl` up the bar has room for the whole menu. Below that the tail folds
@@ -186,7 +182,7 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
   const loginButton = buttons.find(
     (b) => b.kind !== "donate" && (b.target || "").toLowerCase().includes("login"),
   );
-  const donateAction = donateButton ?? (donateLink ? DONATE_LINK : DONATE_SECTION_LINK);
+  const donateAction = donateButton ?? DONATE_SECTION_LINK;
 
   const socials = useMemo(() => {
     const s = settings?.socialMedia || {};
@@ -235,12 +231,7 @@ export function SiteHeader({ donateLink: donateLinkProp, navigation: navigationP
     if (preview) return;
     setDrawerOpen(false);
     closeSearch();
-    goToSiteTarget(
-      navigate,
-      location.pathname,
-      link.kind === "donate" ? donateLink : link.target,
-      link.openInNewTab,
-    );
+    goToSiteTarget(navigate, location.pathname, link.target, link.openInNewTab);
   };
 
   /**

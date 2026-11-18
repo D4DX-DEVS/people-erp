@@ -122,7 +122,7 @@ export default function WebsitePopup() {
             <div className="space-y-2"><Label>Button text</Label>
               <Input value={popup.buttonText} placeholder="e.g. Donate Now (leave empty for no button)" onChange={(e) => setPopup({ ...popup, buttonText: e.target.value })} disabled={!canEdit} /></div>
             <div className="space-y-2"><Label>Button link</Label>
-              <Input value={popup.buttonLink} placeholder="https://… or /schemes" onChange={(e) => setPopup({ ...popup, buttonLink: e.target.value })} disabled={!canEdit} /></div>
+              <Input value={popup.buttonLink} placeholder="/#donate for the donation section, /schemes or https://…" onChange={(e) => setPopup({ ...popup, buttonLink: e.target.value })} disabled={!canEdit} /></div>
             <div className="space-y-2"><Label>Button colour</Label>
               <ColorPicker value={popup.buttonColor} defaultLabel="Brand" disabled={!canEdit} onChange={(v) => setPopup({ ...popup, buttonColor: v })} /></div>
             <div className="space-y-2"><Label>Button text colour</Label>

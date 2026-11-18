@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Download, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { SiteShell, PageHero, PageBody } from "@/components/site/SiteShell";
 import { onlinePayments, type OnlinePaymentStatus } from "@/lib/api";
 
@@ -48,6 +50,24 @@ export default function DonationStatus() {
     retry: 1,
   });
 
+  const { toast } = useToast();
+  const [downloading, setDownloading] = useState(false);
+  const downloadReceipt = async () => {
+    setDownloading(true);
+    try {
+      const url = URL.createObjectURL(await onlinePayments.receipt(txnid));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `donation-receipt-${data?.donationNumber || txnid}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Could not download the receipt", description: "Please try again in a moment.", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <SiteShell>
       <PageHero title="Donation Status" />
@@ -86,6 +106,12 @@ export default function DonationStatus() {
         )}
 
         <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {data?.status === "success" && (
+            <Button onClick={downloadReceipt} disabled={downloading} className="rounded-full">
+              {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Download Receipt
+            </Button>
+          )}
           {data && data.final && data.status !== "success" && (
             <Button asChild className="rounded-full">
               <Link to="/#donate">Try Again</Link>

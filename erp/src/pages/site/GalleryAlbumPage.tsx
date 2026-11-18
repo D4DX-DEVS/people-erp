@@ -62,7 +62,7 @@ export default function GalleryAlbumPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SiteHeader donateLink={settings?.donation?.paymentLink} />
+      <SiteHeader />
       <SiteBreadcrumbs items={[{ label: "Gallery", href: "/gallery" }, { label: album?.title || "Album" }]} />
       <PageBody>
         <Button variant="ghost" className="mb-4" onClick={() => navigate("/#gallery")}>
