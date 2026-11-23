@@ -16,6 +16,8 @@ import SiteHome from "./pages/site/SiteHome";
 import GalleryAlbumPage from "./pages/site/GalleryAlbumPage";
 import BlogDetailPage from "./pages/site/BlogDetailPage";
 import PrivacyPolicy from "./pages/site/PrivacyPolicy";
+import TermsAndConditions from "./pages/site/TermsAndConditions";
+import RefundPolicy from "./pages/site/RefundPolicy";
 import DonationStatus from "./pages/site/DonationStatus";
 import SitePageView from "./pages/site/SitePageView";
 import NewsListPage from "./pages/site/NewsListPage";
@@ -161,6 +163,8 @@ const App = () => (
             <Route path="/schemes/:slug" element={<SchemeDetailPage />} />
             <Route path="/p/:slug" element={<SitePageView />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="/refund-and-cancellation-policy" element={<RefundPolicy />} />
             <Route path="/donate/status" element={<DonationStatus />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/login" element={<Login />} />

@@ -82,8 +82,8 @@ export function SiteFooter({ settings }: SiteFooterProps) {
 
   const legalLinks = [
     { label: "Privacy Policy", href: "/privacy-policy" },
-    { label: "Terms and Conditions", href: "/p/terms-and-conditions" },
-    { label: "Refund and Cancellation Policy", href: "/p/refund-and-cancellation-policy" },
+    { label: "Terms and Conditions", href: "/terms-and-conditions" },
+    { label: "Refund and Cancellation Policy", href: "/refund-and-cancellation-policy" },
   ];
 
   return (

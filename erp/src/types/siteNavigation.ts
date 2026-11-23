@@ -85,6 +85,8 @@ export const DESTINATION_GROUPS: Array<{ label: string; options: NavDestination[
       { value: "/schemes", kind: "builtin", label: "All schemes", short: "Schemes" },
       { value: "/public-schemes", kind: "builtin", label: "Schemes (apply)", short: "Apply" },
       { value: "/privacy-policy", kind: "builtin", label: "Privacy policy", short: "Privacy Policy" },
+      { value: "/terms-and-conditions", kind: "builtin", label: "Terms and conditions", short: "Terms" },
+      { value: "/refund-and-cancellation-policy", kind: "builtin", label: "Refund and cancellation policy", short: "Refund Policy" },
       { value: "/login", kind: "builtin", label: "Admin login", short: "Login" },
       { value: "/beneficiary-login", kind: "builtin", label: "Beneficiary login / apply", short: "Apply" },
     ],
