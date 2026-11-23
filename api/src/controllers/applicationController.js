@@ -2654,7 +2654,27 @@ const downloadApplicationPdf = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const application = await Application.findById(id)
+    // Admin comments and remarks print only on state / super admin downloads;
+    // every other admin and the beneficiary get the submitted form alone.
+    const viewer = getEffectiveUserForFilter(req);
+    const includeAdminComments = !!viewer.isSuperAdmin || ['super_admin', 'state_admin'].includes(viewer.role);
+
+    // Same access rules as viewing the application: franchise-scoped for
+    // everyone, a beneficiary only their own, an admin only their region /
+    // assignment (checked after the fetch).
+    const isBeneficiary = viewer.role === 'beneficiary';
+    const filter = { _id: id, ...buildFranchiseReadFilter(req) };
+    if (isBeneficiary) {
+      const beneficiary = await Beneficiary.findOne({
+        phone: req.user.phone, isDeleted: { $ne: true }, ...buildFranchiseReadFilter(req)
+      }).select('_id');
+      if (!beneficiary) {
+        return res.status(404).json({ success: false, message: 'Application not found' });
+      }
+      filter.beneficiary = beneficiary._id;
+    }
+
+    let query = Application.findOne(filter)
       .populate('beneficiary', 'name phone')
       .populate('scheme', 'name description')
       .populate('project', 'name')
@@ -2663,9 +2683,36 @@ const downloadApplicationPdf = async (req, res) => {
       .populate('unit', 'name')
       .populate('approvedBy', 'name')
       .populate('reviewedBy', 'name');
+    if (includeAdminComments) {
+      query = query.populate([
+        ...['unitAdmin', 'areaPresident', 'areaAdmin', 'districtAdmin']
+          .map(key => ({ path: `applicationStages.comments.${key}.commentedBy`, select: 'name' })),
+        { path: 'applicationStages.completedBy', select: 'name' },
+        { path: 'stageHistory.updatedBy', select: 'name' },
+        { path: 'statusHistory.updatedBy', select: 'name' },
+        { path: 'committeeApprovedBy', select: 'name' },
+        { path: 'modificationHistory.modifiedBy', select: 'name' }
+      ]);
+    }
+    const application = await query;
 
     if (!application) {
       return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    if (!isBeneficiary) {
+      let hasAccess = hasAccessToApplication(viewer, application);
+      // RBAC fallback as in getApplication; coordinators' assignment check is final
+      if (!hasAccess && !isCoordinatorRole(viewer.role)) {
+        try {
+          hasAccess = await RBACMiddleware.checkApplicationAccess(req.user, application);
+        } catch (rbacError) {
+          console.error('❌ RBAC access check error:', rbacError);
+        }
+      }
+      if (!hasAccess) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
     }
 
     const schemeId = application.scheme?._id || application.scheme;
@@ -2679,7 +2726,7 @@ const downloadApplicationPdf = async (req, res) => {
       formConfig = await FormConfiguration.findOne({ scheme: schemeId, isRenewalForm: false });
     }
 
-    const filePath = await applicationPdfService.generateFilledApplicationPdf(application, formConfig);
+    const filePath = await applicationPdfService.generateFilledApplicationPdf(application, formConfig, { includeAdminComments });
 
     const fileName = `Application_${application.applicationNumber || id}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');

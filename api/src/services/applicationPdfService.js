@@ -155,9 +155,12 @@ class ApplicationPdfService {
    * Generate a filled application PDF (with all submitted data)
    * @param {Object} application - Populated application document
    * @param {Object} formConfig - The FormConfiguration document for the scheme
+   * @param {Object} [options]
+   * @param {boolean} [options.includeAdminComments] - add every admin's stage
+   *   comments and decision remarks (state / super admin downloads only)
    * @returns {Promise<string>} Path to generated PDF
    */
-  async generateFilledApplicationPdf(application, formConfig) {
+  async generateFilledApplicationPdf(application, formConfig, options = {}) {
     const fileName = `application-${application.applicationNumber || application._id}.pdf`;
     const filePath = path.join(this.outputDir, fileName);
 
@@ -178,6 +181,7 @@ class ApplicationPdfService {
     this._renderTable(doc, GRID.map(f => TW * f), this._filledSummaryRows(application));
     const fileEntries = this._addFormData(doc, formConfig, formData, false);
     this._addDocumentsTable(doc, fileEntries, application.documents || [], false);
+    if (options.includeAdminComments) this._addAdminComments(doc, application);
     this._addOfficeUse(doc);
     this._addFooters(doc, application.applicationNumber ? `Application No. ${application.applicationNumber}` : '');
     doc.end();
@@ -815,6 +819,109 @@ class ApplicationPdfService {
     this._renderTable(doc, [TW * 0.5, TW * 0.5], rows, { repeatHeader: true });
   }
 
+  // ─── Admin comments (state / super admin downloads only) ────────────────────
+
+  /**
+   * Every admin's remarks, stage by stage in workflow order: the per-role
+   * comment boxes (unit admin → district admin), stage notes and each stage
+   * update, then the decision remarks (review, interview, committee,
+   * approval) and status-change comments.
+   */
+  _addAdminComments(doc, application) {
+    const widths = [TW * 0.21, TW * 0.39, TW * 0.17, TW * 0.23];
+    const head = { cells: ['Step / Role', 'Comment', 'By', 'Date'].map(h => this._headCell(h)) };
+    const row = (step, text, by, at) => ({
+      cells: [
+        this._labelCell(step),
+        this._valueCell(text || '—'),
+        this._valueCell(by && by.name ? by.name : '—'),
+        this._valueCell(this._formatStamp(at))
+      ]
+    });
+    const emptyRow = text => ({ cells: [{ ...this._valueCell(text, { color: C.muted }), span: 4 }] });
+    const historyStep = h => (h.revertedTo ? `Reverted to ${h.revertedTo}` : `Marked ${this._formatStatus(h.status)}`);
+    const byTime = (a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0);
+
+    const roleBoxes = [
+      ['unitAdmin', 'Unit Admin'], ['areaPresident', 'Area President'],
+      ['areaAdmin', 'Area Admin'], ['districtAdmin', 'District Admin']
+    ];
+    const stages = [...(application.applicationStages || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const history = application.stageHistory || [];
+    const stageNames = new Set(stages.map(s => s.name));
+    const blocks = [];
+
+    stages.forEach((stage, i) => {
+      const rows = [];
+      const config = stage.commentConfig || {};
+      const comments = stage.comments || {};
+      // Super / state admins may write a box that is not enabled, so print any
+      // saved comment; an enabled box that is still empty says so.
+      for (const [key, label] of roleBoxes) {
+        const c = comments[key];
+        if (c && c.comment) rows.push(row(`${label} Comment`, c.comment, c.commentedBy, c.commentedAt));
+        else if (config[key]?.enabled) rows.push(row(`${label} Comment`, 'No comment', null, null));
+      }
+      const updates = history.filter(h => h.stageName === stage.name).sort(byTime);
+      // A stage update saves its note on the stage and in the history; print it once
+      const updateNotes = new Set(updates.map(h => String(h.notes || '').trim()).filter(Boolean));
+      if (stage.notes && !updateNotes.has(String(stage.notes).trim())) {
+        rows.push(row('Stage Notes', stage.notes, stage.completedBy, stage.completedAt));
+      }
+      for (const h of updates) rows.push(row(historyStep(h), h.notes, h.updatedBy, h.timestamp));
+      blocks.push({
+        title: `Stage ${i + 1}: ${stage.name} (${this._formatStatus(stage.status)})`,
+        rows: rows.length ? rows : [emptyRow('No comments recorded')]
+      });
+    });
+
+    // Updates logged against a stage that has since been renamed or removed
+    const orphans = history.filter(h => !stageNames.has(h.stageName)).sort(byTime)
+      .map(h => row(`${h.stageName || 'Stage'}: ${historyStep(h)}`, h.notes, h.updatedBy, h.timestamp));
+    if (orphans.length) blocks.push({ title: 'Other Stage Updates', rows: orphans });
+
+    const decisions = [];
+    if (application.reviewComments) {
+      decisions.push(row('Review Remarks', application.reviewComments, application.reviewedBy, application.reviewedAt));
+    }
+    if (application.interview?.notes) {
+      decisions.push(row('Interview Notes', application.interview.notes, null, application.interview.completedAt));
+    }
+    if (application.interviewReport) {
+      decisions.push(row('Interview Report', application.interviewReport, null, null));
+    }
+    if (application.committeeComments) {
+      decisions.push(row('Committee Remarks', application.committeeComments, application.committeeApprovedBy, application.committeeApprovedAt));
+    }
+    if (application.approvalComments) {
+      decisions.push(row('Approval Remarks', application.approvalComments, application.approvedBy, application.approvedAt));
+    }
+    for (const m of application.modificationHistory || []) {
+      const amounts = m.newAmount !== undefined && m.newAmount !== m.previousAmount
+        ? ` (Amount: Rs. ${Number(m.previousAmount || 0).toLocaleString('en-IN')} to Rs. ${Number(m.newAmount).toLocaleString('en-IN')})`
+        : '';
+      decisions.push(row('Approval Modified', `${m.reason || ''}${amounts}`, m.modifiedBy, m.modifiedAt));
+    }
+    for (const s of [...(application.statusHistory || [])].sort(byTime)) {
+      if (s.comment) decisions.push(row(`Status: ${this._formatStatus(s.status)}`, s.comment, s.updatedBy, s.timestamp));
+    }
+    if (decisions.length) blocks.push({ title: 'Decision Remarks', rows: decisions });
+
+    this._sectionHeading(doc, 'Admin Comments');
+    if (!blocks.length) {
+      this._renderTable(doc, [TW], [emptyRow('No admin comments recorded')]);
+      return;
+    }
+    for (const block of blocks) {
+      const titleH = this._measure(doc, block.title, FS.subLabel, CW, true);
+      this._ensureSpace(doc, titleH + 60); // keep the title with its first rows
+      doc.fontSize(FS.subLabel).fillColor(C.text);
+      this._t(doc, block.title, L, doc.y, { width: CW }, true);
+      doc.y += 4;
+      this._renderTable(doc, widths, [head, ...block.rows], { repeatHeader: true });
+    }
+  }
+
   // ─── Office use / signatures ────────────────────────────────────────────────
 
   _addOfficeUse(doc) {
@@ -930,6 +1037,16 @@ class ApplicationPdfService {
     const d = new Date(dateVal);
     if (isNaN(d.getTime())) return typeof dateVal === 'string' ? dateVal : '—';
     return d.toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  /** "12 Nov 2026, 10:30 am" in Indian time, so the comment trail reads the same on any server */
+  _formatStamp(dateVal) {
+    if (!dateVal) return '—';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
+    });
   }
 
   _formatStatus(status) {
