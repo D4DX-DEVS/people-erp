@@ -1463,11 +1463,22 @@ export const applications = {
   downloadPdf: async (id: string): Promise<Blob> => {
     const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
     const token = localStorage.getItem('token');
-    const response = await fetch(`${baseUrl}/applications/${id}/pdf`, {
+    // Same franchise context as every other API call, so the download is
+    // scoped (and access-checked) against the franchise the user is viewing.
+    const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+    const slug = getFranchiseSlug();
+    if (slug) headers['X-Franchise-Slug'] = slug;
+    const franchiseFilter = localStorage.getItem('crossFranchiseFilter');
+    const query = franchiseFilter ? `?franchiseFilter=${encodeURIComponent(franchiseFilter)}` : '';
+    const response = await fetch(`${baseUrl}/applications/${id}/pdf${query}`, {
       method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers,
     });
     if (!response.ok) throw new Error('Failed to download application PDF');
+    // Never save a non-PDF response (e.g. an HTML page) under a .pdf name.
+    if (!(response.headers.get('content-type') || '').includes('application/pdf')) {
+      throw new Error('Server did not return a PDF');
+    }
     return response.blob();
   },
 };

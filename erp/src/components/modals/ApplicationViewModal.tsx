@@ -151,12 +151,10 @@ export function ApplicationViewModal({
   const handleDownload = async () => {
     if (!application?._id) return;
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/applications/${application._id}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
+      // Shared helper: uses VITE_API_URL (a hard-coded "/api/..." path hits the
+      // website host in production and saves its HTML page as the "PDF").
+      const { applications: applicationsApi } = await import('@/lib/api');
+      const blob = await applicationsApi.downloadPdf(application._id);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
