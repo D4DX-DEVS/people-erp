@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
+import { rbac } from "@/lib/api";
 
 export default function DebugPermissions() {
   const { user, token } = useAuth();
@@ -14,14 +15,7 @@ export default function DebugPermissions() {
     if (!user || !token) return;
     
     try {
-      const response = await fetch(`/api/rbac/users/${user.id}/permissions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const data = await response.json();
+      const data = await rbac.getUserPermissions(user.id);
       setApiResponse(data);
     } catch (error) {
       console.error('Error fetching permissions:', error);

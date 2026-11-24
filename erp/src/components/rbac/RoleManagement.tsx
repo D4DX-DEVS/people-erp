@@ -24,9 +24,11 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { rbac } from '@/lib/api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,18 +142,8 @@ export const RoleManagement: React.FC = () => {
 
   const handleDeleteRole = async (roleId: string) => {
     try {
-      const response = await fetch(`/api/rbac/roles/${roleId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to delete role');
-      }
+      // Shared client: VITE_API_URL + franchise header; throws with the server message
+      await rbac.deleteRole(roleId);
 
       toast.success('Role deleted successfully');
       setRoles(roles.filter(r => r._id !== roleId));
@@ -880,18 +872,7 @@ const RoleUsersTab: React.FC<RoleUsersTabProps> = ({ roleId }) => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/rbac/roles/${roleId}/users`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-
-      const data = await response.json();
+      const data: any = await rbac.getUsersWithRole(roleId);
       setUsers(data.data || []);
     } catch (error: any) {
       setError(error.message || 'Failed to load users');
