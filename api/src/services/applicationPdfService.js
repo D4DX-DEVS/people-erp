@@ -5,6 +5,34 @@ const orgConfig = require('../config/orgConfig');
 const { getActiveTotals, computeTableTotals } = require('../utils/tableTotals');
 const { applyAutoSums } = require('../utils/autoSum');
 
+/**
+ * fontkit 1.9 (pdfkit's text shaper) crashes on some Malayalam mark/base pairs
+ * in Noto Sans Malayalam: a GPOS mark-to-base record with a NULL anchor makes
+ * GPOSProcessor.getAnchor read `xCoordinate` of null, so every PDF containing
+ * such text failed with a 500. Treat a missing anchor as (0, 0). fontkit does
+ * not export the class, so patch its prototype through a font's layout engine,
+ * using the same fontkit instance pdfkit loads.
+ */
+function patchFontkitNullAnchor(fontPath) {
+  try {
+    const fontkit = require(require.resolve('fontkit', { paths: [path.dirname(require.resolve('pdfkit'))] }));
+    const gpos = fontkit.openSync(fontPath)._layoutEngine?.engine?.GPOSProcessor;
+    const proto = gpos && Object.getPrototypeOf(gpos);
+    if (!proto || typeof proto.getAnchor !== 'function') {
+      console.warn('[applicationPdf] fontkit GPOS internals not found; null-anchor patch not applied');
+      return;
+    }
+    if (proto.getAnchor.nullSafe) return;
+    const getAnchor = proto.getAnchor;
+    proto.getAnchor = function (anchor) {
+      return anchor ? getAnchor.call(this, anchor) : { x: 0, y: 0 };
+    };
+    proto.getAnchor.nullSafe = true;
+  } catch (e) {
+    console.warn('[applicationPdf] fontkit null-anchor patch failed:', e.message);
+  }
+}
+
 // ─── Layout constants ─────────────────────────────────────────────────────────
 // A4 portrait, bordered-table layout: centred letterhead with the logo at the
 // left, a passport photo box beside the form title, an unnumbered summary
@@ -64,6 +92,7 @@ class ApplicationPdfService {
     const fontsDir = path.join(__dirname, '../assets/fonts');
     this.fontRegular = path.join(fontsDir, 'NotoSansMalayalam-Regular.ttf');
     this.fontBold = path.join(fontsDir, 'NotoSansMalayalam-Bold.ttf');
+    patchFontkitNullAnchor(this.fontRegular);
     if (!fs.existsSync(this.outputDir)) {
       fs.mkdirSync(this.outputDir, { recursive: true });
     }
